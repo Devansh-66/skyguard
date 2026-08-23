@@ -50,3 +50,6 @@ Thumbs.db
 # Dashboard build output â€” regenerate with `python -m dashboard.build`
 dashboard/snapshot.json
 dashboard/console.html
+
+# Basemap tile cache — regenerable, sometimes large
+data/tilecache/

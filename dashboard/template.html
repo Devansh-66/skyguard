@@ -111,6 +111,10 @@ main{
   display:flex; align-items:center; gap:7px; margin-top:7px;
   font-size:10.5px; color:var(--ink-3); font-family:"IBM Plex Mono",monospace;
 }
+.tilewarn{
+  color:var(--degrade); border-left:3px solid var(--degrade);
+  padding-left:9px; line-height:1.5; max-width:70ch;
+}
 .rampbar{
   height:9px; width:150px; border-radius:2px; border:1px solid var(--line);
 }
@@ -259,7 +263,7 @@ footer{padding:14px 22px; border-top:1px solid var(--line); background:var(--sur
       compared against. A fault moves one dot; weather moves the cluster.</span>
     <label class="ctl-lab">View
       <select id="mapview" aria-label="Map extent">
-        <option value="national" selected>All India</option>
+        <option value="basemap" selected>All India</option>
         <option value="regional">By region</option>
       </select>
     </label>
@@ -613,7 +617,7 @@ function attachHover(cv, geo, t, series, dseries, unit){
 // a fault) or shared (the whole cluster moving together -- weather). That is
 // the distinction PS26073 is about, and three stacked traces cannot show it.
 
-let mapView = "national";
+let mapView = "basemap";
 let mapColour = "temp";
 
 // India's bounding box. This is an EXTENT, not an outline -- it frames the
@@ -625,6 +629,205 @@ let mapColour = "temp";
 // they will be stroked automatically. Nothing here invents one.
 const INDIA_EXTENT = {lat:[6.5, 37.5], lon:[67.5, 97.5]};
 const INDIA_OUTLINE = [];
+
+/* ------------------------------------------------------- slippy basemap ---
+ * A tile map written out rather than pulled in. Leaflet or MapLibre would do
+ * this too, but both are external scripts, and the artifact CSP blocks every
+ * external host -- a CDN import would leave a blank rectangle for anyone
+ * reading the published page. The Web Mercator maths below is about forty
+ * lines, so the page stays dependency-free and works in both places.
+ *
+ * Tiles come from this app's own /api/tiles proxy: same origin, disk-cached,
+ * and therefore still drawing after the wifi dies.
+ *
+ * BASEMAP PROVENANCE. The development default is OpenStreetMap, whose
+ * depiction of the boundaries of Jammu & Kashmir and Aksai Chin is NOT the
+ * official Government of India depiction. The console says so on screen. For
+ * an MoES/IMD submission, point SKYGUARD_TILE_URL at Bhuvan (ISRO) or Survey
+ * of India; nothing in this file changes.
+ */
+const TILE = 256;
+let tilesOK = null;                     // null = not yet asked
+let tileWarning = null;
+let view = {lat: 22.6, lon: 80.0, zoom: 4};
+const tileCache = new Map();
+let tileRedraw = null;
+
+function lon2world(lon, z){ return (lon + 180) / 360 * TILE * Math.pow(2, z); }
+function lat2world(lat, z){
+  const r = lat * Math.PI / 180;
+  return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI)
+         / 2 * TILE * Math.pow(2, z);
+}
+function world2lon(x, z){ return x / (TILE * Math.pow(2, z)) * 360 - 180; }
+function world2lat(y, z){
+  const n = Math.PI - 2 * Math.PI * y / (TILE * Math.pow(2, z));
+  return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+}
+
+async function probeTiles(){
+  if (!LIVE){ tilesOK = false; return false; }
+  try {
+    const r = await fetch(`${API}/api/tiles/status`, {cache:"no-store"});
+    const j = await r.json();
+    tilesOK = !!j.available;
+    tileWarning = j.warning;
+    return tilesOK;
+  } catch { tilesOK = false; return false; }
+}
+
+function getTile(z, x, y, onload){
+  const key = `${z}/${x}/${y}`;
+  if (tileCache.has(key)) return tileCache.get(key);
+  const img = new Image();
+  img.onload = onload;
+  img.onerror = () => { img.failed = true; };
+  img.src = `${API}/api/tiles/${z}/${x}/${y}.png`;
+  tileCache.set(key, img);
+  return img;
+}
+
+function drawTileMap(cv, group, sel){
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, H = 420;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const g = cv.getContext("2d"); g.scale(dpr,dpr);
+  g.fillStyle = css("--surface-2"); g.fillRect(0,0,W,H);
+
+  const z = Math.round(view.zoom);
+  const cxw = lon2world(view.lon, z), cyw = lat2world(view.lat, z);
+  const ox = cxw - W/2, oy = cyw - H/2;
+  const n = Math.pow(2, z);
+
+  clearTimeout(tileRedraw);
+  const again = () => {
+    clearTimeout(tileRedraw);
+    tileRedraw = setTimeout(() => renderMaps(), 60);
+  };
+
+  for (let tx = Math.floor(ox/TILE); tx <= Math.floor((ox+W)/TILE); tx++){
+    for (let ty = Math.floor(oy/TILE); ty <= Math.floor((oy+H)/TILE); ty++){
+      if (ty < 0 || ty >= n) continue;
+      const img = getTile(z, ((tx % n) + n) % n, ty, again);
+      if (img.complete && !img.failed)
+        g.drawImage(img, tx*TILE - ox, ty*TILE - oy, TILE, TILE);
+    }
+  }
+
+  const X = lon => lon2world(lon, z) - ox;
+  const Y = lat => lat2world(lat, z) - oy;
+
+  // Neighbour edges, over the basemap. This is the reason for the map: the
+  // edges show who is compared against whom, and the fills show who is
+  // currently disagreeing.
+  const drawn = new Set();
+  g.strokeStyle = "rgba(36,63,168,.75)"; g.lineWidth = 2;
+  for (const s of group){
+    for (const nb of (DATA.neighbours[s.name] || [])){
+      const o = group.find(q => q.name === nb);
+      if (!o) continue;
+      const k = [s.name, nb].sort().join("|");
+      if (drawn.has(k)) continue;
+      drawn.add(k);
+      g.beginPath(); g.moveTo(X(s.longitude), Y(s.latitude));
+      g.lineTo(X(o.longitude), Y(o.latitude)); g.stroke();
+    }
+  }
+
+  const hits = [];
+  for (const s of group){
+    const x = X(s.longitude), y = Y(s.latitude);
+    if (x < -40 || x > W+40 || y < -40 || y > H+40) continue;
+    const st = s.health.station;
+    const hcol = css("--" + ({HEALTHY:"ok", WATCH:"watch", DEGRADING:"degrade",
+                              SUSPECT:"suspect", FAILED:"failed"}[st]));
+    const zz = mapColour === "health" ? null : divergence(s, mapColour);
+    const r = st === "HEALTHY" ? 6 : 8;
+
+    if (s.name === sel){
+      g.strokeStyle = css("--accent"); g.lineWidth = 2.5;
+      g.beginPath(); g.arc(x, y, r+5, 0, 2*Math.PI); g.stroke();
+    }
+    g.fillStyle = mapColour === "health" ? hcol : rampColour(zz);
+    g.beginPath(); g.arc(x, y, r, 0, 2*Math.PI); g.fill();
+    g.strokeStyle = mapColour === "health" ? "#fff" : hcol;
+    g.lineWidth = st === "HEALTHY" ? 2 : 3;
+    g.stroke();
+
+    // Label with a halo. Over photographic or coloured tiles plain text is
+    // unreadable about a third of the time, and which third depends on where
+    // the user has panned.
+    const nm = s.name.replace(/_/g," ").replace("Mumbai ","");
+    g.font = "600 11px 'IBM Plex Sans'"; g.textAlign = "center";
+    g.lineWidth = 3; g.strokeStyle = "rgba(255,255,255,.9)";
+    g.strokeText(nm, x, y - r - 6);
+    g.fillStyle = "#161C33"; g.fillText(nm, x, y - r - 6);
+    if (zz !== null){
+      const t = (zz >= 0 ? "+" : "") + zz.toFixed(1) + "\u03c3";
+      g.font = "600 10px 'IBM Plex Mono'";
+      g.lineWidth = 3; g.strokeStyle = "rgba(255,255,255,.9)";
+      g.strokeText(t, x, y + r + 12);
+      g.fillStyle = "#161C33"; g.fillText(t, x, y + r + 12);
+    }
+    hits.push({name: s.name, x, y, r: r + 7});
+  }
+
+  // Attribution is a licence condition for OSM, not decoration.
+  g.font = "9.5px 'IBM Plex Sans'"; g.textAlign = "right";
+  g.fillStyle = "rgba(255,255,255,.85)";
+  g.fillRect(W-186, H-15, 182, 13);
+  g.fillStyle = "#4A5470";
+  g.fillText("Basemap \u00a9 OpenStreetMap contributors", W-6, H-5);
+
+  return hits;
+}
+
+function wirePanZoom(cv, group){
+  let drag = null;
+  cv.onpointerdown = (e) => {
+    drag = {x: e.clientX, y: e.clientY, lat: view.lat, lon: view.lon, moved: 0};
+    cv.setPointerCapture(e.pointerId);
+  };
+  cv.onpointermove = (e) => {
+    if (!drag){ return; }
+    const z = Math.round(view.zoom);
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
+    view.lon = world2lon(lon2world(drag.lon, z) - dx, z);
+    view.lat = world2lat(lat2world(drag.lat, z) - dy, z);
+    renderMaps();
+  };
+  cv.onpointerup = (e) => {
+    const wasDrag = drag && drag.moved > 4;
+    drag = null;
+    if (wasDrag) e.stopPropagation();     // a pan is not a station click
+  };
+  cv.onwheel = (e) => {
+    e.preventDefault();
+    // Zoom about the cursor, not the centre. Zooming about the centre makes a
+    // map feel like it is fighting you.
+    const r = cv.getBoundingClientRect();
+    const z = Math.round(view.zoom);
+    const px = e.clientX - r.left, py = e.clientY - r.top;
+    const lonAt = world2lon(lon2world(view.lon, z) - r.width/2 + px, z);
+    const latAt = world2lat(lat2world(view.lat, z) - 420/2 + py, z);
+    view.zoom = Math.max(3, Math.min(11, view.zoom + (e.deltaY < 0 ? 1 : -1)));
+    const nz = Math.round(view.zoom);
+    view.lon = world2lon(lon2world(lonAt, nz) + r.width/2 - px, nz);
+    view.lat = world2lat(lat2world(latAt, nz) + 420/2 - py, nz);
+    renderMaps();
+  };
+}
+
+function fitTo(group){
+  if (!group.length) return;
+  const lats = group.map(s => s.latitude), lons = group.map(s => s.longitude);
+  view.lat = (Math.min(...lats) + Math.max(...lats)) / 2;
+  view.lon = (Math.min(...lons) + Math.max(...lons)) / 2;
+  const spread = Math.max(Math.max(...lats)-Math.min(...lats),
+                          Math.max(...lons)-Math.min(...lons)) || 1;
+  view.zoom = Math.max(3, Math.min(9, Math.round(Math.log2(200 / spread))));
+}
 
 // Divergence from neighbours, in sigma, at the latest sample in view. Signed on
 // purpose: "warmer than its neighbours" and "colder than its neighbours" are
@@ -789,6 +992,39 @@ function legendHTML(){
 function renderMaps(){
   const shown = DATA.stations.filter(s =>
     (stateFilter === "all" || s.state === stateFilter) && s.latitude != null);
+
+  if (mapView === "basemap"){
+    if (tilesOK === false){
+      // Only when a basemap is genuinely impossible -- the published artifact
+      // runs under a CSP that blocks every external host, so there is no tile
+      // anywhere to draw. The coordinate plot is a last resort here, not an
+      // equal alternative, and the notice says which.
+      $("maps").innerHTML =
+        `<div class="maplegend tilewarn" style="margin:0 0 10px;flex:1 1 100%">`
+        + `Basemap unavailable &mdash; ${LIVE
+             ? "the tile proxy could not reach its upstream."
+             : "this is the published static page, which cannot load map tiles. "
+               + "Run the API to see the real map."} `
+        + `Showing a plain coordinate plot instead.</div>`
+        + `<div class="mapbox" style="flex:1 1 100%">
+             <canvas id="map-national"></canvas></div>` + legendHTML();
+      const cvp = $("map-national");
+      wireMap(cvp, drawMap(cvp, shown, current, INDIA_EXTENT));
+      return;
+    } else {
+      $("maps").innerHTML =
+        `<div class="mapbox" style="flex:1 1 100%">
+           <h4>Station network &mdash; drag to pan, scroll to zoom</h4>
+           <canvas id="map-tiles"></canvas></div>`
+        + legendHTML()
+        + (tileWarning ? `<div class="maplegend tilewarn">${esc(tileWarning)}</div>` : "");
+      const cv = $("map-tiles");
+      const hits = drawTileMap(cv, shown, current);
+      wireMap(cv, hits);
+      wirePanZoom(cv, shown);
+      return;
+    }
+  }
 
   if (mapView === "national"){
     $("maps").innerHTML =
@@ -1025,9 +1261,16 @@ function tick(){
 
 function start(){
   banner();
+  probeTiles().then(() => renderMaps());
   buildStateFilter();
   wireClock();
-  $("mapview").onchange = (e) => { mapView = e.target.value; renderMaps(); };
+  $("mapview").onchange = (e) => {
+    mapView = e.target.value;
+    if (mapView === "basemap")
+      fitTo(DATA.stations.filter(s =>
+        (stateFilter === "all" || s.state === stateFilter) && s.latitude != null));
+    renderMaps();
+  };
   $("mapcolour").onchange = (e) => { mapColour = e.target.value; renderMaps(); };
   $("maptoggle").onclick = () => {
     const strip = $("mapstrip");

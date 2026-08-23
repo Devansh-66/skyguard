@@ -20,6 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from api.engine import Engine, DEFAULT_DATA, DEFAULT_GRAPH
+from api.tiles import router as tiles_router
 
 ENGINE: Engine | None = None
 READY = False
@@ -108,6 +109,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+app.include_router(tiles_router)
 
 # Serve the console from the API itself. Same origin, so the browser's fetch
 # needs no CORS grant at all -- and a demo is one command and one URL instead
