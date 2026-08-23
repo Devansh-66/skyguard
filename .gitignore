@@ -13,13 +13,21 @@ node_modules/
 dist/
 .vite/
 
-# Station data — large, cached, never committed
+# Station data â€” large, cached, never committed
 data/**
 !data/.gitkeep
+!data/skyguard_prepared.csv
+!data/skyguard_realistic.csv
+!data/injected_events.csv
 !data/neighbours.json
 !data/audit_report.json
 !data/neighbours_realistic.json
 !data/realism_comparison.json
+
+# NOT committed: data/skyguard_injected.csv is 179.5 MB, over GitHub's 100 MB
+# hard limit. It is fully regenerable and seeded:
+#     python -m inject.faults
+
 
 # Models and artefacts
 *.pkl
@@ -27,11 +35,11 @@ data/**
 models/**
 !models/.gitkeep
 
-# Old project — superseded, kept locally for reference only
+# Old project â€” superseded, kept locally for reference only
 SIH2026_Disaster_Engine_Master_Blueprint.pdf
 
-# Raw ERA5 export � 8.8 MB, regenerable; share out of band
-skyguard_master_era5.csv
+# Raw ERA5 export -- committed for now so teammates can run without a handoff.
+# It is the one file in the chain that CANNOT be regenerated.
 .freebuff/
 
 .DS_Store
@@ -39,6 +47,6 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Dashboard build output — regenerate with `python -m dashboard.build`
+# Dashboard build output â€” regenerate with `python -m dashboard.build`
 dashboard/snapshot.json
 dashboard/console.html
