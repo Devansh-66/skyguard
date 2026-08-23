@@ -1,0 +1,23 @@
+{
+  "rows": 87600,
+  "stations": 10,
+  "nan_cells": 0,
+  "sentinels": {
+    "temp": 0,
+    "rh": 0,
+    "pres": 0
+  },
+  "out_of_range": {
+    "temp": 0,
+    "rh": 0,
+    "pres": 0
+  },
+  "duplicate_timestamps": 0,
+  "non_hourly_steps": 0,
+  "dwpt_max_abs_error_vs_magnus": 0.05000000000000426,
+  "pres_msl_max_abs_error_vs_barometric": 2.2375865469924747,
+  "rh_above_100": 0,
+  "rh_at_exactly_100": 1624,
+  "dwpt_above_temp": 7,
+  "dwpt_above_temp_by_gt_0.1C": 0
+}

@@ -16,6 +16,8 @@ dist/
 # Station data — large, cached, never committed
 data/**
 !data/.gitkeep
+!data/neighbours.json
+!data/audit_report.json
 
 # Models and artefacts
 *.pkl
@@ -25,6 +27,9 @@ models/**
 
 # Old project — superseded, kept locally for reference only
 SIH2026_Disaster_Engine_Master_Blueprint.pdf
+
+# Raw ERA5 export � 8.8 MB, regenerable; share out of band
+skyguard_master_era5.csv
 .freebuff/
 
 .DS_Store
