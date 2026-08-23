@@ -104,7 +104,16 @@ main{
 }
 .maphead{display:flex; align-items:baseline; gap:12px; margin-bottom:8px}
 .maphint{font-size:11.5px; color:var(--ink-3)}
-.maphead .ctl{margin-left:auto; padding:3px 11px; font-size:11px}
+.maphead .ctl-lab{margin-left:0}
+.maphead .ctl-lab:first-of-type{margin-left:auto}
+.maphead .ctl{padding:3px 11px; font-size:11px}
+.maplegend{
+  display:flex; align-items:center; gap:7px; margin-top:7px;
+  font-size:10.5px; color:var(--ink-3); font-family:"IBM Plex Mono",monospace;
+}
+.rampbar{
+  height:9px; width:150px; border-radius:2px; border:1px solid var(--line);
+}
 .ctl.ghost{background:transparent; color:var(--accent)}
 .ctl.ghost:hover{background:var(--accent-soft)}
 #maps{display:flex; gap:22px; flex-wrap:wrap}
@@ -248,6 +257,20 @@ footer{padding:14px 22px; border-top:1px solid var(--line); background:var(--sur
     <span class="lbl">Network map</span>
     <span class="maphint">Lines are the neighbour graph &mdash; who each station is
       compared against. A fault moves one dot; weather moves the cluster.</span>
+    <label class="ctl-lab">View
+      <select id="mapview" aria-label="Map extent">
+        <option value="national" selected>All India</option>
+        <option value="regional">By region</option>
+      </select>
+    </label>
+    <label class="ctl-lab">Colour
+      <select id="mapcolour" aria-label="What the dots show">
+        <option value="temp">Temperature vs neighbours</option>
+        <option value="rh">Humidity vs neighbours</option>
+        <option value="pres">Pressure vs neighbours</option>
+        <option value="health">Sensor health</option>
+      </select>
+    </label>
     <button id="maptoggle" class="ctl ghost" aria-expanded="true">Hide</button>
   </div>
   <div id="maps"></div>
@@ -590,15 +613,53 @@ function attachHover(cv, geo, t, series, dseries, unit){
 // a fault) or shared (the whole cluster moving together -- weather). That is
 // the distinction PS26073 is about, and three stacked traces cannot show it.
 
-function drawMap(cv, group, sel){
+let mapView = "national";
+let mapColour = "temp";
+
+// India's bounding box. This is an EXTENT, not an outline -- it frames the
+// coordinate space so the two clusters sit in their true relative positions and
+// you can see that Assam is 1,700 km east of Maharashtra. No boundary is drawn.
+//
+// If an officially approved outline is ever supplied (Survey of India, or
+// data.gov.in), drop its rings into INDIA_OUTLINE as [[lon,lat],...] arrays and
+// they will be stroked automatically. Nothing here invents one.
+const INDIA_EXTENT = {lat:[6.5, 37.5], lon:[67.5, 97.5]};
+const INDIA_OUTLINE = [];
+
+// Divergence from neighbours, in sigma, at the latest sample in view. Signed on
+// purpose: "warmer than its neighbours" and "colder than its neighbours" are
+// different faults, and an absolute value throws that away.
+function divergence(s, varname){
+  const d = s.series && s.series["d_" + varname];
+  if (!d) return null;
+  for (let i = d.length - 1; i >= 0; i--)
+    if (d[i] !== null) return d[i] / ((s.sigma || {})[varname] || 1);
+  return null;
+}
+
+// Blue below, orange above, paper in the middle. Both ends are the palette's own
+// ink and alert colours, so the map stays in the same visual language as the
+// traces instead of importing a rainbow.
+function rampColour(z){
+  if (z === null || !isFinite(z)) return css("--trace-2");
+  const t = Math.max(-1, Math.min(1, z / 3));
+  const mid = [242, 236, 231];
+  const end = t < 0 ? [36, 63, 168] : [194, 80, 28];
+  const k = Math.abs(t);
+  return "rgb(" + mid.map(function(m, i){
+    return Math.round(m + (end[i] - m) * k); }).join(",") + ")";
+}
+
+function drawMap(cv, group, sel, extent){
   const dpr = window.devicePixelRatio || 1;
-  const W = cv.clientWidth, H = 210;
+  const W = cv.clientWidth, H = extent ? 340 : 210;
   cv.width = W*dpr; cv.height = H*dpr;
   const g = cv.getContext("2d"); g.scale(dpr,dpr);
   g.clearRect(0,0,W,H);
 
   const P = 30;
-  const lats = group.map(s => s.latitude), lons = group.map(s => s.longitude);
+  const lats = extent ? extent.lat : group.map(s => s.latitude);
+  const lons = extent ? extent.lon : group.map(s => s.longitude);
   const latMid = (Math.min(...lats)+Math.max(...lats))/2;
   // Equirectangular with a cos(lat) correction on x, so a degree of longitude
   // is drawn the length it actually is at this latitude. Without it Assam looks
@@ -613,18 +674,31 @@ function drawMap(cv, group, sel){
   const X = lon => cx + (lon*kx - x0)*sc;
   const Y = lat => cy + (y1 - lat)*sc;
 
-  // graticule at whole degrees
+  // Graticule. Whole degrees is far too dense across a 31-degree national
+  // frame, so the step follows the extent.
+  const step = (y1 - y0) > 12 ? 5 : 1;
   g.strokeStyle = css("--rule"); g.lineWidth = 1;
   g.fillStyle = css("--ink-3"); g.font = "9px 'IBM Plex Mono'";
-  for (let la = Math.ceil(y0); la <= y1; la++){
+  for (let la = Math.ceil(y0/step)*step; la <= y1; la += step){
     const y = Math.round(Y(la))+0.5;
     g.beginPath(); g.moveTo(4, y); g.lineTo(W-4, y); g.stroke();
     g.textAlign = "left"; g.fillText(la+"°N", 5, y-3);
   }
-  for (let lo = Math.ceil(x0/kx); lo <= x1/kx; lo++){
+  for (let lo = Math.ceil(x0/kx/step)*step; lo <= x1/kx; lo += step){
     const x = Math.round(X(lo))+0.5;
     g.beginPath(); g.moveTo(x, 4); g.lineTo(x, H-4); g.stroke();
     g.textAlign = "center"; g.fillText(lo+"°E", x, H-5);
+  }
+
+  // An officially supplied outline, if there is one. Never invented here.
+  if (INDIA_OUTLINE.length){
+    g.strokeStyle = css("--ink-3"); g.lineWidth = 1;
+    for (const ring of INDIA_OUTLINE){
+      g.beginPath();
+      ring.forEach(function(pt, i){
+        i ? g.lineTo(X(pt[0]), Y(pt[1])) : g.moveTo(X(pt[0]), Y(pt[1])); });
+      g.stroke();
+    }
   }
 
   // neighbour edges, drawn once per undirected pair
@@ -663,41 +737,97 @@ function drawMap(cv, group, sel){
   for (const s of group){
     const x = X(s.longitude), y = Y(s.latitude);
     const st = s.health.station;
+    const hcol = css("--" + ({HEALTHY:"ok", WATCH:"watch", DEGRADING:"degrade",
+                              SUSPECT:"suspect", FAILED:"failed"}[st]));
+    const z = mapColour === "health" ? null : divergence(s, mapColour);
     const r = st === "HEALTHY" ? 5 : 7;
+
     if (s.name === sel){
       g.strokeStyle = css("--accent"); g.lineWidth = 2;
       g.beginPath(); g.arc(x, y, r+4.5, 0, 2*Math.PI); g.stroke();
     }
-    g.fillStyle = css("--" + ({HEALTHY:"ok", WATCH:"watch", DEGRADING:"degrade",
-                               SUSPECT:"suspect", FAILED:"failed"}[st]));
-    g.beginPath(); g.arc(x, y, r, 0, 2*Math.PI); g.fill();
-    g.strokeStyle = css("--surface"); g.lineWidth = 1.5; g.stroke();
 
-    g.fillStyle = css("--ink"); g.font = "10px 'IBM Plex Sans'";
+    // Fill carries the LIVE divergence, the ring carries the STICKY health.
+    // They are different objects and the console must not merge them:
+    // observation flags are per timestamp and ephemeral, sensor health is per
+    // probe and slow. One bad hour must not turn a station red.
+    g.fillStyle = mapColour === "health" ? hcol : rampColour(z);
+    g.beginPath(); g.arc(x, y, r, 0, 2*Math.PI); g.fill();
+    g.strokeStyle = mapColour === "health" ? css("--surface") : hcol;
+    g.lineWidth = st === "HEALTHY" ? 1.5 : 2.5;
+    g.stroke();
+
+    g.fillStyle = css("--ink");
+    g.font = (extent ? "9px" : "10px") + " 'IBM Plex Sans'";
     g.textAlign = "center";
-    g.fillText(s.name.replace(/_/g," ").replace("Mumbai ",""), x, y - r - 5);
+    const nm = s.name.replace(/_/g," ").replace("Mumbai ","");
+    g.fillText(nm, x, y - r - 5);
+    if (!extent && z !== null){
+      g.font = "9px 'IBM Plex Mono'"; g.fillStyle = css("--ink-2");
+      g.fillText((z >= 0 ? "+" : "") + z.toFixed(1) + "\u03c3", x, y + r + 11);
+    }
     hit.push({name: s.name, x, y, r: r + 6});
   }
   return hit;
 }
 
+function legendHTML(){
+  if (mapColour === "health")
+    return `<div class="maplegend">Dot colour: sensor health &middot;
+      thicker ring: degraded</div>`;
+  const u = {temp:"temperature", rh:"humidity", pres:"pressure"}[mapColour];
+  return `<div class="maplegend">
+    <span>&minus;3&sigma; below</span>
+    <span class="rampbar" style="background:linear-gradient(90deg,
+      ${rampColour(-3)}, ${rampColour(0)}, ${rampColour(3)})"></span>
+    <span>+3&sigma; above</span>
+    <span style="margin-left:10px">fill = ${esc(u)} vs neighbours right now
+      &middot; ring = sticky sensor health</span>
+  </div>`;
+}
+
 function renderMaps(){
   const shown = DATA.stations.filter(s =>
     (stateFilter === "all" || s.state === stateFilter) && s.latitude != null);
+
+  if (mapView === "national"){
+    $("maps").innerHTML =
+      `<div class="mapbox" style="flex:1 1 100%">
+         <h4>All India &mdash; ${shown.length} stations</h4>
+         <canvas id="map-national"></canvas></div>` + legendHTML();
+    wireMap($("map-national"), drawMap($("map-national"), shown, current,
+                                       INDIA_EXTENT));
+    return;
+  }
+
   const byState = {};
   for (const s of shown) (byState[s.state] ||= []).push(s);
 
   $("maps").innerHTML = Object.keys(byState).sort().map(st =>
     `<div class="mapbox"><h4>${esc(st)}</h4>
-       <canvas id="map-${esc(st)}"></canvas></div>`).join("");
+       <canvas id="map-${esc(st)}"></canvas></div>`).join("") + legendHTML();
 
   for (const st of Object.keys(byState)){
     const cv = $("map-"+st);
-    const hits = drawMap(cv, byState[st], current);
+    wireMap(cv, drawMap(cv, byState[st], current, null));
+  }
+}
+
+function wireMap(cv, hits){
+  {
     cv.onclick = (ev) => {
       const r = cv.getBoundingClientRect();
       const px = ev.clientX - r.left, py = ev.clientY - r.top;
-      const h = hits.find(o => Math.hypot(o.x-px, o.y-py) <= o.r);
+      // NEAREST hit, not the first one inside its radius. Zoomed out to the
+      // national frame the Maharashtra stations sit within two degrees of a
+      // thirty-degree extent, so their hit circles overlap and `find` returned
+      // whichever happened to be earlier in the array -- clicking Ratnagiri
+      // selected Mahabaleshwar.
+      let h = null, best = Infinity;
+      for (const o of hits){
+        const d = Math.hypot(o.x-px, o.y-py);
+        if (d <= o.r && d < best){ best = d; h = o; }
+      }
       if (h){ current = h.name; openAlert = null; render(); }
     };
     cv.onmousemove = (ev) => {
@@ -897,6 +1027,8 @@ function start(){
   banner();
   buildStateFilter();
   wireClock();
+  $("mapview").onchange = (e) => { mapView = e.target.value; renderMaps(); };
+  $("mapcolour").onchange = (e) => { mapColour = e.target.value; renderMaps(); };
   $("maptoggle").onclick = () => {
     const strip = $("mapstrip");
     const hidden = !strip.dataset.hidden;
