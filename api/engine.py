@@ -110,9 +110,30 @@ class Engine:
         self.scores, self.contrib, self.detectors = {}, {}, {}
         return self.build()
 
+    # ----------------------------------------------------------------- clock
+    def cutoff(self, until: str | None) -> int:
+        """Index of the last observation the virtual clock has reached.
+
+        Everything downstream slices on this, so the replay is not a UI effect:
+        at virtual 14 November the server genuinely cannot see 15 November, the
+        thresholds are computed from what has arrived, and an alert appears when
+        the detector would really have raised it. A replay that filters only the
+        chart would show detections before their own onset.
+        """
+        if not until:
+            return len(self.live)
+        t = pd.Timestamp(until)
+        if t.tzinfo is None:
+            t = t.tz_localize("UTC")
+        return int((self.live.timestamp <= t).sum())
+
+    def span(self) -> tuple[str, str]:
+        return str(self.live.timestamp.min()), str(self.live.timestamp.max())
+
     # --------------------------------------------------------------- queries
-    def stations(self, state: str | None = None, budget: float = 1 / 7) -> list[dict]:
-        alerts = self.alerts(budget=budget)
+    def stations(self, state: str | None = None, budget: float = 1 / 7,
+                 until: str | None = None) -> list[dict]:
+        alerts = self.alerts(budget=budget, until=until)
         out = []
         for name, g in self.live.groupby("station_name", sort=True):
             st = STATE.get(g.cluster.iloc[0], g.cluster.iloc[0])
@@ -131,8 +152,18 @@ class Engine:
         return out
 
     def series(self, station: str, step: int = 3,
-               start: str | None = None, end: str | None = None) -> dict:
+               start: str | None = None, end: str | None = None,
+               until: str | None = None, window_hours: int | None = None) -> dict:
         g = self.live[self.live.station_name == station].sort_values("timestamp")
+        if until:
+            g = g[g.timestamp <= pd.Timestamp(until, tz="UTC")]
+        if window_hours:
+            # A trailing window, not the whole record. Three months of hourly
+            # data squeezed into 600 px is one pixel per six hours, which turns
+            # every trace into a band and every fault into a smudge -- and it
+            # forces the y-axis to span the season, so a 2 K step offset is
+            # invisible next to a 20 K annual swing.
+            g = g.tail(window_hours)
         if start:
             g = g[g.timestamp >= pd.Timestamp(start, tz="UTC")]
         if end:
@@ -148,17 +179,24 @@ class Engine:
         return out
 
     def alerts(self, budget: float = 1 / 7, state: str | None = None,
-               station: str | None = None, min_confidence: float = 0.0
-               ) -> list[dict]:
+               station: str | None = None, min_confidence: float = 0.0,
+               until: str | None = None) -> list[dict]:
         """Re-thresholded per request. The budget is the operator's dial: it
         trades recall against how many vans get sent, and it is the one thing
         the UI should be able to change without a re-score."""
         out = []
+        cut = self.cutoff(until)
+        seen = np.zeros(len(self.live), dtype=bool)
+        seen[:cut] = True
+
         for var in VARIABLES:
-            sc = self.scores[var]
+            sc = np.where(seen, self.scores[var], np.nan)
             truth_col = f"is_fault_{var}"
-            clean = (sc[~self.live[truth_col].to_numpy().astype(bool)]
-                     if truth_col in self.live.columns else sc)
+            vis = sc[seen]
+            clean = (vis[~self.live.loc[seen, truth_col].to_numpy().astype(bool)]
+                     if truth_col in self.live.columns else vis)
+            if len(clean) < 24:
+                continue
             thr = threshold_for_budget(clean, len(clean) / 24.0, budget)
             flag = np.nan_to_num(sc, nan=0.0) >= thr
 

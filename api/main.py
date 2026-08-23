@@ -10,8 +10,9 @@ snapshot.json, so the static build and the live service are interchangeable and
 the frontend does not care which it is talking to.
 """
 from __future__ import annotations
-import os
+import os, time
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +25,54 @@ ENGINE: Engine | None = None
 READY = False
 
 
+@dataclass
+class Clock:
+    """Virtual time, derived from wall time rather than ticked.
+
+    There is no background task advancing a counter. `now` is computed on read
+    as origin + elapsed_wall x speed, which means the clock cannot drift, cannot
+    be missed while a client is disconnected, and survives a client refresh
+    without resyncing. Two browsers pointed at the same server see the same
+    virtual instant because they are both reading the same arithmetic.
+
+    Speed is virtual HOURS per real second. At 24 an hour of wall time replays
+    about a hundred days, which is roughly the whole test window -- fast enough
+    to watch a drift develop inside a demo slot.
+    """
+    origin: float = 0.0          # virtual seconds since the window start
+    started: float = 0.0         # wall clock when play began
+    speed: float = 24.0          # virtual hours per real second
+    playing: bool = False
+    span_seconds: float = 0.0
+
+    def elapsed(self) -> float:
+        if not self.playing:
+            return self.origin
+        return self.origin + (time.time() - self.started) * self.speed * 3600.0
+
+    def now_seconds(self) -> float:
+        return min(max(self.elapsed(), 0.0), self.span_seconds)
+
+    def pause(self) -> None:
+        self.origin = self.now_seconds()
+        self.playing = False
+
+    def play(self) -> None:
+        if self.now_seconds() >= self.span_seconds:
+            self.origin = 0.0            # replay from the start rather than stall
+        else:
+            self.origin = self.now_seconds()
+        self.started = time.time()
+        self.playing = True
+
+    def seek(self, fraction: float) -> None:
+        self.origin = max(0.0, min(1.0, fraction)) * self.span_seconds
+        self.started = time.time()
+
+
+CLOCK = Clock()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global ENGINE, READY
@@ -33,6 +82,13 @@ async def lifespan(app: FastAPI):
         causal=os.environ.get("SKYGUARD_CAUSAL", "1") != "0",
     )
     ENGINE.build()
+    lo, hi = ENGINE.span()
+    import pandas as pd
+    CLOCK.span_seconds = float(
+        (pd.Timestamp(hi) - pd.Timestamp(lo)).total_seconds())
+    # Starts at the beginning, PAUSED. A demo that is already running when the
+    # page opens has usually run past the thing you wanted to show.
+    CLOCK.origin = 0.0
     READY = True
     yield
 
@@ -104,6 +160,45 @@ def readyz():
     return {"status": "ready", "build_seconds": ENGINE.build_seconds}
 
 
+def virtual_now() -> str:
+    import pandas as pd
+    lo, _ = engine().span()
+    return str(pd.Timestamp(lo) + pd.Timedelta(seconds=CLOCK.now_seconds()))
+
+
+@app.get("/api/clock")
+def get_clock():
+    lo, hi = engine().span()
+    return {"now": virtual_now(), "start": lo, "end": hi,
+            "speed_hours_per_second": CLOCK.speed, "playing": CLOCK.playing,
+            "progress": (CLOCK.now_seconds() / CLOCK.span_seconds
+                         if CLOCK.span_seconds else 1.0)}
+
+
+@app.post("/api/clock")
+def set_clock(playing: bool | None = None, speed: float | None = None,
+              seek: float | None = Query(None, ge=0.0, le=1.0)):
+    """Play, pause, change speed, or scrub.
+
+    Seeking is a real seek: the server recomputes what it can see at that
+    virtual instant, so scrubbing backwards genuinely un-detects the alerts
+    that had not happened yet.
+    """
+    engine()
+    if speed is not None:
+        CLOCK.pause()
+        CLOCK.speed = max(0.1, min(speed, 2000.0))
+    if seek is not None:
+        was = CLOCK.playing
+        CLOCK.pause()
+        CLOCK.seek(seek)
+        if was:
+            CLOCK.play()
+    if playing is not None:
+        CLOCK.play() if playing else CLOCK.pause()
+    return get_clock()
+
+
 @app.get("/api/meta")
 def meta():
     return engine().meta()
@@ -128,7 +223,8 @@ def series(station: str, step: int = Query(3, ge=1, le=24),
 @app.get("/api/alerts")
 def alerts(budget: float = Query(1 / 7, gt=0, le=24),
            state: str | None = None, station: str | None = None,
-           min_confidence: float = Query(0.0, ge=0.0, le=1.0)):
+           min_confidence: float = Query(0.0, ge=0.0, le=1.0),
+           follow_clock: bool = True):
     """Re-thresholded on every request.
 
     The budget is the operator's dial and the only knob that should move
@@ -137,7 +233,8 @@ def alerts(budget: float = Query(1 / 7, gt=0, le=24),
     milliseconds -- it does not re-run a detector.
     """
     return engine().alerts(budget=budget, state=state, station=station,
-                           min_confidence=min_confidence)
+                           min_confidence=min_confidence,
+                           until=virtual_now() if follow_clock else None)
 
 
 @app.get("/api/alerts/{alert_id}")
@@ -162,21 +259,28 @@ def explain(station: str, variable: str, timestamp: str):
 
 
 @app.get("/api/snapshot")
-def snapshot(budget: float = Query(1 / 7, gt=0, le=24), step: int = 3):
+def snapshot(budget: float = Query(1 / 7, gt=0, le=24), step: int = 3,
+             window_hours: int = Query(336, ge=24, le=4000),
+             follow_clock: bool = True):
     """The whole console in one call, shaped exactly like snapshot.json.
 
     Kept so the static build and the live service stay interchangeable: the
     frontend can point at a file or at this endpoint with no other change.
     """
     e = engine()
-    sts = e.stations(budget=budget)
+    until = virtual_now() if follow_clock else None
+    sts = e.stations(budget=budget, until=until)
     return {
         **e.meta(),
         "generated_from": e.data_path,
         "alert_budget_per_station_day": budget,
+        "clock": get_clock(),
+        "window_hours": window_hours,
         "neighbours": {s["name"]: s["neighbours"] for s in sts},
-        "stations": [{**s, "series": e.series(s["name"], step=step)} for s in sts],
-        "alerts": e.alerts(budget=budget),
+        "stations": [{**s, "series": e.series(s["name"], step=step, until=until,
+                                              window_hours=window_hours)}
+                     for s in sts],
+        "alerts": e.alerts(budget=budget, until=until),
     }
 
 

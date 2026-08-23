@@ -99,6 +99,28 @@ main{
 .bg-DEGRADING{background:var(--degrade)} .bg-SUSPECT{background:var(--suspect)}
 .bg-FAILED{background:var(--failed)}
 
+.clockbar{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:9px 22px; background:var(--surface);
+  border-bottom:1px solid var(--line);
+}
+.clockbar .vnow{display:flex; align-items:baseline; gap:7px}
+.clockbar #vnow{font-size:13px; font-weight:600}
+#scrub{flex:1; min-width:160px; accent-color:var(--accent); cursor:pointer}
+.ctl{
+  font:inherit; font-family:Chivo,sans-serif; font-size:12px; font-weight:600;
+  padding:5px 14px; border-radius:5px; cursor:pointer;
+  border:1px solid var(--accent); background:var(--accent); color:#fff;
+}
+.ctl:hover{filter:brightness(1.08)}
+.ctl:focus-visible,#scrub:focus-visible,.ctl-lab select:focus-visible{
+  outline:2px solid var(--accent); outline-offset:2px}
+.ctl-lab{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--ink-3)}
+.ctl-lab select{
+  font:inherit; font-size:11.5px; padding:3px 5px; border-radius:4px;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  cursor:pointer;
+}
 #budget{width:100%; margin-top:6px; accent-color:var(--accent); cursor:pointer}
 #budget:disabled{cursor:not-allowed; opacity:.45}
 #state-filter{
@@ -177,6 +199,33 @@ footer{padding:14px 22px; border-top:1px solid var(--line); background:var(--sur
 
 <div class="caveat" id="caveat"></div>
 
+<div class="clockbar" id="clockbar" hidden>
+  <button id="playpause" class="ctl" aria-label="Play or pause replay">Play</button>
+  <div class="vnow">
+    <span class="lbl">Virtual time</span>
+    <span class="mono" id="vnow">&mdash;</span>
+  </div>
+  <input id="scrub" type="range" min="0" max="1000" value="0"
+         aria-label="Scrub through the replay">
+  <label class="ctl-lab">Speed
+    <select id="speed" aria-label="Replay speed">
+      <option value="6">6 h/s</option>
+      <option value="24" selected>1 day/s</option>
+      <option value="72">3 days/s</option>
+      <option value="168">1 week/s</option>
+    </select>
+  </label>
+  <label class="ctl-lab">Window
+    <select id="winsel" aria-label="Chart time window">
+      <option value="48">48 h</option>
+      <option value="168">7 days</option>
+      <option value="336" selected>14 days</option>
+      <option value="1080">45 days</option>
+      <option value="2208">all</option>
+    </select>
+  </label>
+</div>
+
 <div class="summary" id="summary"></div>
 
 <main>
@@ -228,11 +277,21 @@ let DATA = /*__DATA__*/null;
 const API = (typeof window !== "undefined" && window.SKYGUARD_API) || "http://localhost:8000";
 let LIVE = false;
 let budget = 1/7;
+let windowHours = 336;      // 14 days of trailing context, not the whole record
+let poll = null;
 
 async function load(b){
-  const r = await fetch(`${API}/api/snapshot?budget=${b}`, {cache:"no-store"});
+  const r = await fetch(
+    `${API}/api/snapshot?budget=${b}&window_hours=${windowHours}`,
+    {cache:"no-store"});
   if (!r.ok) throw new Error(`api ${r.status}`);
   return r.json();
+}
+
+async function clockPost(params){
+  const q = new URLSearchParams(params).toString();
+  const r = await fetch(`${API}/api/clock?${q}`, {method:"POST"});
+  return r.ok ? r.json() : null;
 }
 
 const UNIT = {temp:"°C", rh:"%", pres:"hPa"};
@@ -389,18 +448,30 @@ function plot(cv, t, series, dseries, alerts, varname, sigma){
 
   // Month ticks. A three-month window with no time axis forces the reader to
   // guess when anything happened, which is the first question an alert raises.
+  // Tick granularity follows the window. Month ticks on a 48-hour view give
+  // you one label or none, which is the same as no axis at all.
+  const spanH = t.length * 3;
+  const keyOf = spanH > 1500 ? (x) => x.slice(0,7)      // month
+              : spanH > 200  ? (x) => x.slice(0,10)     // day
+                             : (x) => x.slice(0,13);    // hour
+  const fmt = spanH > 1500 ? {month:"short"}
+            : spanH > 200  ? {day:"numeric", month:"short"}
+                           : {hour:"2-digit", hour12:false};
   g.textAlign = "center";
   let lastMonth = "";
+  let ticks = 0;
   for (let i = 0; i < t.length; i++){
-    const m = t[i].slice(0,7);
+    const m = keyOf(t[i]);
     if (m === lastMonth) continue;
     lastMonth = m;
     if (i === 0) continue;
+    if (spanH <= 1500 && ++ticks % Math.max(1, Math.round(t.length/8/ (spanH>200?8:6))) !== 0
+        && spanH > 200) continue;
     const x = X(i);
     g.strokeStyle = css("--line"); g.beginPath();
     g.moveTo(x, PAD.t); g.lineTo(x, PAD.t+ih); g.stroke();
     g.fillStyle = css("--ink-3");
-    g.fillText(new Date(t[i]+"Z").toLocaleString("en", {month:"short"}),
+    g.fillText(new Date(t[i].replace(" ","T")+"Z").toLocaleString("en", fmt),
                x, PAD.t+ih+13);
   }
 
@@ -487,6 +558,18 @@ function render(){
     `${s.elevation.toFixed(0)} m · ${s.longitude.toFixed(2)}°E · `
     + `neighbours ${(DATA.neighbours[s.name]||[]).join(", ").replace(/_/g," ")}`;
 
+  // In static mode the series carries the whole record, so the window is
+  // applied here instead of by the server.
+  const S = LIVE ? s.series : (() => {
+    const n = Math.max(2, Math.round(windowHours / 3));
+    const out = {t: s.series.t.slice(-n)};
+    for (const v of ["temp","rh","pres"]){
+      out[v] = s.series[v].slice(-n);
+      out["d_"+v] = s.series["d_"+v].slice(-n);
+    }
+    return out;
+  })();
+
   $("channels").innerHTML = ["temp","rh","pres"].map(v => `
     <div class="chan">
       <div class="chan-head">
@@ -504,9 +587,9 @@ function render(){
     </div>`;
 
   for (const v of ["temp","rh","pres"]){
-    const geo = plot($("cv-"+v), s.series.t, s.series[v], s.series["d_"+v],
+    const geo = plot($("cv-"+v), S.t, S[v], S["d_"+v],
                      mine, v, (s.sigma||{})[v] || 1);
-    attachHover($("cv-"+v), geo, s.series.t, s.series[v], s.series["d_"+v], UNIT[v]);
+    attachHover($("cv-"+v), geo, S.t, S[v], S["d_"+v], UNIT[v]);
   }
 
   $("alerts").innerHTML = mine.length ? mine.map((a,i) => {
@@ -582,12 +665,75 @@ async function refresh(b){
   if (!LIVE) return;
   budget = b;
   DATA = await load(b);
-  banner(); buildStateFilter(); render();
+  banner(); buildStateFilter(); syncClock(); render();
+}
+
+function wireClock(){
+  // The window selector is useful in BOTH modes -- a static three-month trace
+  // is just as unreadable as a live one -- so the bar always shows, and only
+  // the replay controls disappear when there is no server to replay on.
+  $("clockbar").hidden = false;
+  for (const id of ["playpause", "scrub", "speed"]){
+    const el = $(id);
+    el.disabled = !LIVE;
+    el.closest("label") ? (el.closest("label").style.display = LIVE ? "" : "none")
+                        : (el.style.display = LIVE ? "" : "none");
+  }
+  $("vnow").parentNode.style.display = LIVE ? "" : "none";
+
+  if (!LIVE){
+    // Client-side tail, since there is no server to ask for a slice.
+    $("winsel").onchange = (e) => { windowHours = +e.target.value; render(); };
+    return;
+  }
+
+  $("playpause").onclick = async () => {
+    const c = await clockPost({playing: !(DATA.clock && DATA.clock.playing)});
+    if (c) { DATA.clock = c; syncClock(); tick(); }
+  };
+  $("speed").onchange = async (e) => {
+    const c = await clockPost({speed: e.target.value});
+    if (c) { DATA.clock = c; syncClock(); }
+  };
+  $("scrub").oninput = () => { $("scrub").dataset.dragging = "1"; };
+  $("scrub").onchange = async (e) => {
+    delete $("scrub").dataset.dragging;
+    const c = await clockPost({seek: (+e.target.value)/1000});
+    if (c) { DATA.clock = c; await refresh(budget); }
+  };
+  $("winsel").onchange = async (e) => {
+    windowHours = +e.target.value;
+    await refresh(budget);
+  };
+  syncClock();
+}
+
+function syncClock(){
+  const c = DATA.clock;
+  if (!c) return;
+  $("vnow").textContent = c.now.slice(0,16).replace("T"," ");
+  $("playpause").textContent = c.playing ? "Pause" : "Play";
+  if (!$("scrub").dataset.dragging)
+    $("scrub").value = Math.round(c.progress * 1000);
+}
+
+// Poll while playing. Two seconds is the honest cadence: the server recomputes
+// what it can see at the new virtual instant, and a faster poll would spend
+// bandwidth redrawing a chart that has moved by a pixel.
+function tick(){
+  clearInterval(poll);
+  if (!LIVE || !(DATA.clock && DATA.clock.playing)) return;
+  poll = setInterval(async () => {
+    if (!DATA.clock.playing) { clearInterval(poll); return; }
+    try { DATA = await load(budget); banner(); syncClock(); render(); }
+    catch { clearInterval(poll); }
+  }, 2000);
 }
 
 function start(){
   banner();
   buildStateFilter();
+  wireClock();
   if (!DATA.stations.some(s => s.name === current)) current = DATA.stations[0].name;
   render();
   addEventListener("resize", render);
