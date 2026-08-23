@@ -56,7 +56,7 @@ class Window:
 
 def describe(seg: pd.DataFrame, F: pd.DataFrame, var: str,
              dres: pd.Series, sigma: float, rails: tuple[float, float],
-             coherence: float, natural_flat: float = 0.0) -> Window:
+             _unused_coherence: float = 0.0, natural_flat: float = 0.0) -> Window:
     """Reduce one flagged window to eight scale-free shape descriptors.
 
     Scale-free is the point: the same template must fire for a 0.4 K step and a
@@ -115,6 +115,16 @@ def describe(seg: pd.DataFrame, F: pd.DataFrame, var: str,
 
     # brevity: short windows look like spikes, long ones cannot
     brevity = float(np.clip(3.0 / max(n, 1), 0.0, 1.0))
+
+    # Coherence is DERIVED from the level, not passed in. An earlier version
+    # took the ratio |neighbour difference| / |own residual|, which is a ratio
+    # of two small numbers exactly when it matters and collapsed to zero on a
+    # foggy night -- the case it existed to catch. Dhubri RH pinned at 100 %
+    # sits 0.006 sigma from its neighbours: it agrees with them completely, and
+    # a stuck probe would not. The level already says that, so use it.
+    #
+    # k = 1.5 sigma: agreement inside 1.5 sigma reads as more coherent than not.
+    coherence = float(1.0 / (1.0 + level / 1.5))
 
     return Window(
         descriptors={

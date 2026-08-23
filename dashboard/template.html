@@ -1,0 +1,385 @@
+<title>SkyGuard Station Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+
+<style>
+:root{
+  --ground:#EAEEF1; --surface:#FFFFFF; --surface-2:#F4F7F9; --line:#D3DBE1;
+  --ink:#101820; --ink-2:#48555F; --ink-3:#79878F;
+  --accent:#0B6B70; --accent-soft:#DCEDEC;
+  --ok:#2E7D4F; --watch:#A9760F; --degrade:#B35309; --suspect:#9E2B2B; --failed:#5F1717;
+  --trace:#0B6B70; --trace-2:#B0BCC4; --band:rgba(11,107,112,.11);
+  --shadow:0 1px 2px rgba(16,24,32,.06),0 8px 24px -16px rgba(16,24,32,.28);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0C1216; --surface:#141C22; --surface-2:#1A242B; --line:#2A363E;
+    --ink:#E4EDF2; --ink-2:#9DAEB8; --ink-3:#6E808B;
+    --accent:#4FC3C6; --accent-soft:#123334;
+    --ok:#57B87E; --watch:#D9A441; --degrade:#E0813F; --suspect:#E06A6A; --failed:#B34A4A;
+    --trace:#4FC3C6; --trace-2:#465561; --band:rgba(79,195,198,.14);
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0C1216; --surface:#141C22; --surface-2:#1A242B; --line:#2A363E;
+  --ink:#E4EDF2; --ink-2:#9DAEB8; --ink-3:#6E808B;
+  --accent:#4FC3C6; --accent-soft:#123334;
+  --ok:#57B87E; --watch:#D9A441; --degrade:#E0813F; --suspect:#E06A6A; --failed:#B34A4A;
+  --trace:#4FC3C6; --trace-2:#465561; --band:rgba(79,195,198,.14);
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:Archivo,"IBM Plex Sans",sans-serif; margin:0; text-wrap:balance}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+.lbl{
+  font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3);
+}
+
+/* ---------------------------------------------------------------- masthead */
+header{
+  border-bottom:1px solid var(--line); background:var(--surface);
+  padding:16px 22px; display:flex; flex-wrap:wrap; gap:18px; align-items:baseline;
+}
+header h1{font-size:19px; font-weight:700; letter-spacing:-.01em}
+header .sub{color:var(--ink-2); font-size:12.5px}
+header .spacer{flex:1}
+.vers{display:flex; gap:14px; flex-wrap:wrap}
+.vers span{font-size:11px; color:var(--ink-3)}
+
+/* honesty strip -- this is a prototype on injected data, and says so */
+.caveat{
+  background:var(--surface-2); border-bottom:1px solid var(--line);
+  padding:9px 22px; font-size:12.5px; color:var(--ink-2);
+}
+.caveat b{color:var(--ink); font-weight:600}
+
+/* ------------------------------------------------------------- summary row */
+.summary{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:1px; background:var(--line); border-bottom:1px solid var(--line);
+}
+.stat{background:var(--surface); padding:12px 22px}
+.stat .n{font-family:Archivo,sans-serif; font-size:24px; font-weight:600; line-height:1.1}
+.stat .n small{font-size:13px; color:var(--ink-3); font-weight:500}
+
+/* ------------------------------------------------------------------ layout */
+main{
+  display:grid; grid-template-columns:250px minmax(0,1fr) 330px;
+  gap:1px; background:var(--line); min-height:60vh;
+}
+@media (max-width:1100px){ main{grid-template-columns:1fr} }
+.pane{background:var(--surface); padding:16px 18px; min-width:0}
+
+/* ------------------------------------------------------------ station rail */
+.stn{
+  width:100%; text-align:left; background:none; border:0; cursor:pointer;
+  border-radius:5px; padding:8px 9px; display:grid;
+  grid-template-columns:3px 1fr auto; gap:9px; align-items:center;
+  color:inherit; font:inherit; margin-bottom:2px;
+}
+.stn:hover{background:var(--surface-2)}
+.stn[aria-current="true"]{background:var(--accent-soft)}
+.stn:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.stripe{align-self:stretch; border-radius:2px; min-height:28px}
+.stn .nm{font-weight:500; font-size:13px}
+.stn .meta{font-size:11px; color:var(--ink-3)}
+.chip{
+  font-family:"IBM Plex Mono",monospace; font-size:9.5px; font-weight:600;
+  letter-spacing:.04em; padding:2px 5px; border-radius:3px; white-space:nowrap;
+  border:1px solid currentColor;
+}
+.h-HEALTHY{color:var(--ok)} .h-WATCH{color:var(--watch)}
+.h-DEGRADING{color:var(--degrade)} .h-SUSPECT{color:var(--suspect)}
+.h-FAILED{color:var(--failed)}
+.bg-HEALTHY{background:var(--ok)} .bg-WATCH{background:var(--watch)}
+.bg-DEGRADING{background:var(--degrade)} .bg-SUSPECT{background:var(--suspect)}
+.bg-FAILED{background:var(--failed)}
+
+/* ------------------------------------------------------------- chart stack */
+.chan{border-top:1px solid var(--line); padding-top:12px; margin-top:14px}
+.chan:first-of-type{border-top:0; margin-top:6px; padding-top:0}
+.chan-head{display:flex; align-items:baseline; gap:10px; margin-bottom:6px}
+.chan-head .unit{font-size:11px; color:var(--ink-3)}
+.chan-head .hc{margin-left:auto}
+canvas{width:100%; display:block; touch-action:none}
+.legend{display:flex; gap:16px; font-size:11px; color:var(--ink-3); margin-top:5px}
+.swatch{display:inline-block; width:16px; height:2px; vertical-align:middle; margin-right:5px}
+
+/* ------------------------------------------------------------------ alerts */
+.alert{
+  width:100%; text-align:left; background:var(--surface-2); border:1px solid var(--line);
+  border-left:3px solid var(--ink-3); border-radius:5px; padding:9px 11px;
+  margin-bottom:7px; cursor:pointer; color:inherit; font:inherit;
+}
+.alert:hover{border-color:var(--accent)}
+.alert:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.alert[aria-current="true"]{background:var(--accent-soft); border-color:var(--accent)}
+.alert .top{display:flex; gap:8px; align-items:baseline; margin-bottom:3px}
+.alert .lab{font-family:Archivo,sans-serif; font-weight:600; font-size:12.5px}
+.alert .when{margin-left:auto; font-size:10.5px; color:var(--ink-3)}
+.alert p{margin:3px 0 0; font-size:12px; color:var(--ink-2); line-height:1.45}
+.verdict{font-size:10px; padding:1px 5px; border-radius:3px; font-weight:600;
+  font-family:"IBM Plex Mono",monospace}
+.v-hit{background:var(--accent-soft); color:var(--accent)}
+.v-miss{background:transparent; color:var(--suspect); border:1px solid currentColor}
+
+/* --------------------------------------------------------------- inspector */
+.bars{display:grid; gap:5px; margin-top:8px}
+.bar{display:grid; grid-template-columns:88px 1fr 46px; gap:8px; align-items:center;
+  font-size:11.5px}
+.bar .track{height:9px; background:var(--surface-2); border-radius:2px; overflow:hidden}
+.bar .fill{height:100%; background:var(--accent)}
+.bar .v{text-align:right; color:var(--ink-2)}
+.kv{display:grid; grid-template-columns:auto 1fr; gap:3px 12px; font-size:12px; margin-top:8px}
+.kv dt{color:var(--ink-3)} .kv dd{margin:0; text-align:right}
+.empty{color:var(--ink-3); font-size:12.5px; padding:20px 0; text-align:center}
+footer{padding:14px 22px; border-top:1px solid var(--line); background:var(--surface);
+  color:var(--ink-3); font-size:11.5px}
+</style>
+
+<header>
+  <div>
+    <h1>SkyGuard Station Console</h1>
+    <div class="sub">SIH 2026 &middot; PS26073 &middot; MoES / India Meteorological Department</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="vers mono" id="vers"></div>
+</header>
+
+<div class="caveat" id="caveat"></div>
+
+<div class="summary" id="summary"></div>
+
+<main>
+  <section class="pane">
+    <div class="lbl" style="margin-bottom:8px">Network</div>
+    <div id="rail"></div>
+  </section>
+
+  <section class="pane">
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:4px">
+      <h2 id="stn-name" style="font-size:17px"></h2>
+      <span class="mono" id="stn-meta" style="font-size:11.5px;color:var(--ink-3)"></span>
+    </div>
+    <div id="channels"></div>
+  </section>
+
+  <section class="pane">
+    <div class="lbl" style="margin-bottom:8px">Alert inspector</div>
+    <div id="inspector"></div>
+    <div class="lbl" style="margin:16px 0 8px">Open alerts, this station</div>
+    <div id="alerts"></div>
+  </section>
+</main>
+
+<footer id="foot"></footer>
+
+<script>
+const DATA = /*__DATA__*/;
+
+const UNIT = {temp:"°C", rh:"%", pres:"hPa"};
+const NAME = {temp:"Temperature", rh:"Relative humidity", pres:"Pressure"};
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+let current = DATA.stations[0].name;
+let openAlert = null;
+
+/* ------------------------------------------------------------------ header */
+$("vers").innerHTML = Object.entries(DATA.versions)
+  .map(([k,v]) => `<span>${esc(k)} <b style="color:var(--ink-2)">${esc(v)}</b></span>`).join("");
+
+const real = DATA.alerts.filter(a => a.truth !== "(false alarm)").length;
+$("caveat").innerHTML =
+  `<b>Prototype on injected faults.</b> Every alert below carries its ground truth, `
+  + `so the console shows its own misses rather than a curated demo. `
+  + `${DATA.alerts.length} alerts over this window: ${real} on real injected faults, `
+  + `${DATA.alerts.length - real} false. Budget is `
+  + `${(DATA.alert_budget_per_station_day*7).toFixed(1)} alert per station per week.`;
+
+/* ----------------------------------------------------------------- summary */
+const counts = {};
+for (const s of DATA.stations) counts[s.health.station] = (counts[s.health.station]||0) + 1;
+const ORDER = ["FAILED","SUSPECT","DEGRADING","WATCH","HEALTHY"];
+$("summary").innerHTML = ORDER.map(k =>
+  `<div class="stat"><div class="lbl">${k}</div>
+   <div class="n h-${k}">${counts[k]||0}<small> / ${DATA.stations.length} stations</small></div></div>`
+).join("") +
+  `<div class="stat"><div class="lbl">Window</div>
+   <div class="n mono" style="font-size:15px">${DATA.window[0].slice(0,10)}
+   <small>to ${DATA.window[1].slice(0,10)}</small></div></div>`;
+
+/* ------------------------------------------------------------ station rail */
+function drawRail(){
+  $("rail").innerHTML = DATA.stations.map(s => {
+    const n = DATA.alerts.filter(a => a.station === s.name).length;
+    return `<button class="stn" data-s="${esc(s.name)}" aria-current="${s.name===current}">
+      <span class="stripe bg-${s.health.station}"></span>
+      <span><span class="nm">${esc(s.name.replace(/_/g," "))}</span>
+        <div class="meta">${s.elevation.toFixed(0)} m &middot; ${n} alert${n===1?"":"s"}</div></span>
+      <span class="chip h-${s.health.station}">${s.health.station}</span>
+    </button>`;
+  }).join("");
+  $("rail").querySelectorAll(".stn").forEach(b =>
+    b.onclick = () => { current = b.dataset.s; openAlert = null; render(); });
+}
+
+/* ------------------------------------------------------------------ charts */
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+function plot(cv, t, series, dseries, alerts, varname){
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, H = 118;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const g = cv.getContext("2d"); g.scale(dpr,dpr);
+  g.clearRect(0,0,W,H);
+
+  const PAD = {l:38, r:8, t:8, b:14};
+  const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
+  const vals = series.filter(v => v !== null);
+  if (!vals.length){ g.fillStyle = css("--ink-3"); g.font = "11px 'IBM Plex Mono'";
+    g.fillText("no data", PAD.l, H/2); return; }
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (hi - lo < 1e-6){ hi += .5; lo -= .5; }
+  const pad = (hi-lo)*0.12; lo -= pad; hi += pad;
+  const X = i => PAD.l + i/(series.length-1)*iw;
+  const Y = v => PAD.t + (1-(v-lo)/(hi-lo))*ih;
+
+  // alert bands, drawn first so the trace sits on top
+  g.fillStyle = css("--band");
+  for (const a of alerts){
+    if (a.variable !== varname) continue;
+    const i0 = t.findIndex(x => x >= a.start.slice(0,16));
+    let i1 = t.findIndex(x => x >= a.end.slice(0,16));
+    if (i0 < 0) continue; if (i1 < 0) i1 = series.length-1;
+    g.fillRect(X(i0), PAD.t, Math.max(X(i1)-X(i0), 2), ih);
+  }
+
+  // axis
+  g.strokeStyle = css("--line"); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(PAD.l, PAD.t); g.lineTo(PAD.l, PAD.t+ih); g.stroke();
+  g.fillStyle = css("--ink-3"); g.font = "10px 'IBM Plex Mono'"; g.textAlign = "right";
+  g.fillText(hi.toFixed(1), PAD.l-5, PAD.t+8);
+  g.fillText(lo.toFixed(1), PAD.l-5, PAD.t+ih);
+
+  // neighbour-difference residual, faint, on its own scale
+  const dv = dseries.filter(v => v !== null);
+  if (dv.length){
+    const m = Math.max(...dv.map(Math.abs)) || 1;
+    g.strokeStyle = css("--trace-2"); g.lineWidth = 1; g.beginPath();
+    let started = false;
+    dseries.forEach((v,i) => {
+      if (v === null){ started = false; return; }
+      const y = PAD.t + ih/2 - (v/m)*(ih*0.42);
+      started ? g.lineTo(X(i), y) : g.moveTo(X(i), y); started = true;
+    });
+    g.stroke();
+  }
+
+  // the observation itself
+  g.strokeStyle = css("--trace"); g.lineWidth = 1.6;
+  g.lineJoin = "round"; g.beginPath();
+  let started = false;
+  series.forEach((v,i) => {
+    if (v === null){ started = false; return; }
+    started ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); started = true;
+  });
+  g.stroke();
+}
+
+/* ------------------------------------------------------------------ render */
+function render(){
+  drawRail();
+  const s = DATA.stations.find(x => x.name === current);
+  const mine = DATA.alerts.filter(a => a.station === current);
+
+  $("stn-name").textContent = s.name.replace(/_/g," ");
+  $("stn-meta").textContent =
+    `${s.elevation.toFixed(0)} m · ${s.longitude.toFixed(2)}°E · `
+    + `neighbours ${(DATA.neighbours[s.name]||[]).join(", ").replace(/_/g," ")}`;
+
+  $("channels").innerHTML = ["temp","rh","pres"].map(v => `
+    <div class="chan">
+      <div class="chan-head">
+        <h3 style="font-size:13px">${NAME[v]}</h3>
+        <span class="unit mono">${UNIT[v]}</span>
+        <span class="chip hc h-${s.health.by_variable[v]}">${s.health.by_variable[v]}</span>
+      </div>
+      <canvas id="cv-${v}"></canvas>
+    </div>`).join("") + `
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--trace)"></i>observed</span>
+      <span><i class="swatch" style="background:var(--trace-2)"></i>difference from neighbours</span>
+      <span><i class="swatch" style="background:var(--band);height:9px"></i>flagged window</span>
+    </div>`;
+
+  for (const v of ["temp","rh","pres"])
+    plot($("cv-"+v), s.series.t, s.series[v], s.series["d_"+v], mine, v);
+
+  $("alerts").innerHTML = mine.length ? mine.map((a,i) => {
+    const hit = a.label === a.truth;
+    return `<button class="alert" data-i="${i}" aria-current="${openAlert===i}"
+      style="border-left-color:var(--${a.label==='genuine_weather'?'ok':'suspect'})">
+      <span class="top">
+        <span class="lab">${esc(a.label.replace(/_/g," "))}</span>
+        <span class="verdict ${hit?'v-hit':'v-miss'}">${hit?"correct":"truth: "+esc(a.truth)}</span>
+        <span class="when mono">${esc(a.start.slice(5,16))}</span>
+      </span>
+      <p>${esc(a.explanation)}</p>
+    </button>`;
+  }).join("") : `<div class="empty">No open alerts at this station.</div>`;
+
+  $("alerts").querySelectorAll(".alert").forEach(b =>
+    b.onclick = () => { openAlert = +b.dataset.i; render(); });
+
+  // inspector
+  const a = openAlert !== null ? mine[openAlert] : null;
+  $("inspector").innerHTML = !a
+    ? `<div class="empty">Select an alert to see why it fired.</div>`
+    : (() => {
+        const c = Object.entries(a.contributions).sort((x,y) => Math.abs(y[1])-Math.abs(x[1]));
+        const max = Math.max(...c.map(([,v]) => Math.abs(v))) || 1;
+        const tpl = Object.entries(a.template_scores).sort((x,y) => y[1]-x[1]).slice(0,3);
+        return `
+        <div style="font-family:Archivo;font-weight:600;font-size:14px">
+          ${esc(a.label.replace(/_/g," "))}
+          <span class="mono" style="font-size:11px;color:var(--ink-3)">
+            confidence ${a.confidence.toFixed(2)}</span>
+        </div>
+        <p style="margin:6px 0 0;font-size:12.5px;color:var(--ink-2)">${esc(a.explanation)}</p>
+        <div class="lbl" style="margin:14px 0 2px">Why the score fired</div>
+        <div class="bars">${c.map(([k,v]) => `
+          <div class="bar"><span class="mono">${esc(k)}</span>
+            <span class="track"><span class="fill" style="width:${Math.abs(v)/max*100}%"></span></span>
+            <span class="v mono">${(v*100).toFixed(0)}%</span></div>`).join("")}</div>
+        <div class="lbl" style="margin:14px 0 2px">Competing signatures</div>
+        <div class="bars">${tpl.map(([k,v]) => `
+          <div class="bar"><span class="mono">${esc(k)}</span>
+            <span class="track"><span class="fill" style="width:${v*100}%"></span></span>
+            <span class="v mono">${v.toFixed(2)}</span></div>`).join("")}</div>
+        <dl class="kv mono">
+          <dt>duration</dt><dd>${a.duration_h} h</dd>
+          <dt>conformal p</dt><dd>${a.p_value.toExponential(1)}</dd>
+          <dt>coherence</dt><dd>${(a.descriptors.coherence*100).toFixed(0)}%</dd>
+          <dt>ground truth</dt><dd>${esc(a.truth)}</dd>
+        </dl>`;
+      })();
+}
+
+$("foot").innerHTML =
+  `Generated from <span class="mono">${esc(DATA.generated_from)}</span>. `
+  + `Neighbours are selected by lowest difference-sigma, not by distance or cluster label. `
+  + `Health is the worst of the three channels, never the mean.`;
+
+render();
+addEventListener("resize", render);
+</script>

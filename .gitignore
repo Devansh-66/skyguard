@@ -38,3 +38,7 @@ skyguard_master_era5.csv
 Thumbs.db
 .idea/
 .vscode/
+
+# Dashboard build output — regenerate with `python -m dashboard.build`
+dashboard/snapshot.json
+dashboard/console.html
