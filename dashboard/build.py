@@ -18,9 +18,12 @@ OUT = Path("dashboard/console.html")
 def main() -> None:
     data = SNAP.read_text(encoding="utf-8")
     html = TPL.read_text(encoding="utf-8")
-    if "/*__DATA__*/" not in html:
-        raise SystemExit("template has no /*__DATA__*/ placeholder")
-    OUT.write_text(html.replace("/*__DATA__*/", data), encoding="utf-8")
+    # The `null` is part of the token. Replacing only the comment would leave
+    # `const DATA = {...}null;` -- a syntax error -- so the two must go together.
+    TOKEN = "/*__DATA__*/null"
+    if TOKEN not in html:
+        raise SystemExit(f"template has no {TOKEN} placeholder")
+    OUT.write_text(html.replace(TOKEN, data), encoding="utf-8")
     d = json.loads(data)
     print(f"{OUT}  {OUT.stat().st_size/1024:.0f} kB  "
           f"{len(d['stations'])} stations  {len(d['alerts'])} alerts")

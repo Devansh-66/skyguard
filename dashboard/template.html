@@ -173,7 +173,18 @@ footer{padding:14px 22px; border-top:1px solid var(--line); background:var(--sur
 <footer id="foot"></footer>
 
 <script>
-const DATA = /*__DATA__*/;
+// Build-time substitution. dashboard/build.py replaces the token below with
+// the contents of snapshot.json, producing console.html.
+//
+// Inlined rather than fetched because there is no fetch that would work: the
+// artifact CSP blocks external hosts, and a file:// page cannot fetch its own
+// siblings either. The page has to open by double-click AND publish as an
+// artifact, and inlining is the only form that satisfies both.
+//
+// The `null` after the token keeps THIS file valid JavaScript, so the template
+// opens in a browser instead of throwing a syntax error -- it renders the
+// "no data" notice below rather than a blank page.
+const DATA = /*__DATA__*/null;
 
 const UNIT = {temp:"°C", rh:"%", pres:"hPa"};
 const NAME = {temp:"Temperature", rh:"Relative humidity", pres:"Pressure"};
@@ -378,6 +389,14 @@ $("foot").innerHTML =
   + `Neighbours are selected by lowest difference-sigma, not by distance or cluster label. `
   + `Health is the worst of the three channels, never the mean.`;
 
-render();
-addEventListener("resize", render);
+if (!DATA) {
+  document.body.innerHTML =
+    '<p style="font:15px/1.6 system-ui;padding:40px;max-width:38em;color:#161C33">'
+    + '<b>This is the template, not the console.</b><br>It carries no data. '
+    + 'Run <code>python -m dashboard.build</code> and open '
+    + '<code>dashboard/console.html</code> instead.</p>';
+} else {
+  render();
+  addEventListener("resize", render);
+}
 </script>
