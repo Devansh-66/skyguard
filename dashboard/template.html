@@ -653,6 +653,20 @@ let view = {lat: 22.6, lon: 80.0, zoom: 4};
 const tileCache = new Map();
 let tileRedraw = null;
 
+// The live tile canvas and its hit list.
+//
+// Panning used to call renderMaps(), which rebuilds the #maps innerHTML. That
+// destroys the very canvas the pointer is captured on, so the drag state died
+// after one frame and the map would not move -- only the wheel worked, because
+// a wheel gesture completes inside a single event. Redrawing IN PLACE keeps the
+// element, the capture, and the closure alive for the whole gesture.
+let tileCanvas = null, tileGroup = [], tileHits = [];
+
+function redrawTiles(){
+  if (!tileCanvas || !tileCanvas.isConnected){ renderMaps(); return; }
+  tileHits = drawTileMap(tileCanvas, tileGroup, current);
+}
+
 function lon2world(lon, z){ return (lon + 180) / 360 * TILE * Math.pow(2, z); }
 function lat2world(lat, z){
   const r = lat * Math.PI / 180;
@@ -702,7 +716,7 @@ function drawTileMap(cv, group, sel){
   clearTimeout(tileRedraw);
   const again = () => {
     clearTimeout(tileRedraw);
-    tileRedraw = setTimeout(() => renderMaps(), 60);
+    tileRedraw = setTimeout(redrawTiles, 60);
   };
 
   for (let tx = Math.floor(ox/TILE); tx <= Math.floor((ox+W)/TILE); tx++){
@@ -784,24 +798,59 @@ function drawTileMap(cv, group, sel){
 
 function wirePanZoom(cv, group){
   let drag = null;
+  // Set when a gesture turns out to be a pan, cleared on the next pointerdown.
+  // A flag that only clears when a click arrives is worse than none: drag once
+  // without clicking and it silently eats the following genuine click.
+  // pointerdown always precedes click, so resetting there is self-cleaning.
+  let suppressClick = false;
+
+  // Click-to-select lives here rather than in wireMap, because it has to read
+  // the CURRENT hit list -- the dots move under the pointer as you pan, and a
+  // handler closed over a stale array selects whatever used to be there.
+  cv.onclick = (e) => {
+    if (suppressClick) return;
+    const r = cv.getBoundingClientRect();
+    const px = e.clientX - r.left, py = e.clientY - r.top;
+    let h = null, best = Infinity;
+    for (const o of tileHits){
+      const d = Math.hypot(o.x-px, o.y-py);
+      if (d <= o.r && d < best){ best = d; h = o; }
+    }
+    if (h){ current = h.name; openAlert = null; render(); }
+  };
+
   cv.onpointerdown = (e) => {
     drag = {x: e.clientX, y: e.clientY, lat: view.lat, lon: view.lon, moved: 0};
+    suppressClick = false;
     cv.setPointerCapture(e.pointerId);
+    cv.style.cursor = "grabbing";
   };
   cv.onpointermove = (e) => {
-    if (!drag){ return; }
+    if (!drag){
+      const r = cv.getBoundingClientRect();
+      const px = e.clientX - r.left, py = e.clientY - r.top;
+      cv.style.cursor = tileHits.some(o => Math.hypot(o.x-px, o.y-py) <= o.r)
+        ? "pointer" : "grab";
+      return;
+    }
     const z = Math.round(view.zoom);
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
     view.lon = world2lon(lon2world(drag.lon, z) - dx, z);
     view.lat = world2lat(lat2world(drag.lat, z) - dy, z);
-    renderMaps();
+    redrawTiles();
   };
-  cv.onpointerup = (e) => {
-    const wasDrag = drag && drag.moved > 4;
+  const endDrag = (e) => {
+    if (drag && drag.moved > 4) suppressClick = true;   // a pan is not a click
     drag = null;
-    if (wasDrag) e.stopPropagation();     // a pan is not a station click
+    cv.style.cursor = "grab";
+    try { cv.releasePointerCapture(e.pointerId); } catch {}
   };
+  cv.onpointerup = endDrag;
+  // Releasing outside the canvas, or the browser stealing the gesture, must
+  // still end the drag -- otherwise the map sticks to the cursor.
+  cv.onpointercancel = endDrag;
+  cv.onlostpointercapture = endDrag;
   cv.onwheel = (e) => {
     e.preventDefault();
     // Zoom about the cursor, not the centre. Zooming about the centre makes a
@@ -815,7 +864,7 @@ function wirePanZoom(cv, group){
     const nz = Math.round(view.zoom);
     view.lon = world2lon(lon2world(lonAt, nz) + r.width/2 - px, nz);
     view.lat = world2lat(lat2world(latAt, nz) + 420/2 - py, nz);
-    renderMaps();
+    redrawTiles();
   };
 }
 
@@ -1018,10 +1067,12 @@ function renderMaps(){
            <canvas id="map-tiles"></canvas></div>`
         + legendHTML()
         + (tileWarning ? `<div class="maplegend tilewarn">${esc(tileWarning)}</div>` : "");
-      const cv = $("map-tiles");
-      const hits = drawTileMap(cv, shown, current);
-      wireMap(cv, hits);
-      wirePanZoom(cv, shown);
+      tileCanvas = $("map-tiles");
+      tileGroup = shown;
+      tileHits = drawTileMap(tileCanvas, tileGroup, current);
+      wirePanZoom(tileCanvas, shown);       // owns click, hover, pan and zoom
+      tileCanvas.style.cursor = "grab";
+      tileCanvas.style.touchAction = "none";  // let the pointer events through
       return;
     }
   }
