@@ -24,6 +24,7 @@ from evaluation.metrics import _runs, merge_runs, threshold_for_budget
 from evaluation.run_full import coherence_series, REF_END, RAILS
 from signature import classify as SIG
 from health import state as H
+from residual.solartime import STATION_LATITUDE
 
 VARIABLES = ("temp", "rh", "pres")
 STEP = 3          # export every 3rd hour; the browser cannot use more
@@ -145,6 +146,7 @@ def main() -> None:
             "state": STATE.get(g.cluster.iloc[0], g.cluster.iloc[0]),
             "elevation": float(g.elevation.iloc[0]),
             "longitude": float(g.longitude.iloc[0]),
+            "latitude": STATION_LATITUDE.get(st),
             "health": H.roll_up({v: H.assess(alerts_here, v) for v in VARIABLES}),
             "sigma": sig,
             "series": series,

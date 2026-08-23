@@ -35,3 +35,28 @@ STATION_LONGITUDE = {
     "Pune": 73.86,
     "Ratnagiri": 73.31,
 }
+
+# Approximate station latitudes. UNVERIFIED, exactly like the longitudes above.
+#
+# These position the dots on the console map and nothing else -- no detector
+# reads them. That is deliberate: a wrong longitude silently smears a diurnal
+# baseline, whereas a wrong latitude here only puts a marker in the wrong place,
+# which someone will notice.
+#
+# The map draws NO national or state boundary. Boundary depiction on Indian maps
+# is regulated by Survey of India, this is an MoES/IMD submission, and an
+# approximate outline near a disputed frontier is a legal problem rather than a
+# cosmetic one. A graticule and a scale bar convey the geography that matters
+# here -- which stations are near which -- without asserting a border.
+STATION_LATITUDE = {
+    "Dhubri": 26.02,
+    "Guwahati": 26.14,
+    "Jorhat": 26.75,
+    "Silchar": 24.82,
+    "Tezpur": 26.63,
+    "Mahabaleshwar": 17.92,
+    "Mumbai_Colaba": 18.90,
+    "Mumbai_Santacruz": 19.10,
+    "Pune": 18.53,
+    "Ratnagiri": 16.99,
+}

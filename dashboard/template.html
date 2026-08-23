@@ -99,6 +99,21 @@ main{
 .bg-DEGRADING{background:var(--degrade)} .bg-SUSPECT{background:var(--suspect)}
 .bg-FAILED{background:var(--failed)}
 
+.mapstrip{
+  background:var(--surface); border-bottom:1px solid var(--line); padding:12px 22px;
+}
+.maphead{display:flex; align-items:baseline; gap:12px; margin-bottom:8px}
+.maphint{font-size:11.5px; color:var(--ink-3)}
+.maphead .ctl{margin-left:auto; padding:3px 11px; font-size:11px}
+.ctl.ghost{background:transparent; color:var(--accent)}
+.ctl.ghost:hover{background:var(--accent-soft)}
+#maps{display:flex; gap:22px; flex-wrap:wrap}
+.mapbox{flex:1 1 300px; min-width:270px}
+.mapbox h4{
+  font-family:Chivo,sans-serif; font-size:11px; font-weight:700; margin:0 0 4px;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2);
+}
+.mapbox canvas{border:1px solid var(--line); border-radius:5px; cursor:pointer}
 .clockbar{
   display:flex; align-items:center; gap:14px; flex-wrap:wrap;
   padding:9px 22px; background:var(--surface);
@@ -227,6 +242,16 @@ footer{padding:14px 22px; border-top:1px solid var(--line); background:var(--sur
 </div>
 
 <div class="summary" id="summary"></div>
+
+<section class="mapstrip" id="mapstrip">
+  <div class="maphead">
+    <span class="lbl">Network map</span>
+    <span class="maphint">Lines are the neighbour graph &mdash; who each station is
+      compared against. A fault moves one dot; weather moves the cluster.</span>
+    <button id="maptoggle" class="ctl ghost" aria-expanded="true">Hide</button>
+  </div>
+  <div id="maps"></div>
+</section>
 
 <main>
   <section class="pane">
@@ -547,9 +572,147 @@ function attachHover(cv, geo, t, series, dseries, unit){
   cv.addEventListener("pointerleave", () => { tip.hidden = true; });
 }
 
+/* --------------------------------------------------------------------- map */
+//
+// A borderless coordinate plot, not a slippy map. Two reasons, both hard.
+//
+//   1. Boundary depiction on Indian maps is regulated by Survey of India. This
+//      is an MoES/IMD submission and an approximate national outline near a
+//      disputed frontier is a legal problem, not a styling choice. So no
+//      outline is drawn at all -- a graticule and a scale bar carry the
+//      geography that matters here without asserting a border.
+//   2. The artifact runs under a CSP that blocks every external host, so no
+//      tile server is reachable. A basemap would be a grey rectangle.
+//
+// What the map is FOR: the neighbour graph. The edges show which stations are
+// compared against which, so an operator can see at a glance whether an
+// excursion is isolated (one dot diverging while its neighbours sit still --
+// a fault) or shared (the whole cluster moving together -- weather). That is
+// the distinction PS26073 is about, and three stacked traces cannot show it.
+
+function drawMap(cv, group, sel){
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, H = 210;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const g = cv.getContext("2d"); g.scale(dpr,dpr);
+  g.clearRect(0,0,W,H);
+
+  const P = 30;
+  const lats = group.map(s => s.latitude), lons = group.map(s => s.longitude);
+  const latMid = (Math.min(...lats)+Math.max(...lats))/2;
+  // Equirectangular with a cos(lat) correction on x, so a degree of longitude
+  // is drawn the length it actually is at this latitude. Without it Assam looks
+  // 10 % wider than it is and the neighbour distances read wrong.
+  const kx = Math.cos(latMid*Math.PI/180);
+  const xs = lons.map(l => l*kx), ys = lats;
+  let x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+  const padX=(x1-x0||0.5)*0.22, padY=(y1-y0||0.5)*0.22;
+  x0-=padX; x1+=padX; y0-=padY; y1+=padY;
+  const sc = Math.min((W-2*P)/(x1-x0), (H-2*P)/(y1-y0));
+  const cx = (W-(x1-x0)*sc)/2, cy = (H-(y1-y0)*sc)/2;
+  const X = lon => cx + (lon*kx - x0)*sc;
+  const Y = lat => cy + (y1 - lat)*sc;
+
+  // graticule at whole degrees
+  g.strokeStyle = css("--rule"); g.lineWidth = 1;
+  g.fillStyle = css("--ink-3"); g.font = "9px 'IBM Plex Mono'";
+  for (let la = Math.ceil(y0); la <= y1; la++){
+    const y = Math.round(Y(la))+0.5;
+    g.beginPath(); g.moveTo(4, y); g.lineTo(W-4, y); g.stroke();
+    g.textAlign = "left"; g.fillText(la+"°N", 5, y-3);
+  }
+  for (let lo = Math.ceil(x0/kx); lo <= x1/kx; lo++){
+    const x = Math.round(X(lo))+0.5;
+    g.beginPath(); g.moveTo(x, 4); g.lineTo(x, H-4); g.stroke();
+    g.textAlign = "center"; g.fillText(lo+"°E", x, H-5);
+  }
+
+  // neighbour edges, drawn once per undirected pair
+  const drawn = new Set();
+  g.strokeStyle = css("--trace-2"); g.lineWidth = 1.4;
+  for (const s of group){
+    for (const n of (DATA.neighbours[s.name] || [])){
+      const other = group.find(o => o.name === n);
+      if (!other) continue;
+      const key = [s.name, n].sort().join("|");
+      if (drawn.has(key)) continue;
+      drawn.add(key);
+      g.beginPath();
+      g.moveTo(X(s.longitude), Y(s.latitude));
+      g.lineTo(X(other.longitude), Y(other.latitude));
+      g.stroke();
+    }
+  }
+
+  // scale bar -- the honest substitute for a coastline. Without some distance
+  // reference the plot is unitless and a viewer cannot tell 40 km from 400.
+  const kmPerDeg = 111.32;
+  const target = (x1-x0)/kx*kmPerDeg*0.3;
+  const nice = [10,20,50,100,200,500].reduce((a,b) =>
+    Math.abs(b-target) < Math.abs(a-target) ? b : a);
+  const px = nice/kmPerDeg*kx*sc;
+  g.strokeStyle = css("--ink-2"); g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(W-P-px, H-14); g.lineTo(W-P, H-14); g.stroke();
+  g.beginPath(); g.moveTo(W-P-px, H-17); g.lineTo(W-P-px, H-11);
+  g.moveTo(W-P, H-17); g.lineTo(W-P, H-11); g.stroke();
+  g.fillStyle = css("--ink-2"); g.textAlign = "center"; g.font = "9.5px 'IBM Plex Mono'";
+  g.fillText(nice+" km", W-P-px/2, H-20);
+
+  // stations
+  const hit = [];
+  for (const s of group){
+    const x = X(s.longitude), y = Y(s.latitude);
+    const st = s.health.station;
+    const r = st === "HEALTHY" ? 5 : 7;
+    if (s.name === sel){
+      g.strokeStyle = css("--accent"); g.lineWidth = 2;
+      g.beginPath(); g.arc(x, y, r+4.5, 0, 2*Math.PI); g.stroke();
+    }
+    g.fillStyle = css("--" + ({HEALTHY:"ok", WATCH:"watch", DEGRADING:"degrade",
+                               SUSPECT:"suspect", FAILED:"failed"}[st]));
+    g.beginPath(); g.arc(x, y, r, 0, 2*Math.PI); g.fill();
+    g.strokeStyle = css("--surface"); g.lineWidth = 1.5; g.stroke();
+
+    g.fillStyle = css("--ink"); g.font = "10px 'IBM Plex Sans'";
+    g.textAlign = "center";
+    g.fillText(s.name.replace(/_/g," ").replace("Mumbai ",""), x, y - r - 5);
+    hit.push({name: s.name, x, y, r: r + 6});
+  }
+  return hit;
+}
+
+function renderMaps(){
+  const shown = DATA.stations.filter(s =>
+    (stateFilter === "all" || s.state === stateFilter) && s.latitude != null);
+  const byState = {};
+  for (const s of shown) (byState[s.state] ||= []).push(s);
+
+  $("maps").innerHTML = Object.keys(byState).sort().map(st =>
+    `<div class="mapbox"><h4>${esc(st)}</h4>
+       <canvas id="map-${esc(st)}"></canvas></div>`).join("");
+
+  for (const st of Object.keys(byState)){
+    const cv = $("map-"+st);
+    const hits = drawMap(cv, byState[st], current);
+    cv.onclick = (ev) => {
+      const r = cv.getBoundingClientRect();
+      const px = ev.clientX - r.left, py = ev.clientY - r.top;
+      const h = hits.find(o => Math.hypot(o.x-px, o.y-py) <= o.r);
+      if (h){ current = h.name; openAlert = null; render(); }
+    };
+    cv.onmousemove = (ev) => {
+      const r = cv.getBoundingClientRect();
+      const px = ev.clientX - r.left, py = ev.clientY - r.top;
+      cv.style.cursor = hits.some(o => Math.hypot(o.x-px, o.y-py) <= o.r)
+        ? "pointer" : "default";
+    };
+  }
+}
+
 /* ------------------------------------------------------------------ render */
 function render(){
   drawRail();
+  if (!$("mapstrip").dataset.hidden) renderMaps();
   const s = DATA.stations.find(x => x.name === current);
   const mine = DATA.alerts.filter(a => a.station === current);
 
@@ -734,6 +897,14 @@ function start(){
   banner();
   buildStateFilter();
   wireClock();
+  $("maptoggle").onclick = () => {
+    const strip = $("mapstrip");
+    const hidden = !strip.dataset.hidden;
+    if (hidden){ strip.dataset.hidden = "1"; $("maps").style.display = "none"; }
+    else { delete strip.dataset.hidden; $("maps").style.display = ""; renderMaps(); }
+    $("maptoggle").textContent = hidden ? "Show" : "Hide";
+    $("maptoggle").setAttribute("aria-expanded", String(!hidden));
+  };
   if (!DATA.stations.some(s => s.name === current)) current = DATA.stations[0].name;
   render();
   addEventListener("resize", render);

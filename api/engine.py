@@ -28,6 +28,7 @@ from detect.learned import LearnedDetector, conformalize, ensemble
 from evaluation.metrics import _runs, merge_runs, threshold_for_budget
 from signature import classify as SIG
 from health import state as H
+from residual.solartime import STATION_LATITUDE
 
 VARIABLES = ("temp", "rh", "pres")
 REF_END = "2023-10-01"
@@ -144,6 +145,7 @@ class Engine:
                 "name": name, "state": st, "cluster": g.cluster.iloc[0],
                 "elevation": float(g.elevation.iloc[0]),
                 "longitude": float(g.longitude.iloc[0]),
+            "latitude": STATION_LATITUDE.get(name),
                 "neighbours": self.graph.get(name, {}).get("neighbours", []),
                 "sigma": {v: self.sigma[v].get(name) for v in VARIABLES},
                 "health": H.roll_up({v: H.assess(mine, v) for v in VARIABLES}),
