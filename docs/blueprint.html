@@ -1211,6 +1211,146 @@ td s{opacity:.55}
   </section>
 
   <section>
+    <h2>Production architecture</h2>
+    <p class="prose">The prototype and the deployed system are different animals, and a judge asking <em>"how does this actually get used at IMD?"</em> is probing for this section. It opens with arithmetic, because the arithmetic is on your side.</p>
+
+    <h4>Run the scale numbers before designing anything</h4>
+    <p class="prose">IMD operates on the order of <strong>2,000 AWS stations</strong> <em>(verify the current figure)</em>. At 15-minute reporting:</p>
+    <div>
+      <div class="termcap">National network, computed</div>
+      <div class="term">  stations                        2,000
+  records / day                 192,000
+  records / year             70,080,000
+  raw bytes / year                 3.50 GB
+  compressed (~10x)                 350 MB
+  <span class="hi">10 years compressed              3.50 GB</span>
+
+  average ingest rate              2.22 rec/s
+  quarter-hour burst              2,000 records
+    burst clear @ 200 us/rec, <span class="ok">1 core       0.40 s</span></div>
+    </div>
+    <div class="note"><strong>This is not a big-data problem.</strong> A decade of national AWS observations fits on a laptop SSD, and the quarter-hourly burst clears in under half a second on a single core. Anyone proposing Kafka, Spark and a cluster is overengineering it — and a domain judge will know. <strong>Say the numbers out loud.</strong> Restraint reads as competence here; a distributed diagram reads as inexperience.<br><br><em>Budget those per-record timings, then measure them. Do not quote them from this page.</em></div>
+
+    <h4>The deployed topology</h4>
+    <figure class="diagram">
+      <svg viewBox="0 0 940 400" role="img" aria-label="Production topology: stations run the physics screen only and transmit flagged records to an ingest service, which queues to stateless workers running residual, detectors, signature and health; workers write to TimescaleDB and a Redis state cache, and a FastAPI service serves the dashboard over WebSocket. Everything server-side sits inside an on-premise boundary.">
+        <defs>
+          <marker id="pa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,1 10,5 0,9" fill="currentColor"></polygon></marker>
+          <marker id="pb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,1 10,5 0,9" fill="#7A3B52"></polygon></marker>
+        </defs>
+
+        <!-- station tier -->
+        <text x="12" y="22" font-size="10" font-weight="700" fill="#3F6B63" letter-spacing="1">STATION TIER  ×2,000</text>
+        <rect x="12" y="34" width="176" height="120" rx="2" fill="#3F6B63" fill-opacity=".08" stroke="#3F6B63" stroke-width="1.6"></rect>
+        <text x="26" y="58" font-size="11" font-weight="600" fill="currentColor">RTU / ESP32</text>
+        <text x="26" y="80" font-size="10.5" fill="currentColor">physics screen only</text>
+        <text x="26" y="98" font-size="9.5" fill="currentColor" opacity=".7">integer arithmetic, O(1) state</text>
+        <line x1="26" y1="110" x2="174" y2="110" stroke="currentColor" stroke-width=".8" opacity=".3"></line>
+        <text x="26" y="128" font-size="9.5" font-weight="700" fill="#3F6B63">no model. no ML runtime.</text>
+        <text x="26" y="144" font-size="9.5" fill="currentColor" opacity=".75">works with the link down</text>
+
+        <path d="M 196 94 L 244 94" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#pa)"></path>
+        <text x="200" y="86" font-size="9" font-weight="700" fill="currentColor">flagged records</text>
+        <text x="200" y="110" font-size="9" fill="currentColor" opacity=".7">+ health digest</text>
+
+        <!-- on-prem boundary -->
+        <rect x="252" y="14" width="676" height="330" rx="3" fill="none" stroke="#7A3B52" stroke-width="1.6" stroke-dasharray="6 4"></rect>
+        <text x="266" y="32" font-size="10" font-weight="700" fill="#7A3B52" letter-spacing="1">ON-PREMISE / NIC CLOUD BOUNDARY</text>
+
+        <rect x="270" y="48" width="130" height="80" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"></rect>
+        <text x="284" y="72" font-size="11" font-weight="600" fill="currentColor">INGEST</text>
+        <text x="284" y="92" font-size="9.5" fill="currentColor" opacity=".75">validate, dedupe</text>
+        <text x="284" y="108" font-size="9.5" fill="currentColor" opacity=".75">sentinel detection</text>
+        <path d="M 408 88 L 440 88" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#pa)"></path>
+
+        <rect x="448" y="48" width="180" height="80" rx="2" fill="#7A3B52" fill-opacity=".07" stroke="#7A3B52" stroke-width="2"></rect>
+        <text x="462" y="72" font-size="11" font-weight="700" fill="#7A3B52">WORKERS  ×2–4</text>
+        <text x="462" y="92" font-size="9.5" fill="currentColor">residual · detect · signature</text>
+        <text x="462" y="108" font-size="9.5" fill="currentColor">health · explain</text>
+        <text x="462" y="124" font-size="8.5" font-weight="700" fill="#7A3B52">stateless</text>
+
+        <path d="M 538 136 L 538 176" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#pa)"></path>
+        <path d="M 628 88 L 700 88 L 700 176" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#pa)"></path>
+
+        <rect x="448" y="184" width="180" height="76" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"></rect>
+        <text x="462" y="208" font-size="11" font-weight="600" fill="currentColor">TimescaleDB</text>
+        <text x="462" y="228" font-size="9.5" fill="currentColor" opacity=".75">observations · flags · alerts</text>
+        <text x="462" y="244" font-size="9.5" fill="currentColor" opacity=".75">health · maintenance tasks</text>
+
+        <rect x="646" y="184" width="140" height="76" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"></rect>
+        <text x="660" y="208" font-size="11" font-weight="600" fill="currentColor">Redis</text>
+        <text x="660" y="228" font-size="9.5" fill="currentColor" opacity=".75">current state,</text>
+        <text x="660" y="244" font-size="9.5" fill="currentColor" opacity=".75">2,000 small objects</text>
+
+        <rect x="806" y="48" width="112" height="212" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"></rect>
+        <text x="820" y="72" font-size="11" font-weight="600" fill="currentColor">FastAPI</text>
+        <text x="820" y="92" font-size="9.5" fill="currentColor" opacity=".75">REST + WS</text>
+        <line x1="820" y1="104" x2="906" y2="104" stroke="currentColor" stroke-width=".8" opacity=".3"></line>
+        <text x="820" y="124" font-size="11" font-weight="600" fill="currentColor">Dashboard</text>
+        <text x="820" y="144" font-size="9.5" fill="currentColor" opacity=".75">deltas only,</text>
+        <text x="820" y="160" font-size="9.5" fill="currentColor" opacity=".75">never full state</text>
+        <path d="M 786 222 L 804 222 L 804 180" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#pa)"></path>
+
+        <!-- offline tier -->
+        <rect x="270" y="276" width="516" height="54" rx="2" fill="#5A4A7A" fill-opacity=".08" stroke="#5A4A7A" stroke-width="1.4" stroke-dasharray="5 3"></rect>
+        <text x="284" y="298" font-size="10.5" font-weight="700" fill="#5A4A7A">OFFLINE — weekly, never in the request path</text>
+        <text x="284" y="318" font-size="9.5" fill="currentColor" opacity=".8">model retraining · calibration · baseline refit <tspan font-weight="700" fill="#5A4A7A">on human-approved clean periods only</tspan></text>
+
+        <text x="12" y="372" font-size="10" fill="currentColor" opacity=".8">Everything inside the boundary runs on <tspan font-weight="700">one modest VM</tspan> — 4–8 vCPU, 16 GB RAM. Workers are stateless so you <em>can</em> scale out; at national scale you will not need to.</text>
+        <text x="12" y="390" font-size="9.5" fill="currentColor" opacity=".6">No GPU anywhere. No model server. No message-broker cluster.</text>
+      </svg>
+      <figcaption><strong>The dashed boundary is a deliberate design statement.</strong> A national met agency will not put operational observations on a public-cloud SaaS. Designing for on-premise deployment — and saying so — reads very differently from assuming AWS and hoping nobody asks.</figcaption>
+    </figure>
+
+    <h4>Database — PostgreSQL + TimescaleDB</h4>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Requirement</th><th>Why Timescale</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Time-series partitioning</td><td>Hypertables handle it without you writing partition management</td></tr>
+          <tr><td class="k">Chart rollups</td><td>Continuous aggregates maintain the hourly/daily views the dashboard needs</td></tr>
+          <tr><td class="k">Storage</td><td>~10× compression on observation data — 3.5 GB for a decade nationally</td></tr>
+          <tr><td class="k"><strong>Joins</strong></td><td><strong>You need them.</strong> Alerts → stations → health → maintenance tasks. A pure time-series database fights you here</td></tr>
+          <tr><td class="k">Deployability</td><td>Open source, installs inside a government network, no vendor account</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose"><strong>Why not the alternatives:</strong> InfluxDB is weak relationally and its licensing has shifted; ClickHouse is excellent analytically but you also need transactional alert and acknowledgement state; plain PostgreSQL is genuinely fine and Timescale mainly saves you writing rollup logic yourself.</p>
+
+    <h4>Where the ML actually runs</h4>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Tier</th><th>Runs</th><th>Why there</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Station</td><td>Physics screen only</td><td>Instant hard-fault detection, survives a dead link, cuts uplink volume. <strong>No model, no ML runtime</strong> — it is arithmetic.</td></tr>
+          <tr><td class="k">Server, online</td><td>Residual · detectors · signature · health · explain</td><td>Needs neighbour data, which a station does not have</td></tr>
+          <tr><td class="k">Server, offline</td><td>Training · calibration · baseline refit</td><td>Weekly. <strong>Never in the request path</strong>, and baselines only on approved clean periods</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="warn"><strong>Inference does not need a model server.</strong> LightGBM predicting on 12 features is microseconds. Load the model into the worker process at startup as a versioned artifact. No TF Serving, no Triton, no separate inference service — adding one is a liability you would then have to defend, for zero gain.</div>
+
+    <h4>Migration path — the code does not change</h4>
+    <p class="prose">Keep the data-access layer thin: plain SQL or SQLAlchemy Core, which SQLite and PostgreSQL both speak. Then the prototype becomes production by swapping implementations behind the same interfaces.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th></th><th>Prototype (now)</th><th>Production (later)</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Database</td><td>SQLite file (or DuckDB)</td><td>TimescaleDB</td></tr>
+          <tr><td class="k">Current state</td><td>Python dict in-process</td><td>Redis</td></tr>
+          <tr><td class="k">Process model</td><td>One <code>uvicorn</code>, serving the React build</td><td>Ingest + workers + API</td></tr>
+          <tr><td class="k">Deploy</td><td><code>docker compose up</code></td><td>Same compose file, more services</td></tr>
+          <tr><td class="k">Demo</td><td><strong>Local laptop, zero network</strong></td><td>On-premise VM</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><strong>Do not build the production topology now.</strong> Two people building ingest queues, worker pools and a Timescale cluster will spend the entire timeline on infrastructure and arrive with nothing to demonstrate. Build the single-process prototype against interfaces; present the production topology as the design.<br><br>And for the finals demo itself: <strong>run locally.</strong> Venue Wi-Fi failing mid-demo is a documented way to lose. Hosting is for teammates and pre-round submission, not for the room.</div>
+
+    <h4>The line to say out loud</h4>
+    <div class="note" style="border-left-color:var(--ok);background:var(--ok-bg)"><em>"Two thousand stations at fifteen-minute cadence is 70 million records a year and 2.2 records a second. The entire national network's real-time quality control fits in a fraction of one CPU core, on one on-premise VM, with no GPU anywhere. We chose methods that make that true rather than methods that would need a cluster."</em><br><br>That answers <strong>Scalability (10 %), Deployability (10 %) and Energy Efficiency (5 %) in one breath</strong> — and it is stronger than any architecture diagram, because it is measured rather than asserted.</div>
+  </section>
+
+  <section>
     <h2>Start here — the MVP</h2>
     <p class="prose">Build a <strong>walking skeleton</strong>: a thin slice through every stage, not one stage built to completion.</p>
     <div class="note"><strong>The MVP is one demo, working.</strong><br>Replay a real cold front → <em>nothing flags</em>. Inject a fault of the same magnitude → <em>flags instantly, names the fault, says why it is not weather</em>. Do those back to back and the thesis is proven.</div>

@@ -452,6 +452,118 @@ Nothing here substitutes for checking. Each can invalidate a subsystem.
 
 ---
 
+## 15. Production architecture
+
+### The scale numbers come first
+
+IMD operates on the order of **2,000 AWS stations** *(verify the current figure)*. At
+15-minute reporting:
+
+```
+stations                        2,000
+records / day                 192,000
+records / year             70,080,000
+raw bytes / year                 3.50 GB
+compressed (~10x)                 350 MB
+10 years compressed              3.50 GB
+
+average ingest rate              2.22 rec/s
+quarter-hour burst              2,000 records
+  burst clear @ 200 us/rec, 1 core       0.40 s
+```
+
+**This is not a big-data problem.** A decade of national observations fits on a laptop
+SSD; the quarter-hourly burst clears in under half a second on one core. Anyone proposing
+Kafka, Spark and a cluster is overengineering it, and a domain judge will know. *Budget
+those per-record timings, then measure them.*
+
+### Topology
+
+```
+  STATION (RTU/ESP32)  physics screen only, integer arithmetic, O(1) state
+        │              transmits flagged records + health digest
+        ▼
+  ┌─ ON-PREMISE / NIC CLOUD BOUNDARY ─────────────────────────────┐
+  │  INGEST ──► WORKERS ×2-4 (stateless)                          │
+  │  validate    residual · detect · signature · health · explain │
+  │  dedupe            │              │                            │
+  │  sentinels         ▼              ▼                            │
+  │              TimescaleDB      Redis (current state)            │
+  │              observations     2,000 small objects              │
+  │              flags · alerts        │                           │
+  │              health · tasks        ▼                           │
+  │                            FastAPI ──WS──► Dashboard           │
+  │                                                                │
+  │  OFFLINE (weekly, never in request path):                      │
+  │  training · calibration · baseline refit on APPROVED data only │
+  └────────────────────────────────────────────────────────────────┘
+```
+
+Everything inside the boundary runs on **one modest VM** — 4–8 vCPU, 16 GB RAM. Workers
+are stateless so you *can* scale out; at national scale you will not need to. **No GPU, no
+model server, no message-broker cluster.**
+
+> A national met agency will not put operational observations on a public-cloud SaaS.
+> Designing for **on-premise** — and saying so — reads very differently from assuming a
+> cloud provider and hoping nobody asks.
+
+### Database — PostgreSQL + TimescaleDB
+
+| Requirement | Why Timescale |
+|---|---|
+| Time-series partitioning | Hypertables, no partition management code |
+| Chart rollups | Continuous aggregates maintain hourly/daily views |
+| Storage | ~10× compression — 3.5 GB for a decade nationally |
+| **Joins** | **You need them** — alerts → stations → health → tasks. A pure TSDB fights you |
+| Deployability | Open source, installs inside a government network |
+
+Not InfluxDB (weak relationally, licensing shifted), not ClickHouse (excellent
+analytically, but you need transactional alert state). Plain PostgreSQL is genuinely fine;
+Timescale mainly saves writing rollup logic.
+
+### Where the ML runs
+
+| Tier | Runs | Why there |
+|---|---|---|
+| Station | Physics screen only | Instant hard-fault detection, survives a dead link, cuts uplink. **No model, no ML runtime** |
+| Server, online | Residual · detectors · signature · health · explain | Needs neighbour data |
+| Server, offline | Training · calibration · baseline refit | Weekly, never in the request path |
+
+**Inference needs no model server.** LightGBM on 12 features is microseconds — load the
+model into the worker at startup as a versioned artifact. TF Serving or Triton would be a
+liability to defend, for zero gain.
+
+### Migration path — the code does not change
+
+Keep the data-access layer thin (plain SQL or SQLAlchemy Core; SQLite and PostgreSQL both
+speak it), then swap implementations behind the same interfaces.
+
+| | Prototype now | Production later |
+|---|---|---|
+| Database | SQLite file (or DuckDB) | TimescaleDB |
+| Current state | Python dict in-process | Redis |
+| Process model | One `uvicorn` serving the React build | Ingest + workers + API |
+| Deploy | `docker compose up` | Same compose file, more services |
+| Demo | **Local laptop, zero network** | On-premise VM |
+
+**Do not build the production topology now.** Two people building ingest queues and worker
+pools will spend the timeline on infrastructure and arrive with nothing to demonstrate.
+
+**For the finals demo: run locally.** Venue Wi-Fi failing mid-demo is a documented way to
+lose. Hosting is for teammates and pre-round submission, not for the room.
+
+### The line to say out loud
+
+> *"Two thousand stations at fifteen-minute cadence is 70 million records a year and 2.2
+> records a second. The entire national network's real-time quality control fits in a
+> fraction of one CPU core, on one on-premise VM, with no GPU anywhere. We chose methods
+> that make that true rather than methods that would need a cluster."*
+
+Answers Scalability (10 %), Deployability (10 %) and Energy (5 %) in one breath — and it
+is stronger than any architecture diagram, because it is measured rather than asserted.
+
+---
+
 *Blueprint only. Nothing here has been built or measured. Success criteria are targets;
 the Magnus tautology and the specific-humidity example were verified numerically;
 everything empirical must be verified independently.*
