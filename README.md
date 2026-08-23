@@ -86,6 +86,15 @@ Phase 0 is not optional — half a day here prevents three weeks of wrong result
 Per the problem statement: *fully executable code with example usage, and a document
 explaining various use cases.* Not a prototype and slides.
 
+## Documentation
+
+| File | For |
+| --- | --- |
+| [`CLAUDE.md`](CLAUDE.md) | **Read first.** Hard rules, known-wrong things, conventions, what needs human verification. Written for teammates *and* AI agents. |
+| [`docs/BLUEPRINT.md`](docs/BLUEPRINT.md) | Full plan — physics, ML layer, explainability, health model, dashboard, evaluation, traps |
+| [`docs/blueprint.html`](docs/blueprint.html) | Same, with architecture diagrams, the transformation chain, the accuracy figure and dashboard wireframes. Open locally. |
+
 ## Status
 
-Pre-Phase-0. Nothing measured yet.
+Pre-Phase-0. Nothing has been built or measured. Any number in the docs is a target or a
+simulation, never a result.

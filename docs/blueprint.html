@@ -1,0 +1,1411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SkyGuard Blueprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@500;600;700&family=Karla:ital,wght@0,400;0,500;0,600;1,400&family=Roboto+Mono:wght@400;500;700&display=swap">
+
+<style>
+:root{
+  --paper:#FFFFFF; --surface:#FFFFFF; --surface-2:#F7F5F6;
+  --ink:#1F1A1C; --ink-2:#4F464A; --ink-3:#847A7E;
+  --rule:#DED7D9; --rule-soft:#EDE8EA;
+  --accent:#7A3B52; --accent-2:#5E2C3F; --accent-bg:#F5EAEE;
+  --ok:#1D6A46; --ok-bg:#E5F1EB;
+  --sus:#8F6212; --sus-bg:#F9EFDA;
+  --bad:#B03A30; --bad-bg:#FBE8E5;
+  --term-bg:#1A1518; --term-ink:#DCD4D7; --term-dim:#877C80;
+  --f-display:"Bitter",Georgia,serif;
+  --f-body:"Karla","Segoe UI",system-ui,sans-serif;
+  --f-mono:"Roboto Mono",ui-monospace,Consolas,monospace;
+  --measure:70ch;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.64;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:clamp(1.25rem,4vw,3.5rem);display:flex;flex-direction:column;gap:3rem}
+.prose{max-width:var(--measure)}
+p{margin:0}.prose p+p{margin-top:.8rem}
+section{display:flex;flex-direction:column;gap:1.15rem}
+
+.masthead{display:flex;flex-direction:column;gap:1rem;padding-bottom:1.75rem;border-bottom:3px solid var(--accent)}
+.eyebrow{font-family:var(--f-mono);font-size:.7rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);display:flex;flex-wrap:wrap;gap:.5rem 1.3rem}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(2rem,5.2vw,3.1rem);line-height:1.08;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.standfirst{font-size:1.12rem;color:var(--ink-2);max-width:var(--measure)}
+h2{font-family:var(--f-display);font-weight:600;font-size:clamp(1.3rem,2.8vw,1.7rem);letter-spacing:-.01em;line-height:1.2;margin:0;text-wrap:balance}
+h3{font-family:var(--f-display);font-weight:600;font-size:1.06rem;margin:0}
+h4{font-family:var(--f-mono);font-size:.68rem;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin:0}
+a{color:var(--accent);text-underline-offset:2px}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+strong{font-weight:600;color:var(--ink)}
+em{font-style:italic;color:var(--ink-2)}
+code{font-family:var(--f-mono);font-size:.87em;background:var(--surface-2);padding:.1em .35em;border-radius:2px}
+
+.ps{border:1px solid var(--rule);background:var(--surface-2)}
+.ps-head{display:flex;flex-wrap:wrap;gap:.4rem 1.5rem;padding:.9rem 1.3rem;border-bottom:1px solid var(--rule);font-family:var(--f-mono);font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
+.ps-head b{color:var(--accent)}
+.ps-body{padding:1.3rem;max-height:400px;overflow-y:auto;font-size:.95rem;color:var(--ink-2)}
+.ps-body h5{font-family:var(--f-display);font-size:.95rem;font-weight:600;color:var(--ink);margin:1.1rem 0 .35rem}
+.ps-body h5:first-child{margin-top:0}
+.ps-body ul{margin:.3rem 0;padding-left:1.15rem;display:flex;flex-direction:column;gap:.22rem}
+.ps-body li::marker{color:var(--accent)}
+
+.term{background:var(--term-bg);color:var(--term-ink);font-family:var(--f-mono);font-size:.79rem;line-height:1.6;padding:1.1rem 1.25rem;overflow-x:auto;white-space:pre;border-radius:3px}
+.term .ok{color:#6FCE9E}.term .sus{color:#E5B268}.term .bad{color:#F2938B}
+.term .dim{color:var(--term-dim)}.term .hi{color:#E3A7BC;font-weight:700}
+.termcap{font-family:var(--f-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:.45rem}
+
+.tablewrap{overflow-x:auto;border:1px solid var(--rule)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:.92rem}
+thead th{font-family:var(--f-mono);font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);text-align:left;padding:.75rem .9rem;border-bottom:1.5px solid var(--rule);background:var(--surface-2);white-space:nowrap}
+tbody td{padding:.72rem .9rem;border-bottom:1px solid var(--rule-soft);vertical-align:top;color:var(--ink-2)}
+tbody tr:last-child td{border-bottom:none}
+td.k{color:var(--ink);font-weight:500}
+td.m{font-family:var(--f-mono);font-size:.84rem;color:var(--ink);white-space:nowrap}
+td.w{font-family:var(--f-mono);font-weight:700;color:var(--accent);text-align:right;font-variant-numeric:tabular-nums}
+tbody tr.big td{background:var(--accent-bg)}
+
+.chip{display:inline-block;font-family:var(--f-mono);font-size:.64rem;font-weight:700;letter-spacing:.06em;padding:.15rem .45rem;border-radius:2px;white-space:nowrap}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.chip.sus{background:var(--sus-bg);color:var(--sus)}
+.chip.bad{background:var(--bad-bg);color:var(--bad)}
+
+figure.diagram{margin:0;background:var(--surface-2);border:1px solid var(--rule);padding:1.5rem 1.3rem 1rem;display:flex;flex-direction:column;gap:.9rem}
+figure.diagram svg{width:100%;height:auto;display:block}
+figcaption{font-size:.88rem;color:var(--ink-3);max-width:var(--measure);border-top:1px solid var(--rule);padding-top:.85rem}
+
+.note{border-left:3px solid var(--accent);background:var(--accent-bg);padding:.95rem 1.2rem;font-size:.96rem;color:var(--ink-2);max-width:var(--measure)}
+.note strong{color:var(--ink)}
+.fix{border-left:3px solid var(--bad);background:var(--bad-bg);padding:.95rem 1.2rem;font-size:.96rem;color:var(--ink-2);max-width:var(--measure)}
+.fix strong{color:var(--ink)}
+.warn{border-left:3px solid var(--sus);background:var(--sus-bg);padding:.95rem 1.2rem;font-size:.96rem;color:var(--ink-2);max-width:var(--measure)}
+.warn strong{color:var(--ink)}
+
+ol.phases{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:0;border:1px solid var(--rule);background:var(--surface)}
+ol.phases li{display:grid;grid-template-columns:5.2rem 1fr;gap:1rem;padding:.9rem 1.1rem;border-bottom:1px solid var(--rule-soft);color:var(--ink-2);font-size:.94rem}
+ol.phases li:last-child{border-bottom:none}
+ol.phases .ph{font-family:var(--f-mono);font-size:.66rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);padding-top:.2rem}
+ol.phases b{color:var(--ink);font-weight:600}
+
+pre.tree{font-family:var(--f-mono);font-size:.79rem;line-height:1.55;background:var(--surface-2);border:1px solid var(--rule);padding:1.1rem 1.25rem;overflow-x:auto;margin:0;color:var(--ink-2)}
+pre.tree b{color:var(--accent);font-weight:700}
+
+ul.plain{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:.45rem;color:var(--ink-2);max-width:var(--measure)}
+ul.plain li::marker{color:var(--accent)}
+.footnote{font-size:.88rem;color:var(--ink-3);border-top:1px solid var(--rule);padding-top:1.1rem;max-width:var(--measure)}
+
+
+/* task hues — analogous to the rose accent, one cool contrast */
+:root{ --t-a:#7A3B52; --t-b:#9C4A2E; --t-c:#3F6B63; --t-d:#5A4A7A; }
+.tk{display:inline-block;font-family:var(--f-mono);font-size:.68rem;font-weight:700;width:1.35rem;height:1.35rem;line-height:1.35rem;text-align:center;border-radius:2px;color:#fff}
+.tk-a{background:var(--t-a)}.tk-b{background:var(--t-b)}.tk-c{background:var(--t-c)}.tk-d{background:var(--t-d)}
+h4 .tk{margin-right:.15rem}
+.chip.rec{background:var(--ok-bg);color:var(--ok)}
+.chip.con{background:var(--sus-bg);color:var(--sus)}
+.chip.avo{background:var(--bad-bg);color:var(--bad)}
+td s{opacity:.55}
+
+@media (max-width:620px){ ol.phases li{grid-template-columns:1fr;gap:.15rem} }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow"><span>SIH 2026 · PS26073</span><span>MoES / IMD</span><span>Software</span><span>Implementation blueprint</span><span>rev 2</span></div>
+    <h1>SkyGuard Blueprint</h1>
+    <p class="standfirst">Real-time anomaly detection for Automatic Weather Stations from temperature, pressure and humidity alone. A build plan for a system that does not just flag a bad value — it names which sensor failed, why, how sure it is, and when it will need servicing.</p>
+  </header>
+
+  <section>
+    <h2>The problem statement</h2>
+    <div class="ps">
+      <div class="ps-head"><span><b>ID</b> 26073</span><span><b>Org</b> Ministry of Earth Sciences (MoES)</span><span><b>Dept</b> India Meteorological Department</span><span><b>Category</b> Software</span><span><b>Theme</b> Disaster Management</span></div>
+      <div class="ps-body">
+        <h5>Problem Statement Title</h5>
+        <p>AI/ML-Based Intelligent Anomaly Detection for Automatic Weather Stations (AWS)</p>
+
+        <h5>Title</h5>
+        <p>SkyGuard AI: Intelligent Real-Time Anomaly Detection System for Temperature, Pressure, and Humidity Sensors in Automatic Weather Stations</p>
+
+        <h5>Background</h5>
+        <p>Automatic Weather Stations (AWS) are critical components of modern meteorological observation networks. These stations continuously monitor atmospheric parameters and provide real-time data for weather forecasting, climate monitoring, disaster management, aviation, agriculture, and scientific research. However, AWS observations often contain anomalies caused by sensor malfunction, communication failures, calibration drift, power fluctuations, harsh environmental conditions, and data corruption. Erroneous observations can significantly impact weather forecasting accuracy and decision-making systems. Traditional threshold-based quality control methods are often insufficient for identifying complex or hidden anomalies in meteorological data streams.</p>
+
+        <h5>Problem Statement</h5>
+        <p>Develop an AI/ML-based intelligent anomaly detection system capable of automatically identifying abnormal, inconsistent, or faulty observations from Automatic Weather Stations in real time using only the following parameters:</p>
+        <ul>
+          <li>Temperature (°C)</li>
+          <li>Atmospheric Pressure (hPa)</li>
+          <li>Relative Humidity (%)</li>
+        </ul>
+        <p>The system should distinguish between genuine meteorological events and sensor/data anomalies while minimizing false alarms and enabling scalable deployment across large weather observation networks.</p>
+
+        <h5>Objectives</h5>
+        <ul>
+          <li>Detect anomalies in real-time AWS data streams.</li>
+          <li>Identify sensor faults, spikes, frozen values, and communication errors.</li>
+          <li>Learn normal temporal and seasonal patterns of temperature, pressure, and humidity.</li>
+          <li>Perform multivariate consistency analysis among atmospheric parameters.</li>
+          <li>Provide confidence scores and explainable AI-based reasoning for detected anomalies.</li>
+          <li>Predict possible sensor degradation and maintenance requirements.</li>
+          <li>Optionally suggest corrected/imputed values for anomalous observations.</li>
+        </ul>
+
+        <h5>Expected Inputs</h5>
+        <p>Participants may use historical AWS datasets, simulated anomalies, or streaming sensor data containing the following meteorological parameters:</p>
+        <ul>
+          <li>Temperature — °C</li>
+          <li>Atmospheric Pressure — hPa</li>
+          <li>Relative Humidity — %</li>
+        </ul>
+
+        <h5>Expected Outputs</h5>
+        <ul>
+          <li>Real-time anomaly alerts</li>
+          <li>Severity and confidence scores</li>
+          <li>Root-cause classification</li>
+          <li>Visualization dashboard</li>
+          <li>Sensor health status</li>
+          <li>Corrected data estimation (optional)</li>
+        </ul>
+
+        <h5>Suggested Technologies</h5>
+        <ul>
+          <li>Explainable AI (SHAP/LIME) (Preferable)</li>
+          <li>Edge AI for low-power deployment on ESP32</li>
+        </ul>
+
+        <h5>Evaluation Criteria <em>(To be evaluated in anomaly injected data)</em></h5>
+        <ul>
+          <li>Innovation &amp; Novelty — 25%</li>
+          <li>Detection Accuracy — 20%</li>
+          <li>Real-Time Capability — 15%</li>
+          <li>Explainability — 10%</li>
+          <li>Scalability — 10%</li>
+          <li>Practical Deployability — 10%</li>
+          <li>Visualization/UI — 5%</li>
+          <li>Energy Efficiency — 5%</li>
+        </ul>
+
+        <h5>Example Use Case</h5>
+        <p>An AWS suddenly reports a temperature of 55°C with extremely high humidity and abnormal pressure variation while neighboring stations show normal conditions. The AI system should analyze temporal and spatial consistency, identify the reading as a probable sensor anomaly, generate an alert, and suggest corrective action.</p>
+
+        <h5>Grand Challenge</h5>
+        <p>Can AI build a self-aware and self-healing weather observation network capable of delivering trustworthy atmospheric data under all environmental conditions?</p>
+
+        <h5>Output</h5>
+        <p><strong>Fully executable code with example usage and a document explaining various use cases.</strong></p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What four rounds of research changed</h2>
+    <p class="prose">This blueprint was reviewed against the meteorological QC literature and pressure-tested on method selection, explainability and operator workflow. Three findings changed the design materially, and one of them was a factual error. They are stated here rather than quietly fixed, because the corrections are more instructive than the original plan.</p>
+
+    <div class="fix"><strong>Correction 1 — the dew-point check was a tautology.</strong> The earlier draft listed <em>T<sub>d</sub> ≤ T</em>, <em>RH ≤ 100 %</em> and <em>e ≤ e<sub>s</sub>(T)</em> as three independent physics constraints. When T<sub>d</sub> is computed from T and RH via Magnus, they are <strong>algebraically the same inequality</strong>. Substituting RH = 100 into Magnus returns T<sub>d</sub> = T exactly, at every temperature; RH &lt; 100 gives T<sub>d</sub> &lt; T; RH &gt; 100 gives T<sub>d</sub> &gt; T. The check reduces to <em>"is reported RH above 100 %"</em> — a range check.
+    <br><br>The old flagship example — <em>"dew point 33.1 °C exceeds air temperature 31.2 °C"</em> — implies a reported <strong>RH of 111 %</strong>. A domain judge spots that immediately. Real cross-parameter physics is in the next section.</div>
+
+    <div class="fix"><strong>Correction 2 — the two-layer split is not the innovation.</strong> Every Layer 1 element is a named, standardised test in operational meteorological QC: gross-error/plausible-value, persistence/flat-line, step/temporal-consistency, internal consistency, and spatial-consistency (buddy) checks. An IMD reviewer recognises the whole suite on sight. It stays — as the credibility floor and the explainability substrate — but leading with it as novelty is the fastest way to lose the 25 %.</div>
+
+    <div class="fix"><strong>Correction 3 — health is a state, not an event.</strong> The earlier draft conflated "this reading is bad" with "this sensor is deteriorating". They are different objects with different lifetimes and need separate storage, separate update rules and separate UI.</div>
+
+    <p class="prose">Everything below is the revised plan. Where the reviews disagreed with each other, both positions are given.</p>
+  </section>
+
+  <section>
+    <h2>The rubric is the plan</h2>
+    <p class="prose">This statement publishes its own scoring weights. No other statement on the shortlist does. Every design decision below is chosen for what it earns.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Criterion</th><th style="text-align:right">Weight</th><th>What earns it here</th></tr></thead>
+        <tbody>
+          <tr class="big"><td class="k">Innovation &amp; Novelty</td><td class="w">25%</td><td><strong>A physical-signature classifier</strong> that names <em>which</em> fault or <em>which</em> weather event, not a rarity score</td></tr>
+          <tr class="big"><td class="k">Detection Accuracy</td><td class="w">20%</td><td>Neighbour-difference channel + cross-channel discriminators; POD-vs-amplitude curves, not one F1</td></tr>
+          <tr><td class="k">Real-Time Capability</td><td class="w">15%</td><td>O(1) streaming state per station; published per-record latency and time-to-detection distributions</td></tr>
+          <tr><td class="k">Explainability</td><td class="w">10%</td><td>Uncertainty-propagated physics confidence; exact Shapley where a law was <em>not</em> broken</td></tr>
+          <tr><td class="k">Scalability</td><td class="w">10%</td><td>Per-station auto-calibrated thresholds — no manual tuning across a network</td></tr>
+          <tr><td class="k">Practical Deployability</td><td class="w">10%</td><td>Integer-arithmetic edge tier; measured bytes-per-station-day</td></tr>
+          <tr><td class="k">Visualization / UI</td><td class="w">5%</td><td>Three screens: board, judgement, planner</td></tr>
+          <tr><td class="k">Energy Efficiency</td><td class="w">5%</td><td>Uplink volume reduction, measured — radio TX dominates an AWS power budget</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><strong>Innovation (25 %) plus Explainability (10 %) outweighs Detection Accuracy (20 %).</strong> A classifier that names the fault and shows the physical reason scores on all three at once. A rarity score scores on one. That single observation should drive the whole architecture.</div>
+  </section>
+
+  <section>
+    <h2>The one problem that actually matters</h2>
+    <p class="prose">Everything hard compresses into one line of the statement's own text: <em>distinguish between genuine meteorological events and sensor/data anomalies.</em></p>
+    <p class="prose">A real weather event looks statistically like an anomaly. A cold front produces a sharp pressure fall, a temperature fall and a humidity rise — three simultaneous multivariate excursions. A naive detector flags it. Flag enough real fronts and IMD stops trusting the system, which is the same as it not existing.</p>
+    <h3>The discriminator is cross-channel coherence, not magnitude</h3>
+    <p class="prose">Real phenomena move all three parameters in a physically consistent pattern. A failing sensor moves one. All four reviews converged independently on this being the strongest available signal, and it uses exactly the three parameters the statement allows.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Phenomenon</th><th>Joint signature across T / P / RH</th><th>Timescale</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Thunderstorm gust front</td><td>Sharp T drop + RH jump + <em>pressure jump</em> (meso-high), all three together</td><td class="m">minutes</td></tr>
+          <tr><td class="k">Synoptic front passage</td><td>P falls smoothly, T follows, RH rises; neighbours see it with an advection lag</td><td class="m">hours</td></tr>
+          <tr><td class="k">Monsoon onset</td><td>Sustained RH rise + compression of the T diurnal range + modest P change</td><td class="m">days</td></tr>
+          <tr><td class="k">Heat wave</td><td>Sustained high T + low RH + persistent ridge; spatially broad</td><td class="m">days</td></tr>
+          <tr><td class="k"><strong>T sensor step</strong></td><td><strong>T only. Nothing else moves.</strong> Physically impossible for weather.</td><td class="m">instant</td></tr>
+          <tr><td class="k"><strong>RH element wetting</strong></td><td>RH pins at 100 % while T climbs away from the dew point implied at pin onset</td><td class="m">hours</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">This inverts the usual framing. Instead of <em>rarity ⇒ anomaly</em>, the rule becomes <strong>rarity + wrong physical signature ⇒ fault</strong>. A Mahalanobis score cannot make that distinction; a signature classifier can.</p>
+  </section>
+
+  <section>
+    <h2>The physics you actually have with three parameters</h2>
+    <p class="prose">With the tautology removed, here is what genuinely constrains or informs, and what each is good for. Note that only the first row is a hard impossibility — the rest are strong statistical-physical regularities, and they should be labelled as such rather than dressed up as laws.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Relation</th><th>What it is</th><th>Catches</th></tr></thead>
+        <tbody>
+          <tr><td class="k">RH &gt; 100 %<br><span style="font-size:.85em;color:var(--ink-3)">(≡ T<sub>d</sub> &gt; T)</span></td><td><strong>Hard impossibility</strong> — one check, honestly stated. Worth keeping, but as a range check with propagated uncertainty.</td><td>Gross RH failure, corrupt records</td></tr>
+          <tr><td class="k">Dew point as an airmass property</td><td>T<sub>d</sub> varies far less than T or RH over a diurnal cycle. A worked example below.</td><td>T or RH faults that break T<sub>d</sub> smoothness</td></tr>
+          <tr><td class="k">Specific humidity <em>q</em></td><td>Conserved under dry adiabatic processes and diurnal heating. <strong>Requires all three parameters</strong> — this is what pressure is for.</td><td>Turns the 3-parameter limit into a design choice</td></tr>
+          <tr><td class="k">T–RH anti-correlation</td><td>Rolling correlation of T and RH residuals is strongly negative at a healthy station; a stuck or drifting RH element collapses it toward zero.</td><td>RH degradation, O(1) streaming</td></tr>
+          <tr><td class="k">Semidiurnal pressure tide (S2)</td><td>Twice-daily solar-locked oscillation, strongest and most stable in the tropics. Fit 2 diurnal + 2 semidiurnal harmonics and the residual becomes very tight.</td><td>Pressure faults; a genuinely distinctive result for India</td></tr>
+          <tr><td class="k">Saturation onset divergence</td><td>At genuine saturation T ≈ T<sub>d</sub> and T sits near the diurnal minimum. A wetted element stays pinned while <em>T climbs away from T<sub>d</sub>(onset)</em>.</td><td>Separates fog from a failed RH sensor</td></tr>
+          <tr><td class="k">Spatial coherence <em>with advection</em></td><td>Real fronts propagate — they reach a neighbour with a lag consistent with distance and plausible speed. Faults have no propagation structure.</td><td>The strongest fault-vs-event signal available</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>Why dew point and <em>q</em> are the useful variables — worked</h4>
+    <p class="prose">A single airmass through one day's heating. T swings 12 K and RH swings 41 points, but the two conserved-ish quantities barely move:</p>
+    <div>
+      <div class="termcap">Computed from Magnus + specific humidity at P = 1008 hPa</div>
+      <div class="term">   T (C)   RH (%)      Td (C)      q (g/kg)
+   22.0     88.0       19.92         14.48
+   28.0     64.0       20.55         15.07
+   34.0     47.0       21.09         15.59
+   30.0     57.0       20.55         15.07
+   24.0     79.0       20.13         14.67
+
+   <span class="dim">swing:</span>  <span class="bad">12.0 K</span>   <span class="bad">41 pts</span>       <span class="ok">1.2 K</span>          <span class="ok">1.1 g/kg</span></div>
+    </div>
+    <p class="prose">That contrast is the whole argument for residualising on T<sub>d</sub> and <em>q</em> rather than on T and RH. A genuine airmass change moves them coherently and neighbours agree; a sensor fault breaks them while neighbours do not. <strong>This is also the radiation-shield discriminator</strong> — a failed shield or lost aspiration warms T and drops RH in a way that leaves T<sub>d</sub> approximately correct, whereas real advection moves T<sub>d</sub>.</p>
+    <div class="warn"><strong>Verify the empirical claims before you present them.</strong> The tide amplitude at your stations, the actual T<sub>d</sub> stability at your sites, and the neighbour correlation length are all things to measure on real data — not to quote from this page.</div>
+  </section>
+
+  <section>
+    <h2>Architecture</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 920 340" role="img" aria-label="Four-stage pipeline: raw stream is residualised against harmonic baselines and neighbour differences, screened by deterministic physics, scored by a learned residual model, then classified into a named fault or weather signature with confidence and explanation.">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,1 10,5 0,9" fill="currentColor"></polygon></marker>
+          <marker id="ac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,1 10,5 0,9" fill="#7A3B52"></polygon></marker>
+        </defs>
+        <text x="10" y="20" font-size="10.5" font-weight="700" fill="#7A3B52" letter-spacing="1">1 · RESIDUALISE</text>
+        <rect x="10" y="32" width="176" height="150" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+        <text x="24" y="54" font-size="11" fill="currentColor">T, P, RH  →  Td, q</text>
+        <text x="24" y="76" font-size="11" fill="currentColor">harmonic baseline</text>
+        <text x="24" y="94" font-size="10" fill="currentColor" opacity=".65">2 diurnal + 2 annual</text>
+        <text x="24" y="116" font-size="11" fill="currentColor">neighbour difference</text>
+        <text x="24" y="134" font-size="10" fill="currentColor" opacity=".65">elevation / MSLP corrected</text>
+        <text x="24" y="158" font-size="11" fill="currentColor">local solar time</text>
+        <text x="24" y="174" font-size="10" fill="currentColor" opacity=".65">σ floored at resolution</text>
+        <path d="M 194 106 L 240 106" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"></path>
+
+        <text x="248" y="20" font-size="10.5" font-weight="700" fill="#7A3B52" letter-spacing="1">2 · PHYSICS SCREEN</text>
+        <rect x="248" y="32" width="184" height="150" fill="none" stroke="#7A3B52" stroke-width="2.5"></rect>
+        <text x="262" y="54" font-size="11" fill="currentColor">RH &gt; 100 (hard)</text>
+        <text x="262" y="76" font-size="11" fill="currentColor">Hampel + return test</text>
+        <text x="262" y="98" font-size="11" fill="currentColor">frozen + cross-channel</text>
+        <text x="262" y="120" font-size="11" fill="currentColor">conditional rate limit</text>
+        <text x="262" y="142" font-size="11" fill="currentColor">CUSUM / Page-Hinkley</text>
+        <line x1="262" y1="154" x2="418" y2="154" stroke="currentColor" stroke-width="1" opacity=".3"></line>
+        <text x="262" y="172" font-size="10" fill="#7A3B52" font-weight="600">FLAGS — never filters</text>
+        <path d="M 440 106 L 486 106" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"></path>
+
+        <text x="494" y="20" font-size="10.5" font-weight="700" fill="#7A3B52" letter-spacing="1">3 · LEARNED SCORE</text>
+        <rect x="494" y="32" width="170" height="150" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+        <text x="508" y="54" font-size="11" fill="currentColor">6-dim residual vector</text>
+        <text x="508" y="72" font-size="10" fill="currentColor" opacity=".65">levels + first differences</text>
+        <text x="508" y="94" font-size="11" fill="currentColor">robust covariance</text>
+        <text x="508" y="116" font-size="11" fill="currentColor">conformal p-value</text>
+        <text x="508" y="138" font-size="11" fill="currentColor">dispersion ratio</text>
+        <line x1="508" y1="150" x2="650" y2="150" stroke="currentColor" stroke-width="1" opacity=".3"></line>
+        <text x="508" y="170" font-size="10" fill="currentColor" opacity=".7">alarm budget, not threshold</text>
+        <path d="M 672 106 L 718 106" fill="none" stroke="#7A3B52" stroke-width="1.8" marker-end="url(#ac)"></path>
+
+        <text x="726" y="20" font-size="10.5" font-weight="700" fill="#7A3B52" letter-spacing="1">4 · SIGNATURE</text>
+        <rect x="726" y="32" width="184" height="150" fill="none" stroke="#7A3B52" stroke-width="2.5"></rect>
+        <text x="740" y="54" font-size="11" fill="currentColor">match joint pattern</text>
+        <text x="740" y="76" font-size="11" fill="currentColor">against library of</text>
+        <text x="740" y="94" font-size="10.5" fill="currentColor" opacity=".8">weather events + faults</text>
+        <line x1="740" y1="108" x2="896" y2="108" stroke="currentColor" stroke-width="1" opacity=".3"></line>
+        <text x="740" y="128" font-size="11" font-weight="600" fill="#7A3B52">names WHICH</text>
+        <text x="740" y="148" font-size="11" fill="currentColor">+ TreeSHAP why</text>
+        <text x="740" y="168" font-size="11" fill="currentColor">+ unknown allowed</text>
+
+        <rect x="248" y="212" width="662" height="52" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 3"></rect>
+        <text x="262" y="234" font-size="11" font-weight="600" fill="currentColor">SENSOR HEALTH — a separate, slow, sticky state per station per variable</text>
+        <text x="262" y="254" font-size="10.5" fill="currentColor" opacity=".75">availability · violation rate · noise character · drift magnitude · spatial coherence   →   EWMA, asymmetric</text>
+        <path d="M 340 182 L 340 210" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#ar)"></path>
+        <path d="M 578 182 L 578 210" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#ar)"></path>
+        <path d="M 818 182 L 818 210" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#ar)"></path>
+
+        <text x="10" y="300" font-size="10.5" fill="currentColor" opacity=".7">Stage 1–2 run on the station (integer arithmetic, O(1) state).  Stages 3–4 need neighbours, so they run server-side.</text>
+      </svg>
+      <figcaption><strong>Stage 4 is the part that scores.</strong> Stages 1–3 tell you something is wrong; stage 4 tells you <em>what</em>. Note also that the physics screen <strong>flags but never filters</strong> — if rejected samples never reach the learned layer, the learned layer can never reason about the shape of a fault.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>Where the novelty actually is</h2>
+    <p class="prose">Operational QC tells you a value is wrong. Almost nothing in the field tells you <em>which physical failure mode</em> produced it, how sure you are at a guaranteed alarm rate, and when the sensor will need servicing. That gap is where the 25 % lives.</p>
+
+    <h4>Tier 1 — the submission's identity</h4>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Idea</th><th>Why it is defensible</th><th>Serves</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Signature classification over a named fault + event vocabulary</td><td>Converts "anomaly detected" into an actionable work order. Nothing in standard QC does this.</td><td class="m">Innov · Explain · Deploy</td></tr>
+          <tr><td class="k">Scale separation as the explicit decision</td><td>Genuine events are spatially coherent and propagate; faults are isolated. Plot every detection on a spatial × temporal coherence plane — one figure explains the whole thesis.</td><td class="m">Innov · Accuracy</td></tr>
+          <tr><td class="k">Thermodynamic invariants (T<sub>d</sub>, <em>q</em>, S2 tide)</td><td>Genuinely more physical than statistical multivariate QC, and makes the 3-parameter limit a design choice.</td><td class="m">Innov · Accuracy</td></tr>
+          <tr><td class="k">Physics-propagated confidence</td><td>Confidence from instrument uncertainty, needing <em>no training labels</em>. See the explainability section.</td><td class="m">Explain · Accuracy</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>Tier 2 — strong if the schedule holds</h4>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Idea</th><th>Note</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Conformal alarm budget</td><td>Distribution-free false-alarm control with no fault labels. Lets the operator set an alarm budget instead of tuning thresholds. Cheap — quantiles over a ring buffer.</td></tr>
+          <tr><td class="k">Physical self-calibration anchors</td><td>RH ceiling should sit near 100 % seasonally; T<sub>min</sub> converges toward T<sub>d</sub> on clear calm nights. Drift detection with <em>no neighbours needed</em>.</td></tr>
+          <tr><td class="k">Noise-floor tracking</td><td>Degradation shows in the <strong>second moment before the first</strong> — σ rises before the mean drifts. Most teams watch only the mean.</td></tr>
+          <tr><td class="k">Measured energy budget</td><td>Report bytes/station/day before and after. Radio TX dominates AWS power; a 90 % uplink reduction is the real energy result.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="warn"><strong>Novelty traps.</strong> No transformer or time-series foundation model — costly, weak on three variables, kills the edge story, and invites "why is this better than your median/MAD baseline?" No graph neural network over the station network — it needs a dense clean training set you do not have, and adaptive buddy checks beat it on sparse networks while staying explainable. No SHAP bolted onto the physics layer. And never claim ESP32 deployment without a measurement.</div>
+  </section>
+
+  <section>
+    <h2>Detection, fault by fault</h2>
+    <p class="prose">The single largest accuracy gain available is switching the primary detection channel from the raw residual to the <strong>neighbour-difference series</strong>, elevation-corrected. Weather cancels there; only the fault remains.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Fault</th><th>Detector</th><th>The discriminator that matters</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Spike</td><td class="m">Hampel filter, k = 5–11</td><td>Excursion <strong>and return</strong>. Without the return test, the first sample of a step is reported as a spike.</td></tr>
+          <tr><td class="k">Frozen</td><td class="m">Adaptive run-length</td><td><strong>Are the other two channels still moving?</strong> Calm air flattens all three; a stuck sensor flattens one.</td></tr>
+          <tr><td class="k">Dropout</td><td class="m">Gap + sentinel detection</td><td>Bit-identical across all three channels to full precision is essentially never natural → comms, not sensor.</td></tr>
+          <tr><td class="k">Saturation</td><td class="m">RH pin + divergence test</td><td>T climbing away from T<sub>d</sub>(onset) while RH stays pinned. This is the <strong>fog discriminator</strong>.</td></tr>
+          <tr><td class="k">Step offset</td><td class="m">CUSUM on neighbour-difference</td><td>Level shift with diurnal shape and variance unchanged, and no recovery.</td></tr>
+          <tr><td class="k">Drift</td><td class="m">Page-Hinkley on daily-mean difference</td><td><strong>Monotonically growing</strong> divergence from neighbours. Invisible locally, obvious spatially.</td></tr>
+          <tr><td class="k">Noise burst</td><td class="m">Rolling MAD-ratio / moving-range chart</td><td>Variance changes while the mean does not. <strong>Was entirely missing from the earlier plan.</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>On drift, honestly</h4>
+    <p class="prose">Sensor aging drift is of order 0.01–0.05 K/day. Weather variability is two to three orders of magnitude larger. No single-station statistic fixes that — the neighbour-difference series is the only thing that does, and it works because weather is spatially coherent while drift is not.</p>
+    <p class="prose">Detection latency scales as σ<sub>daily-difference</sub> / slope. Measure your own σ on a clean period and publish the <strong>latency-versus-slope curve</strong>. If it comes out at weeks rather than days, say so. A team that reports <em>"3–6 weeks at 0.02 K/day, here is the measured curve"</em> is far more credible than one claiming real-time drift detection.</p>
+    <div class="warn"><strong>What you cannot do statistically:</strong> separate sensor drift from a genuine change in the station's environment — vegetation growth, a new building, a resited screen. They are identical in the data. Route it to a metadata and human-confirmation step, and say so on the slide. Judges will respect it; claiming otherwise is a hole they will find.</div>
+  </section>
+
+  <section>
+    <h2>The learned layer, revised</h2>
+
+    <h4>Replace 288 cells with harmonic regression</h4>
+    <p class="prose">A per-(station, hour, month) baseline is 12 × 24 = <strong>288 cells per station per variable</strong>. With a year of hourly data that is about 30 samples per cell — and MAD from 30 samples is very noisy. It also creates discontinuities at hour and month boundaries, and it has no answer for a brand-new station.</p>
+    <p class="prose">Instead: <strong>two to three diurnal harmonics plus two annual harmonics</strong>, fit robustly (Huber or quantile regression). Roughly ten parameters instead of 288, continuous everywhere, usable with far less history, and it degrades gracefully. Add hierarchical shrinkage — station → region → climate zone — so day one of a new station is answerable.</p>
+
+    <h4>Widen the vector so it sees dynamics</h4>
+    <p class="prose">Mahalanobis on three residuals is a <strong>point detector</strong> — structurally blind to frozen, dropout, drift and noise burst, which is four of the seven classes. Do not build the architecture around it. Make it earn its place by widening to six dimensions:</p>
+    <div class="term">  z = [ z_Td, z_q, z_P,  Δz_Td, Δz_q, Δz_P ]</div>
+    <p class="prose">Now it can distinguish <em>"T dropped 5 K while P and RH did nothing"</em> (fault) from <em>"T dropped 5 K while P jumped and RH jumped"</em> (gust front). That is a real gain, and it is the multivariate consistency objective answered concretely.</p>
+    <p class="prose">For robust covariance, Fast-MCD is fine at d = 6 but must be <strong>fit on clean data</strong> or masking makes it absorb the anomalies it should catch. OGK or a pairwise comedian estimator is cheaper and often adequate. Covariance is seasonally non-stationary — fit per season, or document the degradation.</p>
+
+    <div class="note"><strong>Benchmark honestly, and publish the loss.</strong> If Isolation Forest does not beat median/MAD on your harness, report that. <em>"We benchmarked the fancy thing, the simple thing won, here is the curve"</em> is a strong look with technical judges, not a weak one.</div>
+  </section>
+
+  <section>
+    <h2>The ML layer, concretely</h2>
+    <p class="prose">The entire input is four columns. Everything below is manufactured from three numbers plus geometry — which is why the feature engineering, not the model choice, decides how well this works.</p>
+    <div>
+      <div class="termcap">Raw input · one row per station per interval</div>
+      <div class="term">  station_id   ts                    T_C     P_hPa    RH_pct
+  AWS-42403    2026-08-23 06:00:00   28.4    1006.2   71.0
+  AWS-42403    2026-08-23 07:00:00   30.1    1005.9   64.2
+  AWS-42403    2026-08-23 08:00:00   32.6    1005.4   55.8
+
+  <span class="dim">station metadata:  lat, lon, elevation_m, sensor_specs, install_date</span></div>
+    </div>
+
+    <h3>The transformation chain</h3>
+    <figure class="diagram">
+      <svg viewBox="0 0 940 260" role="img" aria-label="Four-stage feature pipeline with worked numbers: raw temperature pressure and humidity become dew point and specific humidity, then residuals against a harmonic baseline, then neighbour differences, then a twelve-element feature vector.">
+        <defs>
+          <marker id="mlar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,1 10,5 0,9" fill="currentColor"></polygon></marker>
+        </defs>
+
+        <rect x="10" y="34" width="196" height="120" rx="2" fill="#7A3B52" fill-opacity=".07" stroke="#7A3B52" stroke-width="1.6"></rect>
+        <text x="20" y="26" font-size="9.5" font-weight="700" fill="#7A3B52" letter-spacing="1">1 · RAW</text>
+        <text x="24" y="58" font-size="10.5" font-family="monospace" fill="currentColor">T  = 33.98 C</text>
+        <text x="24" y="78" font-size="10.5" font-family="monospace" fill="currentColor">RH = 45.0 %</text>
+        <text x="24" y="98" font-size="10.5" font-family="monospace" fill="currentColor">P  = 1005.5 hPa</text>
+        <line x1="24" y1="112" x2="192" y2="112" stroke="currentColor" stroke-width=".8" opacity=".3"></line>
+        <text x="24" y="130" font-size="9" fill="currentColor" opacity=".7">next hour: T +1.65 K</text>
+        <text x="24" y="145" font-size="9" fill="currentColor" opacity=".7">RH −4.2 pts</text>
+        <path d="M 214 94 L 246 94" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#mlar)"></path>
+
+        <rect x="254" y="34" width="196" height="120" rx="2" fill="#3F6B63" fill-opacity=".09" stroke="#3F6B63" stroke-width="1.6"></rect>
+        <text x="264" y="26" font-size="9.5" font-weight="700" fill="#3F6B63" letter-spacing="1">2 · PHYSICS VARIABLES</text>
+        <text x="268" y="58" font-size="10.5" font-family="monospace" fill="currentColor">Td = 20.37 C</text>
+        <text x="268" y="78" font-size="10.5" font-family="monospace" fill="currentColor">q  = 14.95 g/kg</text>
+        <text x="268" y="98" font-size="10.5" font-family="monospace" fill="currentColor">e  = vapour press.</text>
+        <line x1="268" y1="112" x2="436" y2="112" stroke="currentColor" stroke-width=".8" opacity=".3"></line>
+        <text x="268" y="130" font-size="9" font-weight="700" fill="#3F6B63">next hour: Td −0.09 K</text>
+        <text x="268" y="145" font-size="9" font-weight="700" fill="#3F6B63">q −0.07 g/kg</text>
+        <path d="M 458 94 L 490 94" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#mlar)"></path>
+
+        <rect x="498" y="34" width="196" height="120" rx="2" fill="#8F6212" fill-opacity=".09" stroke="#8F6212" stroke-width="1.6"></rect>
+        <text x="508" y="26" font-size="9.5" font-weight="700" fill="#8F6212" letter-spacing="1">3 · RESIDUALISE</text>
+        <text x="512" y="56" font-size="10" fill="currentColor">− harmonic baseline</text>
+        <text x="512" y="72" font-size="8.5" fill="currentColor" opacity=".7">2 diurnal + 2 annual, ~10 params</text>
+        <text x="512" y="94" font-size="10" fill="currentColor">− neighbour median</text>
+        <text x="512" y="110" font-size="8.5" fill="currentColor" opacity=".7">MSLP-reduced, σ floored</text>
+        <line x1="512" y1="122" x2="680" y2="122" stroke="currentColor" stroke-width=".8" opacity=".3"></line>
+        <text x="512" y="141" font-size="9" font-weight="700" fill="#8F6212">this step buys 20x noise reduction</text>
+
+        <path d="M 702 94 L 734 94" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#mlar)"></path>
+
+        <rect x="742" y="34" width="188" height="120" rx="2" fill="#5A4A7A" fill-opacity=".09" stroke="#5A4A7A" stroke-width="1.6"></rect>
+        <text x="752" y="26" font-size="9.5" font-weight="700" fill="#5A4A7A" letter-spacing="1">4 · FEATURE VECTOR</text>
+        <text x="756" y="56" font-size="9.5" font-family="monospace" fill="currentColor">z_Td z_q z_P</text>
+        <text x="756" y="72" font-size="9.5" font-family="monospace" fill="currentColor">Δz_Td Δz_q Δz_P</text>
+        <text x="756" y="88" font-size="9.5" font-family="monospace" fill="currentColor">d_T d_P d_RH</text>
+        <text x="756" y="104" font-size="9.5" font-family="monospace" fill="currentColor">run_len disp_ratio</text>
+        <text x="756" y="120" font-size="9.5" font-family="monospace" fill="currentColor">corr_T_RH  n_conf</text>
+        <line x1="756" y1="130" x2="916" y2="130" stroke="currentColor" stroke-width=".8" opacity=".3"></line>
+        <text x="756" y="146" font-size="9" font-weight="700" fill="#5A4A7A">12 numbers. That is the input.</text>
+
+        <text x="10" y="196" font-size="10" fill="currentColor" opacity=".85">Same airmass, one hour of heating: <tspan font-weight="700" fill="#7A3B52">T moves 1.65 K and RH moves 4.2 points</tspan> — while <tspan font-weight="700" fill="#3F6B63">dew point moves 0.09 K and q moves 0.07 g/kg.</tspan></text>
+        <text x="10" y="216" font-size="10" fill="currentColor" opacity=".85">The sensor reports T and RH. The <tspan font-weight="700" fill="#3F6B63">airmass</tspan> is described by Td and q. Model the second, not the first.</text>
+        <text x="10" y="242" font-size="9" fill="currentColor" opacity=".6">Note q requires all three parameters — this is what pressure is for, and it turns the three-parameter limit into a design choice.</text>
+      </svg>
+      <figcaption><strong>Accuracy is won here, before any model exists.</strong> A detector fed raw T and RH must learn to ignore the diurnal cycle. A detector fed residualised T<sub>d</sub> and <em>q</em> starts with the cycle already removed and the airmass already isolated.</figcaption>
+    </figure>
+
+    <h3>Four prediction targets, not one</h3>
+    <p class="prose">This is the part most teams collapse into a single "anomaly detector". It is four separate learning problems with four different label sources.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Task</th><th>Question</th><th>Type</th><th>Labels come from</th><th>Output</th></tr></thead>
+        <tbody>
+          <tr><td class="k"><span class="tk tk-a">A</span></td><td class="k">Is this observation valid?</td><td>Binary, per record</td><td>Unsupervised + injection</td><td class="m">p_invalid = 0.94</td></tr>
+          <tr><td class="k"><span class="tk tk-b">B</span></td><td class="k">Which fault is it?</td><td>Multiclass, 7 + unknown</td><td><strong>Supervised — your injector</strong></td><td class="m">frozen 0.71 · drift 0.19</td></tr>
+          <tr><td class="k"><span class="tk tk-c">C</span></td><td class="k">What should the value have been?</td><td>Regression</td><td>Neighbours (self-supervised)</td><td class="m">62.5 % ± 1.8</td></tr>
+          <tr><td class="k"><span class="tk tk-d">D</span></td><td class="k">When will it exit spec?</td><td>Regression on slope</td><td>Drift fit</td><td class="m">47 d (18–140)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><strong>Health score is not a prediction</strong> — it is a state accumulated from A and B over time. And <strong>task B is where the 25 % innovation lives</strong>: it is the only cleanly supervised problem here, because <em>you</em> generate the labels by injecting faults. That is the whole reason the injector must exist before the model.</div>
+
+    <h3>Models, by task</h3>
+
+    <h4><span class="tk tk-a">A</span> &nbsp;Is it valid? — unsupervised / semi-supervised</h4>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Model</th><th>Verdict</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Robust z-score (median / MAD)</td><td><span class="chip rec">START HERE</span></td><td>Your benchmark. Everything else must beat it on the harness or it does not ship.</td></tr>
+          <tr><td class="k">Kalman / structural state-space</td><td><span class="chip rec">RECOMMENDED</span></td><td><strong>The underrated option.</strong> One recursive model gives level + trend + seasonal; the innovation <em>is</em> your residual; drift is literally a state variable you read off. O(1) memory, explainable, streaming-native.</td></tr>
+          <tr><td class="k">CUSUM / Page-Hinkley</td><td><span class="chip rec">RECOMMENDED</span></td><td>Correct trigger for step and drift. A few scalars of state.</td></tr>
+          <tr><td class="k">Mahalanobis + robust covariance</td><td><span class="chip con">PARTIAL</span></td><td>Good for joint implausibility. <strong>Structurally blind to frozen, dropout, drift and noise burst</strong> — a point detector. Do not centre the architecture on it.</td></tr>
+          <tr><td class="k">Matrix Profile (STUMPY)</td><td><span class="chip con">WORTH A LOOK</span></td><td>Discord discovery over windows — finds "this shape has never occurred here before". CPU-friendly and rarely used by student teams.</td></tr>
+          <tr><td class="k">Isolation Forest · Half-Space Trees · RRCF</td><td><span class="chip con">TIMEBOX</span></td><td>Legitimate on engineered features, streaming variants exist. Black box, so it costs you on explainability.</td></tr>
+          <tr><td class="k">LSTM / VAE autoencoder</td><td><span class="chip avo">AVOID</span></td><td>What everyone else submits. Most data, least explanation, and no benchmark showing it helps.</td></tr>
+          <tr><td class="k">One-Class SVM · LOF</td><td><span class="chip avo">AVOID</span></td><td>Quadratic-ish cost. Will not scale to a network.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4><span class="tk tk-b">B</span> &nbsp;Which fault? — supervised, from injection</h4>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Model</th><th>Verdict</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Gradient boosting (LightGBM / XGBoost)</td><td><span class="chip rec">RECOMMENDED</span></td><td>Mixed features, fast on CPU, and <strong>TreeSHAP gives exact cheap attributions</strong> — precisely where SHAP earns its place in this architecture.</td></tr>
+          <tr><td class="k">MiniRocket / ROCKET</td><td><span class="chip rec">STRONG</span></td><td>Random convolutional kernels over raw windows. Near state-of-the-art on time-series classification, trains in seconds on CPU, and almost nobody at SIH will use it.</td></tr>
+          <tr><td class="k">Random Forest</td><td><span class="chip con">FINE</span></td><td>Slightly behind GBT, still SHAP-able.</td></tr>
+          <tr><td class="k">Logistic regression</td><td><span class="chip rec">BASELINE</span></td><td>Publish it. It is how you prove the others earned their place.</td></tr>
+          <tr><td class="k">1D CNN / InceptionTime</td><td><span class="chip con">OVERKILL</span></td><td>More data and compute than this problem needs.</td></tr>
+          <tr><td class="k">Shapelet methods</td><td><span class="chip avo">TOO SLOW</span></td><td>Beautifully interpretable, impractical to train in your timeline.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4><span class="tk tk-c">C</span> &nbsp;Imputation &nbsp;·&nbsp; <span class="tk tk-d">D</span> &nbsp;Drift and time-to-out-of-spec</h4>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Task</th><th>Method</th><th>Note</th></tr></thead>
+        <tbody>
+          <tr><td class="k"><span class="tk tk-c">C</span></td><td>Neighbour-weighted regression</td><td>The workhorse. Cheap, explainable, uncertainty from neighbour spread.</td></tr>
+          <tr><td class="k"><span class="tk tk-c">C</span></td><td><strong>Low-rank matrix completion</strong></td><td>Over the station × time matrix. Exploits the fact that a whole network's residuals are highly correlated — the interesting option.</td></tr>
+          <tr><td class="k"><span class="tk tk-c">C</span></td><td>Kalman / RTS smoother · Gaussian Process</td><td>For gaps; GP gives uncertainty bands free.</td></tr>
+          <tr><td class="k"><span class="tk tk-d">D</span></td><td><strong>Theil–Sen or Huber regression</strong></td><td>Robust is <strong>mandatory</strong> — genuine faults would otherwise dominate the slope.</td></tr>
+          <tr><td class="k"><span class="tk tk-d">D</span></td><td>Kalman with an explicit drift state</td><td>More elegant; gives the uncertainty directly rather than as a separate calculation.</td></tr>
+          <tr><td class="k"><span class="tk tk-d">D</span></td><td><s>Weibull / survival RUL</s></td><td><span class="chip avo">NO</span> You have no failure history. Any hazard curve would be fabricated.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where the accuracy actually comes from</h2>
+    <p class="prose">A simulation of 180 days across three stations, with a <strong>0.02 K/day</strong> calibration drift injected into one of them on day 60. The same drift, viewed two ways:</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 940 300" role="img" aria-label="Two stacked panels showing the same 0.02 K per day drift. In the single-station view the drift is invisible inside plus or minus 1.8 K of weather noise. In the neighbour-difference view the noise falls to 0.09 K and the drift crosses the three-sigma line fourteen days after injection.">
+        <text x="10" y="20" font-size="9.5" font-weight="700" fill="#B03A30" letter-spacing="1">SINGLE STATION — daily mean temperature deviation</text>
+        <rect x="70" y="72" width="810" height="80" fill="none" stroke="currentColor" stroke-width=".8" opacity=".35"></rect>
+        <line x1="70" y1="112" x2="880" y2="112" stroke="currentColor" stroke-width=".8" opacity=".35"></line>
+        <text x="60" y="76" font-size="8.5" fill="currentColor" opacity=".55" text-anchor="end">+4σ</text>
+        <text x="60" y="116" font-size="8.5" fill="currentColor" opacity=".55" text-anchor="end">0</text>
+        <text x="60" y="152" font-size="8.5" fill="currentColor" opacity=".55" text-anchor="end">−4σ</text>
+        <polyline fill="none" stroke="#B03A30" stroke-width="1.4" points="70,114 82,117 95,119 107,121 120,123 132,124 145,124 157,125 170,125 182,124 195,122 207,121 220,119 232,116 244,113 257,111 269,108 282,106 294,105 307,102 319,101 332,100 344,100 357,100 369,100 382,101 394,103 406,105 419,108 431,109 444,112 456,115 469,117 481,120 494,121 506,122 519,123 531,123 544,123 556,122 568,120 581,118 593,116 606,114 618,111 631,108 643,106 656,103 668,100 681,100 693,98 706,97 718,97 730,97 743,97 755,98 768,100 780,102 793,104 805,107 818,110 830,111 843,114 855,116 868,117"></polyline>
+        <line x1="257" y1="66" x2="257" y2="158" stroke="#5A4A7A" stroke-width="1.4" stroke-dasharray="4 3"></line>
+        <text x="262" y="64" font-size="9" font-weight="700" fill="#5A4A7A">drift starts</text>
+        <text x="600" y="90" font-size="10" font-weight="700" fill="#B03A30">σ = 1.80 K — the drift is somewhere in here</text>
+        <text x="600" y="104" font-size="9" fill="#B03A30" opacity=".8">3σ crossing would need 269 days</text>
+
+        <text x="10" y="188" font-size="9.5" font-weight="700" fill="#1D6A46" letter-spacing="1">NEIGHBOUR-DIFFERENCE — same data, same axis in σ units</text>
+        <rect x="70" y="210" width="810" height="80" fill="none" stroke="currentColor" stroke-width=".8" opacity=".35"></rect>
+        <line x1="70" y1="250" x2="880" y2="250" stroke="currentColor" stroke-width=".8" opacity=".35"></line>
+        <line x1="70" y1="223" x2="880" y2="223" stroke="#8F6212" stroke-width="1" stroke-dasharray="4 3"></line>
+        <text x="884" y="226" font-size="8.5" font-weight="700" fill="#8F6212">3σ</text>
+        <text x="60" y="214" font-size="8.5" fill="currentColor" opacity=".55" text-anchor="end">+4σ</text>
+        <text x="60" y="254" font-size="8.5" fill="currentColor" opacity=".55" text-anchor="end">0</text>
+        <polyline fill="none" stroke="#1D6A46" stroke-width="1.4" points="70,242 82,257 95,252 107,253 120,244 132,247 145,236 157,250 170,241 182,249 195,240 207,265 220,237 232,250 244,238 257,247 269,241 282,239 294,253 307,234 319,246 332,243 344,262 357,229 369,227 382,228 394,231 406,221 419,236 431,214 444,214 456,214 469,225 481,223 494,219 506,214 519,216 531,214 544,219 556,215 568,214 581,214 593,214 606,214 618,214 631,214 643,214 656,214 668,214 681,214 693,214 706,214 718,214 730,214 743,214 755,214 768,214 780,214 793,214 805,214 818,214 830,214 843,214 855,214 868,214"></polyline>
+        <line x1="257" y1="204" x2="257" y2="296" stroke="#5A4A7A" stroke-width="1.4" stroke-dasharray="4 3"></line>
+        <line x1="431" y1="204" x2="431" y2="296" stroke="#1D6A46" stroke-width="1.6"></line>
+        <text x="436" y="202" font-size="9.5" font-weight="700" fill="#1D6A46">detected — day 14</text>
+        <text x="600" y="278" font-size="10" font-weight="700" fill="#1D6A46">σ = 0.09 K · 20.5× less noise</text>
+        <text x="600" y="292" font-size="9" fill="currentColor" opacity=".6">flat top = drift has run off the top of the axis</text>
+      </svg>
+      <figcaption><strong>That 20× gain came from a subtraction, not a model.</strong> No architecture choice on task A will buy you an improvement of this size — the residual engineering does. Spend the effort there first. <em>Caveat: in this simulation the neighbours share an identical seasonal signal by construction, so the real-world gain will be smaller. Measure your own σ — it is the number that sets your drift latency, and it belongs on a slide.</em></figcaption>
+    </figure>
+
+    <h3>The five accuracy traps</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Trap</th><th>What goes wrong</th><th>Do instead</th></tr></thead>
+        <tbody>
+          <tr><td class="k">ROC-AUC</td><td>At sub-1 % prevalence it looks excellent for an operationally useless detector. Evaluators check for this.</td><td><strong>PR-AUC</strong></td></tr>
+          <tr><td class="k">Point-level scoring only</td><td>A 30-day drift contributes ~720 true positives and inflates recall absurdly</td><td><strong>Event-level too</strong> — the gap between them is informative</td></tr>
+          <tr><td class="k">A single FPR</td><td>0.1 alarms/station/day overall but 8 during monsoon onset is unusable, and the aggregate hides it</td><td><strong>Split by weather activity</strong></td></tr>
+          <tr><td class="k">Free-floating thresholds</td><td>Comparing methods at different alarm rates is meaningless</td><td><strong>Fix the alert budget</strong> — 1/station/week — then compare recall</td></tr>
+          <tr><td class="k">One accuracy number</td><td>Invites injecting only large obvious faults</td><td><strong>POD vs amplitude curve</strong>; headline the minimum detectable amplitude at 90 % POD</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><strong>The one-line summary.</strong> Residual engineering decides your accuracy. The fault classifier decides your innovation score. The injector decides whether you can prove either.</div>
+  </section>
+
+
+  <section>
+    <h2>Explainability, done properly</h2>
+
+    <h4>The framing problem</h4>
+    <p class="prose">"We use SHAP to corroborate" reads to a judge as <em>we did not really do it</em>. The organisers named the tool, and Explainability is 10 %. The fix is not to bolt SHAP onto the physics layer — it is to put SHAP where it is genuinely the right instrument: <strong>the signature classifier</strong>, whose features are already human-meaningful (<code>identical_run_length = 47</code>, <code>spatial_zscore = 0.3</code>, <code>recovered_next_sample = true</code>). A Shapley attribution over those is a real decision audit.</p>
+    <p class="prose">State the policy explicitly: <em>deterministic violations are explained by the law they broke; learned detections by exact Shapley attributions; root cause by TreeSHAP over named diagnostic features.</em> That defends the design instead of apologising for it.</p>
+
+    <h4>Physics-propagated confidence — the strongest result available</h4>
+    <p class="prose">A violation is not automatically probability 1. RH reading 100.4 % with ±2 % instrument uncertainty is not a violation; 111 % is. Propagate the stated probe accuracies through Magnus to get the standard uncertainty on the violation margin, then</p>
+    <div class="term">  confidence = Φ( margin / u_margin )</div>
+    <p class="prose">So the alert reads: <em>"exceeds by 1.9 °C; combined standard uncertainty 0.45 °C; 4.2σ; p(invalid) &gt; 0.999"</em>. Calibrated from metrology, needing <strong>no training labels at all</strong> — and it automatically suppresses the marginal-violation false alarms that would otherwise flood the operator at high humidity.</p>
+    <div class="warn"><strong>Magnus coefficients differ over water and over ice.</strong> Using the water set below 0 °C manufactures spurious violations at high-altitude and northern stations. Select by temperature and document the switchover.</div>
+
+    <h4>Exact Shapley, not approximate</h4>
+    <p class="prose">At six to eight features, exact Shapley is 2<sup>d</sup> = 64–256 coalitions — microseconds. <strong>KernelSHAP's sampling approximation exists to handle d ≈ 200; using it at d = 6 is strictly worse than exact enumeration.</strong> Say that in the writeup; it shows you understand what SHAP is.</p>
+    <p class="prose">For the Mahalanobis score, use the <strong>conditional</strong> value function, <code>v(S) = z_Sᵀ (Σ_SS)⁻¹ z_S</code> — the inverse of the submatrix, not the submatrix of the inverse. The interventional form evaluates the score at combinations that cannot physically occur. Each attribution then reads as <em>"surprise in this channel not already explained by the others"</em>, which is exactly the correlation-aware answer.</p>
+
+    <div class="warn"><strong>Never put a derived quantity in the SHAP feature set alongside its parents.</strong> T<sub>d</sub> is an exact function of T and RH. Include T, RH <em>and</em> T<sub>d</sub> and Shapley splits credit among perfectly dependent features — every attribution looks small and the output reads "nothing is important". Pick a basis and hold it. Derived quantities belong in the physics screen as constraints, not in the learned feature set.</div>
+    <p class="prose">For the operator view, compute <strong>grouped</strong> Shapley over three or four groups — temperature channel, pressure channel, humidity channel, cross-channel consistency. Group attributions are stable where individual ones are not, and four groups is sixteen coalitions. Keep per-feature attribution in the analyst drill-down.</p>
+
+    <h4>On LIME — reject it, but prove it</h4>
+    <p class="prose">LIME's local linear surrogate has an arbitrary kernel width, is unstable across reruns at low dimensionality, and its perturbation sampling generates physically impossible points. Rather than dismissing it: implement it behind a flag, run 20 times per instance, and report the Jaccard overlap of top-<em>k</em> features against SHAP. An <strong>evidence-backed rejection</strong> scores better than a LIME chart nobody trusts, and it is one afternoon.</p>
+
+    <h4>Two probabilities, never one</h4>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Field</th><th>Means</th><th>Produced by</th></tr></thead>
+        <tbody>
+          <tr><td class="k"><code>p_invalid</code></td><td>P(sensor artefact rather than real weather)</td><td>Uncertainty propagation (L1) or isotonic calibration (L2)</td></tr>
+          <tr><td class="k"><code>p_rootcause[label]</code></td><td>Distribution over fault types, given invalid</td><td>Signature classifier</td></tr>
+          <tr><td class="k"><code>false_alarm_bound</code></td><td>P(a normal point would score this extreme)</td><td>Conformal p-value — <strong>not a confidence, never display it as one</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><strong>The base-rate trap.</strong> If you inject faults at 50 % prevalence and the real rate is ~10⁻³, your calibrated 0.7 means nothing in deployment. Either match injection prevalence to the estimated real rate, or apply an explicit prior shift in logit space. State the assumed deployment base rate in config — it is an auditable number.<br><br>Prove calibration with a <strong>reliability diagram</strong>, 15 equal-mass bins, plus ECE and Brier. That diagram is the single most convincing artifact for this criterion: it shows "0.7 means seven in ten".</div>
+  </section>
+
+  <section>
+    <h2>What the operator sees</h2>
+    <p class="prose">Lead with the verdict and confidence, then one sentence of reason. Always answer <em>"why not weather"</em> explicitly — that is the question an IMD operator actually has. Show percentages of the anomaly score, never raw Shapley units.</p>
+
+    <div>
+      <div class="termcap">Layer 1 · physics violation</div>
+      <div class="term">  STATION 42403 · Bhubaneswar · 09:15 IST · <span class="bad">INVALID</span> (p = 0.9994)
+
+  Reported RH 111.3 % — above the physical ceiling by 11.3 points,
+  4.2x the combined sensor uncertainty (+/- 2.7 %).
+
+  <span class="hi">ROOT CAUSE</span>   RH sensor wet bias (0.71) · alt: calibration drift (0.19)
+  <span class="hi">WHY NOT WX</span>   0 of 3 neighbours show comparable humidity. Not a regional event.
+  <span class="hi">COUNTERFACT</span> No alert if RH &lt; 102.7 % at this uncertainty.
+  <span class="hi">ACTION</span>       Inspect/replace RH probe. T and P unaffected — continue using.</div>
+    </div>
+
+    <div>
+      <div class="termcap">Layer 2 · no law broken, Shapley is the explanation</div>
+      <div class="term">  STATION 43128 · Nagpur · 14:40 IST · <span class="sus">ANOMALY</span> (p = 0.78)
+
+  No physical law violated. Residual 6.1 sigma from this station's normal
+  14:00 August behaviour. Conformal p = 0.0004 — at this threshold the
+  expected false-alarm rate is 1 in 2,500.
+
+  <span class="hi">DRIVERS</span>      pressure residual -3.8 hPa .......... 61% of score
+               cross-channel inconsistency ......... 25%
+               temperature residual +0.4 C ......... 9%
+               humidity residual +2 % RH ........... 5%
+  <span class="hi">READING</span>      The pressure drop is not accompanied by the T and RH
+               changes that normally accompany a drop this size here.
+  <span class="hi">WHY NOT WX</span>   4 of 4 neighbours show no pressure change, and no
+               propagation lag consistent with a front.
+  <span class="hi">ROOT CAUSE</span>   barometer step offset (0.64) · drift (0.24) · unknown (0.12)</div>
+    </div>
+
+    <p class="prose">Two non-negotiables: <strong>emit <code>unknown</code> rather than forcing a label</strong> — a confidently wrong root cause destroys operator trust faster than an honest "cause unclassified"; and <strong>version-stamp detector, explainer and calibrator on every alert</strong>. An explanation that cannot be reproduced later is not an audit trail, and a met agency will ask.</p>
+  </section>
+
+  <section>
+    <h2>Sensor health is a state, not an event</h2>
+    <p class="prose">Health is not "is this reading bad". It is a slowly-moving estimate of <strong>how much to trust this sensor's future readings</strong>. Keep two separate objects:</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Object</th><th>Grain</th><th>Lifetime</th></tr></thead>
+        <tbody>
+          <tr><td class="k"><code>observation_flags</code></td><td>Per timestamp, per variable</td><td>Ephemeral — an event</td></tr>
+          <tr><td class="k"><code>sensor_health</code></td><td><strong>Per station, per variable</strong> + a station roll-up</td><td>Persistent, updated on a schedule — a state</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">Per-variable is essential: a station with a dead RH element and a perfect barometer must not report as "50 % healthy". <strong>The station roll-up is the minimum of the three, not the mean.</strong></p>
+
+    <h4>Five components</h4>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Component</th><th style="text-align:right">Weight</th><th>What it measures</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Physical-plausibility rate</td><td class="w">0.25</td><td>Rate of hard violations over trailing 7 days, exponentially weighted. Most trustworthy input, so heaviest.</td></tr>
+          <tr><td class="k">Bias / drift magnitude</td><td class="w">0.25</td><td>Current estimated offset as a fraction of instrument spec tolerance. The "deteriorating" axis.</td></tr>
+          <tr><td class="k">Availability</td><td class="w">0.20</td><td>Fraction of expected observations received, plus gap burstiness. Telemetry loss is the most common real AWS problem.</td></tr>
+          <tr><td class="k">Noise character</td><td class="w">0.20</td><td>Penalise <code>|log(σ_recent / σ_baseline)|</code> — <strong>both directions</strong>. Variance collapse precedes stiction; inflation means a loose connection.</td></tr>
+          <tr><td class="k">Spatial coherence</td><td class="w">0.10</td><td>Correlation with neighbour consensus over 30 days. Low weight — confounded by genuine microclimate at hill and coastal sites.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>Five states, with sticky transitions</h4>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>State</th><th>Band</th><th>Meaning</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td class="k"><span class="chip ok">HEALTHY</span></td><td class="m">H ≥ 85</td><td>Trust the data</td><td>none</td></tr>
+          <tr><td class="k"><span class="chip ok">WATCH</span></td><td class="m">70–85</td><td>Off baseline, not yet actionable</td><td>system watches</td></tr>
+          <tr><td class="k"><span class="chip sus">DEGRADING</span></td><td class="m">50–70</td><td>Persistent drift; data usable with correction</td><td>schedule maintenance</td></tr>
+          <tr><td class="k"><span class="chip bad">SUSPECT</span></td><td class="m">25–50</td><td>Should not be used unqualified</td><td>correct or withhold</td></tr>
+          <tr><td class="k"><span class="chip bad">FAILED / SILENT</span></td><td class="m">&lt; 25</td><td>Unusable, or no data &gt; 6 h</td><td>dispatch</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><strong>Make the EWMA asymmetric.</strong> Degradation must register faster than recovery — use a larger α when health is falling. A sensor that looks fine for two hours after a week of violations has not been repaired. Only an explicitly logged calibration event should reset health quickly, and making that an operator action in the UI is a good demo beat. Add hysteresis so stations do not flap on a band boundary.<br><br><strong>Distinguish SILENT from FAILED visually</strong> — hollow ring versus filled dot. The remedy differs: comms/power versus sensor.</div>
+
+    <h4>Three axes that separate the three cases</h4>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th></th><th>Bad reading</th><th>Deteriorating sensor</th><th>Genuine weather</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Duration</td><td>seconds–minutes</td><td>days–weeks, monotone</td><td>minutes–hours</td></tr>
+          <tr><td class="k">Neighbours</td><td>disagree</td><td>disagree, and the gap <em>grows</em></td><td>agree, with advection lag</td></tr>
+          <tr><td class="k">Recovery</td><td>returns to baseline</td><td>never returns</td><td>returns along a physical trajectory</td></tr>
+          <tr><td class="k">Cross-variable</td><td>usually one variable</td><td>usually one variable</td><td><strong>coherent across T/P/RH</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Degradation and maintenance</h2>
+    <p class="prose">Fit the neighbour-difference residual with robust regression — <strong>Huber or Theil–Sen, mandatory</strong>, because outliers from genuine faults would otherwise dominate the slope — over a trailing 60–90 days. Then:</p>
+    <div class="term">  TTOS = ( spec_limit − |b0_now| ) / |b1|        report the interval, always</div>
+    <p class="prose">Present as <em>"≈ 47 days (18–140)"</em>, never a bare number. A wide interval is information.</p>
+    <div class="warn"><strong>Do not attempt a Weibull / survival RUL model.</strong> You have no failure-history dataset. Any hazard curve you fit would be fabricated. Linear extrapolation of measured drift with honest confidence bounds is defensible in front of a domain judge; an unfittable Weibull is not — and saying so out loud reads as maturity.<br><br>Also: <strong>TTOS predicts specification excursion, not failure.</strong> Label it exactly that way in the UI. Most real degradation is abrupt, not linear.</div>
+    <p class="prose">Add a second, non-drift trigger: <strong>variance-collapse time</strong>. When the noise component falls monotonically for N days it often precedes stiction failures, which pure drift extrapolation misses entirely.</p>
+    <p class="prose">Sort the work queue by a <strong>maintenance priority index</strong>, not by TTOS alone:</p>
+    <div class="term">  priority = urgency x criticality x (1 / accessibility_cost)</div>
+    <p class="prose">Criticality is a hand-populated config field — aviation, flood-warning basin, model-assimilation station, ordinary. And add a <strong>"nearby also due"</strong> indicator: a real maintenance engineer's constraint is travel, not sensors, and batching a field trip is the feature that makes their eyes light up.</p>
+    <p class="prose"><strong>Honest limits:</strong> if a whole region drifts together — a bad firmware version, a supplier batch — your neighbour reference drifts with it and you see nothing. Mitigate by also regressing against long-term climatology and by monitoring the network-wide mean residual as its own signal. Pressure drift is the most detectable; <strong>RH is the hardest</strong> and degrades non-linearly at the high end. Below ~30 days of history, show <em>"insufficient history"</em> rather than a number.</p>
+  </section>
+
+  <section>
+    <h2>The dashboard — three screens, no more</h2>
+    <p class="prose">An IMD engineer's day is triage, not exploration. But the moment they open a suspect station they need exactly one very good chart, because that is where the weather-versus-fault judgement actually gets made by a human. The rule: <strong>every visual must answer a question the operator is about to act on.</strong></p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 940 470" role="img" aria-label="Wireframe of the network board: a top strip of five counters, a schematic map of India on the left showing station dots coloured by health state and hex clusters coloured by worst state, and a dense triage queue on the right whose rows each carry a residual sparkline.">
+        <rect x="8" y="8" width="924" height="454" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"></rect>
+
+        <!-- top strip -->
+        <line x1="8" y1="66" x2="932" y2="66" stroke="currentColor" stroke-width="1.5" opacity=".45"></line>
+        <text x="24" y="30" font-size="9.5" font-weight="700" fill="#7A3B52" letter-spacing="1">REPORTING</text>
+        <text x="24" y="54" font-size="19" font-weight="700" fill="currentColor">1,142</text>
+        <text x="86" y="54" font-size="11" fill="currentColor" opacity=".55">/ 1,180</text>
+        <text x="200" y="30" font-size="9.5" font-weight="700" fill="#B03A30" letter-spacing="1">CRITICAL</text>
+        <text x="200" y="54" font-size="19" font-weight="700" fill="#B03A30">7</text>
+        <text x="330" y="30" font-size="9.5" font-weight="700" fill="#8F6212" letter-spacing="1">DEGRADING</text>
+        <text x="330" y="54" font-size="19" font-weight="700" fill="#8F6212">34</text>
+        <text x="490" y="30" font-size="9.5" font-weight="700" fill="#7A3B52" letter-spacing="1">UNVERIFIED</text>
+        <text x="490" y="54" font-size="19" font-weight="700" fill="currentColor">19</text>
+        <text x="640" y="30" font-size="9.5" font-weight="700" fill="#7A3B52" letter-spacing="1">MEDIAN LATENCY</text>
+        <text x="640" y="54" font-size="19" font-weight="700" fill="currentColor">42 s</text>
+        <text x="760" y="30" font-size="9.5" font-weight="700" fill="#7A3B52" letter-spacing="1">NOT REPORTING</text>
+        <text x="760" y="54" font-size="19" font-weight="700" fill="currentColor" text-decoration="underline">38</text>
+        <text x="806" y="54" font-size="9" fill="currentColor" opacity=".6">clickable</text>
+
+        <!-- map panel -->
+        <line x1="530" y1="66" x2="530" y2="462" stroke="currentColor" stroke-width="1.5" opacity=".45"></line>
+        <text x="24" y="88" font-size="9.5" font-weight="700" fill="#7A3B52" letter-spacing="1">NETWORK MAP — 60%</text>
+
+        <!-- schematic india -->
+        <path d="M141,120 L185,158 L272,188 L334,218 L388,206 L428,200 L400,228 L352,262 L334,274 L300,296 L261,310 L230,344 L218,366 L196,400 L178,424 L150,378 L127,342 L110,296 L75,268 L47,248 L70,214 L100,166 Z"
+              fill="currentColor" fill-opacity=".045" stroke="currentColor" stroke-width="1.2" opacity=".65"></path>
+
+        <!-- healthy stations -->
+        <g fill="#1D6A46">
+          <circle cx="150" cy="180" r="3"></circle><circle cx="188" cy="212" r="3"></circle>
+          <circle cx="228" cy="196" r="3"></circle><circle cx="262" cy="228" r="3"></circle>
+          <circle cx="132" cy="248" r="3"></circle><circle cx="170" cy="286" r="3"></circle>
+          <circle cx="206" cy="262" r="3"></circle><circle cx="244" cy="300" r="3"></circle>
+          <circle cx="286" cy="252" r="3"></circle><circle cx="318" cy="236" r="3"></circle>
+          <circle cx="160" cy="330" r="3"></circle><circle cx="196" cy="344" r="3"></circle>
+          <circle cx="178" cy="386" r="3"></circle><circle cx="92" cy="234" r="3"></circle>
+          <circle cx="356" cy="232" r="3"></circle><circle cx="212" cy="318" r="3"></circle>
+        </g>
+        <!-- degrading -->
+        <g fill="#8F6212">
+          <circle cx="204" cy="228" r="3.4"></circle><circle cx="140" cy="292" r="3.4"></circle>
+          <circle cx="298" cy="278" r="3.4"></circle>
+        </g>
+        <!-- critical -->
+        <circle cx="232" cy="252" r="4.6" fill="#B03A30"></circle>
+        <circle cx="232" cy="252" r="9" fill="none" stroke="#B03A30" stroke-width="1.2" opacity=".55"></circle>
+        <!-- silent: hollow ring -->
+        <circle cx="268" cy="330" r="4.2" fill="none" stroke="#B03A30" stroke-width="1.8"></circle>
+
+        <!-- hex cluster -->
+        <path d="M372,300 l13,7.5 v15 l-13,7.5 l-13,-7.5 v-15 Z" fill="#8F6212" fill-opacity=".22" stroke="#8F6212" stroke-width="1.2"></path>
+        <text x="372" y="319" font-size="10" font-weight="700" fill="#8F6212" text-anchor="middle">27</text>
+        <path d="M420,262 l13,7.5 v15 l-13,7.5 l-13,-7.5 v-15 Z" fill="#1D6A46" fill-opacity=".18" stroke="#1D6A46" stroke-width="1.2"></path>
+        <text x="420" y="281" font-size="10" font-weight="700" fill="#1D6A46" text-anchor="middle">63</text>
+
+        <!-- callouts on map -->
+        <line x1="246" y1="252" x2="300" y2="176" stroke="#B03A30" stroke-width=".9" stroke-dasharray="3 2"></line>
+        <text x="304" y="168" font-size="9.5" font-weight="700" fill="#B03A30">one station excited,</text>
+        <text x="304" y="180" font-size="9.5" font-weight="700" fill="#B03A30">neighbours quiet → FAULT</text>
+        <line x1="376" y1="322" x2="410" y2="356" stroke="currentColor" stroke-width=".9" stroke-dasharray="3 2" opacity=".6"></line>
+        <text x="330" y="372" font-size="9" fill="currentColor" opacity=".7">hex cluster coloured by</text>
+        <text x="330" y="384" font-size="9" font-weight="700" fill="currentColor" opacity=".8">WORST state, never mean</text>
+        <text x="276" y="344" font-size="9" fill="currentColor" opacity=".7">◯ hollow = SILENT</text>
+
+        <text x="24" y="440" font-size="9" fill="currentColor" opacity=".6">schematic outline — colour = health state, size encodes nothing</text>
+
+        <!-- queue panel -->
+        <text x="548" y="88" font-size="9.5" font-weight="700" fill="#7A3B52" letter-spacing="1">TRIAGE QUEUE — 40%   ▼ severity × confidence</text>
+        <line x1="548" y1="98" x2="916" y2="98" stroke="currentColor" stroke-width="1" opacity=".4"></line>
+        <text x="548" y="112" font-size="8" font-weight="700" fill="currentColor" opacity=".55" letter-spacing=".8">STATION</text>
+        <text x="632" y="112" font-size="8" font-weight="700" fill="currentColor" opacity=".55" letter-spacing=".8">CLASS</text>
+        <text x="716" y="112" font-size="8" font-weight="700" fill="currentColor" opacity=".55" letter-spacing=".8">TPH</text>
+        <text x="756" y="112" font-size="8" font-weight="700" fill="currentColor" opacity=".55" letter-spacing=".8">24H RESIDUAL</text>
+        <text x="856" y="112" font-size="8" font-weight="700" fill="currentColor" opacity=".55" letter-spacing=".8">CONF</text>
+        <text x="890" y="112" font-size="8" font-weight="700" fill="currentColor" opacity=".55" letter-spacing=".8">AGE</text>
+        <line x1="548" y1="118" x2="916" y2="118" stroke="currentColor" stroke-width="1.2" opacity=".5"></line>
+
+        <!-- rows -->
+        <rect x="548" y="120" width="368" height="26" fill="#B03A30" fill-opacity=".07"></rect>
+        <text x="552" y="137" font-size="10" fill="currentColor">42403 Bhubaneswar</text>
+        <text x="632" y="137" font-size="9" font-weight="700" fill="#B03A30">RH_SATURATION</text>
+        <text x="716" y="137" font-size="9" fill="#1D6A46">T</text><text x="726" y="137" font-size="9" fill="#1D6A46">P</text><text x="736" y="137" font-size="9" font-weight="700" fill="#B03A30">H</text>
+        <polyline points="756,140 776,140 790,128 840,128" fill="none" stroke="#B03A30" stroke-width="1.4"></polyline>
+        <text x="856" y="137" font-size="10" fill="currentColor">0.99</text>
+        <text x="890" y="137" font-size="10" fill="currentColor" opacity=".7">31h</text>
+
+        <line x1="548" y1="146" x2="916" y2="146" stroke="currentColor" stroke-width=".7" opacity=".25"></line>
+        <text x="552" y="163" font-size="10" fill="currentColor">42809 Jodhpur</text>
+        <text x="632" y="163" font-size="9" font-weight="700" fill="#8F6212">DRIFT</text>
+        <text x="716" y="163" font-size="9" font-weight="700" fill="#8F6212">T</text><text x="726" y="163" font-size="9" fill="#1D6A46">P</text><text x="736" y="163" font-size="9" fill="#1D6A46">H</text>
+        <polyline points="756,166 780,164 806,158 840,150" fill="none" stroke="#8F6212" stroke-width="1.4"></polyline>
+        <text x="856" y="163" font-size="10" fill="currentColor">0.84</text>
+        <text x="890" y="163" font-size="10" fill="currentColor" opacity=".7">18d</text>
+
+        <line x1="548" y1="172" x2="916" y2="172" stroke="currentColor" stroke-width=".7" opacity=".25"></line>
+        <text x="552" y="189" font-size="10" fill="currentColor">43128 Nagpur</text>
+        <text x="632" y="189" font-size="9" font-weight="700" fill="#8F6212">STEP_OFFSET</text>
+        <text x="716" y="189" font-size="9" fill="#1D6A46">T</text><text x="726" y="189" font-size="9" font-weight="700" fill="#8F6212">P</text><text x="736" y="189" font-size="9" fill="#1D6A46">H</text>
+        <polyline points="756,192 790,192 790,180 840,180" fill="none" stroke="#8F6212" stroke-width="1.4"></polyline>
+        <text x="856" y="189" font-size="10" fill="currentColor">0.78</text>
+        <text x="890" y="189" font-size="10" fill="currentColor" opacity=".7">4h</text>
+
+        <line x1="548" y1="198" x2="916" y2="198" stroke="currentColor" stroke-width=".7" opacity=".25"></line>
+        <text x="552" y="215" font-size="10" fill="currentColor">41922 Bikaner</text>
+        <text x="632" y="215" font-size="9" font-weight="700" fill="#B03A30">FROZEN</text>
+        <text x="716" y="215" font-size="9" fill="#1D6A46">T</text><text x="726" y="215" font-size="9" font-weight="700" fill="#B03A30">P</text><text x="736" y="215" font-size="9" fill="#1D6A46">H</text>
+        <polyline points="756,222 772,214 786,206 800,206 840,206" fill="none" stroke="#B03A30" stroke-width="1.4"></polyline>
+        <text x="856" y="215" font-size="10" fill="currentColor">0.93</text>
+        <text x="890" y="215" font-size="10" fill="currentColor" opacity=".7">6h</text>
+
+        <line x1="548" y1="224" x2="916" y2="224" stroke="currentColor" stroke-width=".7" opacity=".25"></line>
+        <text x="552" y="241" font-size="10" fill="currentColor">40188 Srinagar</text>
+        <text x="632" y="241" font-size="9" font-weight="700" fill="currentColor" opacity=".75">SPIKE</text>
+        <text x="716" y="241" font-size="9" font-weight="700" fill="#8F6212">T</text><text x="726" y="241" font-size="9" fill="#1D6A46">P</text><text x="736" y="241" font-size="9" fill="#1D6A46">H</text>
+        <polyline points="756,244 790,244 794,228 798,244 840,244" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".75"></polyline>
+        <text x="856" y="241" font-size="10" fill="currentColor">0.71</text>
+        <text x="890" y="241" font-size="10" fill="currentColor" opacity=".7">12m</text>
+
+        <line x1="548" y1="250" x2="916" y2="250" stroke="currentColor" stroke-width=".7" opacity=".25"></line>
+        <text x="552" y="267" font-size="10" fill="currentColor" opacity=".7">43285 Kolhapur</text>
+        <text x="632" y="267" font-size="9" font-weight="700" fill="#B03A30">SILENT</text>
+        <text x="756" y="267" font-size="9" fill="currentColor" opacity=".5">— no data 9 h —</text>
+        <text x="856" y="267" font-size="10" fill="currentColor" opacity=".7">—</text>
+        <text x="890" y="267" font-size="10" fill="currentColor" opacity=".7">9h</text>
+
+        <line x1="548" y1="276" x2="916" y2="276" stroke="currentColor" stroke-width=".7" opacity=".25"></line>
+        <text x="552" y="293" font-size="10" fill="currentColor" opacity=".55">…14 more</text>
+
+        <!-- sparkline shape legend -->
+        <rect x="548" y="318" width="368" height="98" fill="currentColor" fill-opacity=".03" stroke="currentColor" stroke-width=".8" opacity=".7"></rect>
+        <text x="560" y="336" font-size="9.5" font-weight="700" fill="#7A3B52" letter-spacing=".8">THE SPARKLINE SHAPE IS THE DIAGNOSIS</text>
+        <polyline points="562,356 586,354 610,348 638,340" fill="none" stroke="currentColor" stroke-width="1.3"></polyline>
+        <text x="650" y="358" font-size="9.5" fill="currentColor">ramp → calibration drift</text>
+        <polyline points="562,382 596,382 596,370 638,370" fill="none" stroke="currentColor" stroke-width="1.3"></polyline>
+        <text x="650" y="382" font-size="9.5" fill="currentColor">flat then step → offset event</text>
+        <polyline points="562,404 596,404 600,390 604,404 638,404" fill="none" stroke="currentColor" stroke-width="1.3"></polyline>
+        <text x="650" y="404" font-size="9.5" fill="currentColor">single needle → spike</text>
+
+        <text x="548" y="440" font-size="9" fill="currentColor" opacity=".65">click a row → highlights station + its comparison neighbours on the map, and back again</text>
+      </svg>
+      <figcaption><strong>Screen 1 — the network board.</strong> The map earns its place because spatial correlation <em>is</em> the discriminator: one dot excited while its neighbours stay quiet reads as a fault before you have consciously thought about it. Rows are ~28 px so twenty fit without scrolling, and the sparkline shape carries most of the diagnosis on its own.</figcaption>
+    </figure>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 940 500" role="img" aria-label="Wireframe of the station detail screen: a plain-language verdict card at the top, then three x-axis-linked panels for temperature, pressure and humidity each showing the measurement against an expected band with a flagged interval highlighted, then a neighbour comparison strip and a drift panel with a spec limit line.">
+        <rect x="8" y="8" width="924" height="484" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"></rect>
+
+        <text x="24" y="32" font-size="12" font-weight="700" fill="currentColor">AWS-42403 · Bhubaneswar</text>
+        <text x="250" y="32" font-size="9.5" fill="currentColor" opacity=".65">20.27 N, 85.83 E · 45 m · installed 2019-03 · last calibrated 2025-11-14</text>
+        <rect x="742" y="19" width="82" height="20" fill="none" stroke="currentColor" stroke-width="1" opacity=".6"></rect>
+        <text x="783" y="33" font-size="9.5" fill="currentColor" text-anchor="middle">Acknowledge</text>
+        <rect x="832" y="19" width="86" height="20" fill="#7A3B52" fill-opacity=".14" stroke="#7A3B52" stroke-width="1"></rect>
+        <text x="875" y="33" font-size="9.5" font-weight="700" fill="#7A3B52" text-anchor="middle">Flag for maint.</text>
+        <line x1="8" y1="48" x2="932" y2="48" stroke="currentColor" stroke-width="1" opacity=".4"></line>
+
+        <!-- verdict card -->
+        <rect x="24" y="60" width="892" height="94" fill="#B03A30" fill-opacity=".06" stroke="#B03A30" stroke-width="2.2"></rect>
+        <text x="38" y="80" font-size="11.5" font-weight="700" fill="#B03A30">LIKELY SENSOR FAULT — RH element · confidence 0.99</text>
+        <text x="38" y="100" font-size="10" fill="currentColor">Reported RH 111.3 % — above the physical ceiling by 11.3 points, 4.2× the combined sensor uncertainty (±2.7 %).</text>
+        <text x="38" y="116" font-size="10" fill="currentColor">Six neighbours within 60 km report RH 61–74 % over the same window. No propagation lag consistent with a front.</text>
+        <text x="38" y="132" font-size="10" fill="currentColor" opacity=".8">Rule fired: <tspan font-family="monospace" font-size="9.5">RH_CEILING</tspan> (physics screen, deterministic). Residual model agrees, score 0.91.</text>
+        <text x="38" y="148" font-size="10" font-weight="700" fill="#7A3B52">Suggested action: RH element likely water-saturated. Inspect radiation shield. T and P unaffected — continue using.</text>
+
+        <text x="24" y="176" font-size="9.5" font-weight="700" fill="#7A3B52" letter-spacing="1">STACKED RESIDUAL PANELS — SHARED X-AXIS</text>
+
+        <!-- flagged interval band spanning all three panels -->
+        <rect x="640" y="184" width="128" height="186" fill="#B03A30" fill-opacity=".10"></rect>
+        <text x="704" y="197" font-size="9" font-weight="700" fill="#B03A30" text-anchor="middle">FLAGGED</text>
+
+        <!-- T panel -->
+        <rect x="120" y="202" width="792" height="52" fill="none" stroke="currentColor" stroke-width=".8" opacity=".45"></rect>
+        <text x="30" y="224" font-size="10" font-weight="700" fill="currentColor">TEMP</text>
+        <text x="30" y="238" font-size="9" fill="currentColor" opacity=".6">°C</text>
+        <path d="M124,238 L200,232 L280,220 L360,214 L440,224 L520,232 L600,222 L680,214 L760,220 L840,230 L908,236
+                 L908,222 L840,216 L760,206 L680,200 L600,208 L520,218 L440,210 L360,200 L280,206 L200,218 L124,224 Z"
+              fill="#1D6A46" fill-opacity=".13"></path>
+        <polyline points="124,231 200,225 280,214 360,207 440,217 520,225 600,215 680,207 760,213 840,223 908,229"
+                  fill="none" stroke="#1D6A46" stroke-width="1.5"></polyline>
+
+        <!-- P panel -->
+        <rect x="120" y="258" width="792" height="52" fill="none" stroke="currentColor" stroke-width=".8" opacity=".45"></rect>
+        <text x="30" y="280" font-size="10" font-weight="700" fill="currentColor">PRESS</text>
+        <text x="30" y="294" font-size="9" fill="currentColor" opacity=".6">hPa</text>
+        <path d="M124,292 L280,288 L440,284 L600,286 L760,290 L908,292 L908,276 L760,274 L600,270 L440,268 L280,272 L124,276 Z"
+              fill="#1D6A46" fill-opacity=".13"></path>
+        <polyline points="124,284 200,282 280,280 360,278 440,276 520,278 600,278 680,280 760,282 840,284 908,284"
+                  fill="none" stroke="#1D6A46" stroke-width="1.5"></polyline>
+
+        <!-- RH panel -->
+        <rect x="120" y="314" width="792" height="52" fill="none" stroke="currentColor" stroke-width=".8" opacity=".45"></rect>
+        <text x="30" y="336" font-size="10" font-weight="700" fill="#B03A30">HUMID</text>
+        <text x="30" y="350" font-size="9" fill="currentColor" opacity=".6">%</text>
+        <path d="M124,352 L280,346 L440,340 L600,344 L640,344 L640,330 L600,326 L440,322 L280,328 L124,334 Z"
+              fill="#1D6A46" fill-opacity=".13"></path>
+        <polyline points="124,344 200,340 280,336 360,332 440,330 520,334 600,338 640,340" fill="none" stroke="#1D6A46" stroke-width="1.5"></polyline>
+        <polyline points="640,340 652,322 668,320 768,320 840,320 908,320" fill="none" stroke="#B03A30" stroke-width="1.8"></polyline>
+        <line x1="640" y1="320" x2="908" y2="320" stroke="#B03A30" stroke-width=".8" stroke-dasharray="3 2" opacity=".7"></line>
+        <text x="784" y="316" font-size="8.5" font-weight="700" fill="#B03A30">pinned above ceiling</text>
+
+        <line x1="640" y1="184" x2="640" y2="370" stroke="#B03A30" stroke-width="1" stroke-dasharray="4 3"></line>
+        <text x="124" y="382" font-size="9" fill="currentColor" opacity=".6">−24 h</text>
+        <text x="900" y="382" font-size="9" fill="currentColor" opacity=".6" text-anchor="end">now</text>
+
+        <text x="120" y="398" font-size="9" fill="currentColor" opacity=".7">measurement ——   expected band ▨   ·   shared x-axis is the point: an RH fault must NOT move P</text>
+
+        <!-- neighbour strip -->
+        <text x="24" y="424" font-size="9.5" font-weight="700" fill="#7A3B52" letter-spacing="1">NEIGHBOURS (5)</text>
+        <rect x="200" y="410" width="300" height="44" fill="none" stroke="currentColor" stroke-width=".8" opacity=".45"></rect>
+        <polyline points="204,440 240,436 280,434 320,438 360,442 400,438 440,436 496,438" fill="none" stroke="currentColor" stroke-width="1" opacity=".38"></polyline>
+        <polyline points="204,446 240,442 280,440 320,444 360,446 400,444 440,442 496,444" fill="none" stroke="currentColor" stroke-width="1" opacity=".38"></polyline>
+        <polyline points="204,434 240,430 280,428 320,432 360,436 400,432 440,430 496,432" fill="none" stroke="currentColor" stroke-width="1" opacity=".38"></polyline>
+        <polyline points="204,438 240,434 280,428 320,424 360,418 400,416 440,416 496,416" fill="none" stroke="#B03A30" stroke-width="1.8"></polyline>
+        <text x="508" y="428" font-size="9.5" font-weight="700" fill="#B03A30">this station diverges;</text>
+        <text x="508" y="440" font-size="9.5" font-weight="700" fill="#B03A30">five neighbours do not</text>
+
+        <!-- drift panel -->
+        <text x="640" y="424" font-size="9.5" font-weight="700" fill="#7A3B52" letter-spacing="1">DRIFT · 90 d</text>
+        <rect x="740" y="410" width="176" height="44" fill="none" stroke="currentColor" stroke-width=".8" opacity=".45"></rect>
+        <line x1="740" y1="418" x2="916" y2="418" stroke="#B03A30" stroke-width="1" stroke-dasharray="3 2"></line>
+        <text x="744" y="415" font-size="7.5" fill="#B03A30">spec limit</text>
+        <path d="M744,450 L800,444 L856,434 L912,424" fill="none" stroke="#8F6212" stroke-width="1.6"></path>
+        <path d="M744,453 L800,448 L856,440 L912,432 L912,416 L856,428 L800,440 L744,447 Z" fill="#8F6212" fill-opacity=".14"></path>
+        <text x="744" y="466" font-size="9" fill="currentColor" opacity=".75">crossing → TTOS ≈ 47 d (18–140)</text>
+      </svg>
+      <figcaption><strong>Screen 2 — the judgement screen.</strong> The verdict card does the explainability work in plain sentences before any chart appears. The three panels share an x-axis deliberately: a genuine front moves all three together, so the fact that pressure and temperature stay flat while humidity pins is itself the root-cause evidence — visible only because they are stacked.</figcaption>
+    </figure>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 940 340" role="img" aria-label="Wireframe of the maintenance planner: a work queue table sorted by priority index showing current offset against spec limit as a bar, time to out of spec with interval, criticality and a nearby-also-due indicator, plus a ninety day horizon bar chart of stations falling out of spec per week.">
+        <rect x="8" y="8" width="924" height="324" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"></rect>
+        <text x="24" y="30" font-size="9.5" font-weight="700" fill="#7A3B52" letter-spacing="1">WORK QUEUE — sorted by urgency × criticality × (1 / accessibility)</text>
+
+        <line x1="24" y1="42" x2="916" y2="42" stroke="currentColor" stroke-width="1" opacity=".4"></line>
+        <text x="28" y="56" font-size="8" font-weight="700" fill="currentColor" opacity=".55" letter-spacing=".8">STATION</text>
+        <text x="150" y="56" font-size="8" font-weight="700" fill="currentColor" opacity=".55" letter-spacing=".8">VAR</text>
+        <text x="192" y="56" font-size="8" font-weight="700" fill="currentColor" opacity=".55" letter-spacing=".8">OFFSET vs SPEC</text>
+        <text x="386" y="56" font-size="8" font-weight="700" fill="currentColor" opacity=".55" letter-spacing=".8">TIME TO OUT-OF-SPEC</text>
+        <text x="560" y="56" font-size="8" font-weight="700" fill="currentColor" opacity=".55" letter-spacing=".8">CRITICALITY</text>
+        <text x="672" y="56" font-size="8" font-weight="700" fill="currentColor" opacity=".55" letter-spacing=".8">NEARBY ALSO DUE</text>
+        <text x="836" y="56" font-size="8" font-weight="700" fill="currentColor" opacity=".55" letter-spacing=".8">ACTION</text>
+        <line x1="24" y1="62" x2="916" y2="62" stroke="currentColor" stroke-width="1.2" opacity=".5"></line>
+
+        <!-- row 1 -->
+        <rect x="24" y="64" width="892" height="30" fill="#B03A30" fill-opacity=".07"></rect>
+        <text x="28" y="83" font-size="10" fill="currentColor">42403 Bhubaneswar</text>
+        <text x="150" y="83" font-size="10" font-weight="700" fill="#B03A30">RH</text>
+        <rect x="192" y="74" width="160" height="9" fill="currentColor" fill-opacity=".1"></rect>
+        <rect x="192" y="74" width="160" height="9" fill="#B03A30" fill-opacity=".55"></rect>
+        <line x1="336" y1="70" x2="336" y2="87" stroke="currentColor" stroke-width="1.4"></line>
+        <text x="358" y="83" font-size="9" font-weight="700" fill="#B03A30">OUT</text>
+        <text x="386" y="83" font-size="10" font-weight="700" fill="#B03A30">already exceeded</text>
+        <text x="560" y="83" font-size="9.5" fill="currentColor">aviation</text>
+        <text x="672" y="83" font-size="9.5" fill="currentColor" opacity=".7">2 within 40 km</text>
+        <rect x="836" y="70" width="58" height="17" fill="#7A3B52" fill-opacity=".14" stroke="#7A3B52" stroke-width=".9"></rect>
+        <text x="865" y="82" font-size="9" font-weight="700" fill="#7A3B52" text-anchor="middle">Assign</text>
+
+        <line x1="24" y1="94" x2="916" y2="94" stroke="currentColor" stroke-width=".7" opacity=".25"></line>
+        <text x="28" y="113" font-size="10" fill="currentColor">42809 Jodhpur</text>
+        <text x="150" y="113" font-size="10" font-weight="700" fill="#8F6212">T</text>
+        <rect x="192" y="104" width="160" height="9" fill="currentColor" fill-opacity=".1"></rect>
+        <rect x="192" y="104" width="104" height="9" fill="#8F6212" fill-opacity=".6"></rect>
+        <line x1="336" y1="100" x2="336" y2="117" stroke="currentColor" stroke-width="1.4"></line>
+        <text x="386" y="113" font-size="10" fill="currentColor">≈ 47 d</text>
+        <text x="428" y="113" font-size="9.5" fill="currentColor" opacity=".65">(18 – 140)</text>
+        <text x="560" y="113" font-size="9.5" fill="currentColor">model assim.</text>
+        <text x="672" y="113" font-size="9.5" font-weight="700" fill="#7A3B52">3 within 60 km →</text>
+        <rect x="836" y="100" width="58" height="17" fill="none" stroke="currentColor" stroke-width=".9" opacity=".55"></rect>
+        <text x="865" y="112" font-size="9" fill="currentColor" text-anchor="middle">Assign</text>
+
+        <line x1="24" y1="124" x2="916" y2="124" stroke="currentColor" stroke-width=".7" opacity=".25"></line>
+        <text x="28" y="143" font-size="10" fill="currentColor">43128 Nagpur</text>
+        <text x="150" y="143" font-size="10" font-weight="700" fill="#8F6212">P</text>
+        <rect x="192" y="134" width="160" height="9" fill="currentColor" fill-opacity=".1"></rect>
+        <rect x="192" y="134" width="72" height="9" fill="#8F6212" fill-opacity=".6"></rect>
+        <line x1="336" y1="130" x2="336" y2="147" stroke="currentColor" stroke-width="1.4"></line>
+        <text x="386" y="143" font-size="10" fill="currentColor">≈ 96 d</text>
+        <text x="428" y="143" font-size="9.5" fill="currentColor" opacity=".65">(52 – 310)</text>
+        <text x="560" y="143" font-size="9.5" fill="currentColor">ordinary</text>
+        <text x="672" y="143" font-size="9.5" fill="currentColor" opacity=".7">1 within 60 km</text>
+        <rect x="836" y="130" width="58" height="17" fill="none" stroke="currentColor" stroke-width=".9" opacity=".55"></rect>
+        <text x="865" y="142" font-size="9" fill="currentColor" text-anchor="middle">Assign</text>
+
+        <line x1="24" y1="154" x2="916" y2="154" stroke="currentColor" stroke-width=".7" opacity=".25"></line>
+        <text x="28" y="173" font-size="10" fill="currentColor" opacity=".65">41055 Leh</text>
+        <text x="150" y="173" font-size="10" fill="currentColor" opacity=".65">RH</text>
+        <text x="192" y="173" font-size="9.5" fill="currentColor" opacity=".55">insufficient history — 19 d</text>
+        <text x="386" y="173" font-size="9.5" fill="currentColor" opacity=".55">no estimate shown</text>
+        <text x="560" y="173" font-size="9.5" fill="currentColor" opacity=".65">ordinary</text>
+
+        <!-- horizon -->
+        <line x1="24" y1="196" x2="916" y2="196" stroke="currentColor" stroke-width="1" opacity=".4"></line>
+        <text x="24" y="216" font-size="9.5" font-weight="700" fill="#7A3B52" letter-spacing="1">90-DAY HORIZON — stations falling out of spec per week</text>
+        <g fill="#7A3B52" fill-opacity=".55">
+          <rect x="40" y="286" width="34" height="22"></rect>
+          <rect x="86" y="276" width="34" height="32"></rect>
+          <rect x="132" y="292" width="34" height="16"></rect>
+          <rect x="178" y="264" width="34" height="44"></rect>
+          <rect x="224" y="270" width="34" height="38"></rect>
+          <rect x="270" y="248" width="34" height="60"></rect>
+          <rect x="316" y="282" width="34" height="26"></rect>
+          <rect x="362" y="292" width="34" height="16"></rect>
+          <rect x="408" y="260" width="34" height="48"></rect>
+          <rect x="454" y="288" width="34" height="20"></rect>
+          <rect x="500" y="276" width="34" height="32"></rect>
+          <rect x="546" y="296" width="34" height="12"></rect>
+          <rect x="592" y="284" width="34" height="24"></rect>
+        </g>
+        <line x1="24" y1="308" x2="640" y2="308" stroke="currentColor" stroke-width="1.2" opacity=".5"></line>
+        <text x="40" y="322" font-size="9" fill="currentColor" opacity=".6">wk 1</text>
+        <text x="596" y="322" font-size="9" fill="currentColor" opacity=".6">wk 13</text>
+        <line x1="270" y1="240" x2="330" y2="228" stroke="#7A3B52" stroke-width=".9" stroke-dasharray="3 2"></line>
+        <text x="336" y="226" font-size="9.5" font-weight="700" fill="#7A3B52">peak week — 9 stations. Staff for it.</text>
+        <text x="672" y="252" font-size="9.5" fill="currentColor" opacity=".75">Converts a table into a</text>
+        <text x="672" y="266" font-size="9.5" fill="currentColor" opacity=".75">staffing plan, which is the</text>
+        <text x="672" y="280" font-size="9.5" fill="currentColor" opacity=".75">decision a planner actually</text>
+        <text x="672" y="294" font-size="9.5" fill="currentColor" opacity=".75">has to make.</text>
+      </svg>
+      <figcaption><strong>Screen 3 — the maintenance planner.</strong> Sorted by priority rather than by time-to-out-of-spec, because a distant failure at an aviation station outranks an imminent one at an ordinary site. The <em>nearby also due</em> column exists because a field engineer's real constraint is travel, not sensors — and note the fourth row showing <em>insufficient history</em> rather than inventing a number.</figcaption>
+    </figure>
+
+
+
+    <h4>Screen 1 · Network board</h4>
+    <p class="prose"><strong>Top strip:</strong> five large counters — reporting <code>1,142 / 1,180</code>, critical, degrading, unverified alerts, median latency. Make "not reporting" clickable; silence is the most common real fault and most dashboards forget it.</p>
+    <p class="prose"><strong>Left 60 % — map.</strong> Stations as small circles, colour = health state, size encodes nothing. Above a station count, cluster into hex bins coloured by the <strong>worst</strong> state in the bin, never the average — an operator must never have one critical station averaged into a green hex.</p>
+    <p class="prose">The map earns its place because <em>spatial correlation is the discriminator</em>. Eleven adjacent stations showing a pressure drop is a system moving through; one showing it is a barometer. The map makes that inference pre-attentive.</p>
+    <p class="prose"><strong>Right 40 % — triage queue.</strong> Dense table sorted by severity × confidence. Row height ~28 px so twenty rows are visible. Columns: station, fault class, a tiny coloured T/P/RH triad, a <strong>24 h residual sparkline</strong>, severity bar, confidence, age, state chip.</p>
+    <div class="note"><strong>The sparkline is the workhorse.</strong> The <em>shape</em> of the residual is almost fully diagnostic — flat then a step is a calibration event; a ramp is drift; dead-flat at non-zero is frozen; a single needle is a spike. An operator learns to read these in under a second. That is where information density comes from.<br><br>Wire the map and queue <strong>bidirectionally</strong> — clicking a row highlights the station and its comparison neighbours; hovering a station scrolls the queue. Thirty lines of code, and it is what makes the demo feel like an operational system rather than two widgets side by side.</div>
+
+    <h4>Screen 2 · Station detail — the judgement screen</h4>
+    <p class="prose">A <strong>verdict card</strong> in plain sentences at the top (the format shown in the previous section), then the main chart: three vertically stacked, <strong>x-axis-linked</strong> panels for T, P, RH. Each shows the raw measurement, the expected band as a translucent ribbon, and flagged intervals as coloured vertical bands behind everything.</p>
+    <p class="prose">Shared time is the entire point — faults in one variable print in another. An RH failure will not move pressure; an enclosure or power problem moves all three together. That co-movement is itself the root-cause signal, and the stacked layout is what makes it visible. Below: a neighbour-comparison strip, then the drift panel with its spec-limit line, then an event log.</p>
+
+    <h4>Screen 3 · Maintenance planner</h4>
+    <p class="prose">The prioritised work queue, grouped by region for trip batching, plus a 90-day horizon strip showing how many stations fall out of spec per week — which converts a table into a staffing plan.</p>
+
+    <div class="warn"><strong>Hackathon dashboard failure modes:</strong> the chart gallery with nothing to act on; demoing on three stations (kills scalability credibility instantly); a "Refresh" button instead of live updates; everything red because thresholds are untuned; no empty, loading or error states; beautiful but decision-free; a model score with no explanation; slow first paint burning a minute of a six-minute demo. Build and test at projector resolution, not laptop.</div>
+  </section>
+
+  <section>
+    <h2>Data strategy and injection realism</h2>
+    <p class="prose">The statement removes the usual blocker: <em>"Participants may use historical AWS datasets, simulated anomalies, or streaming sensor data"</em>, evaluated on <em>"anomaly injected data"</em>. Synthetic faults are the sanctioned methodology.</p>
+    <p class="prose">Use <strong>real station history for realism</strong> (public hourly surface observations give genuine diurnal and seasonal structure, real noise, and real events to <em>avoid</em> flagging) and <strong>injected faults for evaluation</strong>, where you control ground truth.</p>
+
+    <h4>The self-flattery trap, and how to structurally avoid it</h4>
+    <p class="prose">The dominant failure is injecting only large, obvious faults. Counter it by design:</p>
+    <ul class="plain">
+      <li><strong>Sweep magnitude and report a curve, not a number.</strong> Probability of detection versus anomaly amplitude in units of local σ, at a fixed alert budget. Headline the <strong>minimum detectable amplitude at 90 % POD</strong>. This single change does more for credibility than anything else here.</li>
+      <li><strong>Include sub-threshold magnitudes.</strong> Spikes 2–20 σ. Steps down to the noise floor. Drift 0.005–0.1 K/day over 10–180 days. Frozen 30 min to several days. Noise ×2 to ×20.</li>
+      <li><strong>Hard cases deliberately.</strong> Freeze at a value <em>plausible for that hour</em>. Pin RH at 99.9 or 100.5, not exactly 100. Inject a step whose sign matches the prevailing trend.</li>
+      <li><strong>Onset shapes:</strong> instantaneous, linear ramp, exponential-asymptote (typical of aging), and <strong>intermittent/flapping</strong> — a sensor failing for 20 minutes every few hours is extremely common in the field and almost always missed by systems tuned on clean single-episode injections.</li>
+      <li><strong>Inject during real weather events</strong>, not only quiet periods. A spike on top of a thunderstorm is what separates a good system from a demo.</li>
+      <li><strong>Multi-fault:</strong> drift plus occasional spikes — the realistic aging picture.</li>
+      <li><strong>Negative controls:</strong> matched clean windows, plus a distractor set of real events with no injection.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Evaluation protocol</h2>
+    <p class="prose">Build this <em>before</em> the model. Accuracy is 20 %, and the only way to defend a number is to have measured it the same way since day one.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Metric</th><th>Why this one</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Per-fault-type table</td><td>Aggregate F1 is dominated by whichever class is numerous and easy, and completely hides drift</td></tr>
+          <tr><td class="k"><strong>PR-AUC, not ROC-AUC</strong></td><td>At realistic prevalence (well under 1 %) ROC-AUC looks excellent for an operationally unusable detector. Evaluators look for this trap.</td></tr>
+          <tr><td class="k">Alerts per station per day</td><td>Precision is prevalence-dependent and your injected prevalence is not the real one. This framing is prevalence-free.</td></tr>
+          <tr><td class="k"><strong>FPR split by weather activity</strong></td><td>0.1 FP/station/day overall but 8 during monsoon onset is useless — and an aggregate hides it completely</td></tr>
+          <tr><td class="k">Event-level <em>and</em> point-level</td><td>Point-level lets one long drift contribute thousands of true positives and inflate recall absurdly. The gap between the two is itself informative.</td></tr>
+          <tr><td class="k">Time-to-detection distribution</td><td>Median and 90th percentile per fault type. This is your Real-Time evidence (15 %).</td></tr>
+          <tr><td class="k">Calibration error</td><td>Reliability diagram, ECE, Brier. Confidence is a scored output, so it must mean something.</td></tr>
+          <tr><td class="k">Throughput</td><td>Stations/second on one core. Scalability as a number.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><strong>Fix the alert budget across all compared methods.</strong> Tune every detector to, say, one alert per station per week on validation, then compare recall. Otherwise the comparison is meaningless.<br><br><strong>Split by whole stations and whole time periods</strong>, never random points — adjacent samples are near-identical and random splits leak.</div>
+  </section>
+
+  <section>
+    <h2>Traps that will bite you</h2>
+    <p class="prose">Every item here was raised as a concrete failure mode, several of them fatal. Read this section before writing code, not after.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Trap</th><th>Consequence</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr><td class="k"><strong>Online baseline updating</strong></td><td><strong>Slow drift is absorbed into the baseline and becomes permanently invisible.</strong> The most dangerous item on this list.</td><td>Fit climatology on a frozen, verified-clean reference period. Refit only on human-approved data.</td></tr>
+          <tr><td class="k">MAD = 0 on quantized data</td><td>Infinite z-score. Floods false spikes on the calmest, most benign nights.</td><td><code>σ̂ = max(1.4826·MAD, c·resolution)</code>, c ≈ 0.5–1.0</td></tr>
+          <tr><td class="k">Raw pressure neighbour comparison</td><td>~1 hPa per 8–9 m elevation. Two stations 100 m apart differ by ~12 hPa with zero anomaly — <strong>every hill station looks broken</strong>.</td><td>Reduce to MSLP or a common level. <em>Confirm whether your feed carries station pressure or MSLP.</em></td></tr>
+          <tr><td class="k">Hour-of-day in UTC or IST</td><td>India spans ~29° of longitude — solar noon differs by nearly two hours end to end. Smears every diurnal baseline.</td><td>Use local solar time, referenced to longitude</td></tr>
+          <tr><td class="k">Fixed rate limits</td><td>Fire constantly in the pre-monsoon convective season, when downdrafts produce very large short-timescale T drops</td><td>99.9th percentile of |Δx| per station-month-hour, floored by a hard physical bound. Apply to the neighbour-difference where possible.</td></tr>
+          <tr><td class="k">Night-time T neighbour comparison</td><td>Nocturnal decoupling and cold-air pooling make inter-station differences large and non-stationary. Top false-alarm source.</td><td>Hour-conditional thresholds. Select neighbours by lowest σ of the difference series, <strong>not by distance</strong>.</td></tr>
+          <tr><td class="k">Physics layer filtering</td><td>Rejected samples never reach the learned layer, which can then never reason about fault shape</td><td>Flag, never filter</td></tr>
+          <tr><td class="k">Sentinel values</td><td><code>-999</code>, <code>-9999</code>, <code>0.0</code> parsed as real readings poison every baseline. The most common data bug in this problem class.</td><td>Audit ingest now, before anything else</td></tr>
+          <tr><td class="k">MCD on contaminated data</td><td>Masking — the covariance absorbs the anomalies and then cannot see them</td><td>Fit on verified-clean data only</td></tr>
+          <tr><td class="k">CUSUM ARL assumptions</td><td>ARL guarantees assume independence. Meteorological residuals are strongly autocorrelated, so your nominal false-alarm rate is not the real one.</td><td>Whiten first (AR(1) innovations) or set <em>h</em> empirically to your alert budget</td></tr>
+          <tr><td class="k">Centred-window detectors</td><td>A centred Hampel window costs half-window latency — trivial at 1-minute data, unacceptable at hourly</td><td>Decide causal vs centred per detector and publish the latency each costs</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Stack and repository layout</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Layer</th><th>Choice</th><th>Note</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Core</td><td class="m">Python 3.11, numpy, pandas, scipy</td><td>CPU only — no GPU anywhere</td></tr>
+          <tr><td class="k">Models</td><td class="m">scikit-learn, statsmodels RLM, SHAP</td><td>Robust regression, robust covariance, TreeSHAP</td></tr>
+          <tr><td class="k">API</td><td class="m">FastAPI + WebSocket</td><td>Push deltas only — never re-send the whole network</td></tr>
+          <tr><td class="k">Storage</td><td class="m">PostgreSQL + TimescaleDB</td><td>Continuous aggregates give the rollups free. Fall back to plain Postgres if install eats a day.</td></tr>
+          <tr><td class="k">Current-state cache</td><td class="m">Redis</td><td>The board must read 1,200 station states from one hash, never a 1,200-row query per poll</td></tr>
+          <tr><td class="k">Map</td><td class="m"><strong>MapLibre GL</strong></td><td>No API key, no billing — a better deployability story than Mapbox</td></tr>
+          <tr><td class="k">Charts</td><td class="m">uPlot; hand-rolled inline SVG sparklines</td><td>Canvas-based, fast at 100k points</td></tr>
+          <tr><td class="k">Edge tier</td><td class="m">ESP32 / Arduino C++</td><td>Stages 1–2 only, integer arithmetic, no ML runtime</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <pre class="tree">skyguard/
+├── <b>physics/</b>          Stage 2 — pure functions, zero dependencies
+│   ├── relations.py     Magnus (water/ice), q, Td, vapour pressure
+│   ├── checks.py        range, Hampel, frozen, conditional rate
+│   ├── uncertainty.py   instrument specs → propagated confidence
+│   └── test_physics.py  property tests
+├── <b>residual/</b>         Stage 1 — harmonic baseline + neighbour difference
+│   ├── harmonics.py     2 diurnal + 2 annual, robust fit
+│   ├── neighbours.py    selection by lowest difference-sigma, MSLP reduction
+│   └── solartime.py     longitude-referenced local solar time
+├── <b>detect/</b>           Stage 3 — CUSUM, Page-Hinkley, dispersion, Mahalanobis
+├── <b>signature/</b>        Stage 4 — the fault + event classifier (the novelty)
+├── <b>health/</b>           sensor_health state machine, TTOS
+├── <b>explain/</b>          exact Shapley, grouped attribution, counterfactuals
+├── <b>inject/</b>           fault generator with ground truth
+├── <b>evaluation/</b>       the harness — build before any model
+├── <b>api/</b>              FastAPI, WebSocket alert stream
+├── <b>dashboard/</b>        React + MapLibre, three screens
+├── <b>firmware/</b>         ESP32, mirrors physics/
+└── <b>data/</b>             station history, cached (gitignored)</pre>
+    <div class="note"><strong><code>physics/</code> has no dependencies on purpose.</strong> Pure arithmetic over three floats — unit-testable in Python, transliterable to C++ for the ESP32, and citable in the report as the deterministic tier. Keep pandas out of it and it ports in an afternoon.</div>
+  </section>
+
+  <section>
+    <h2>Start here — the MVP</h2>
+    <p class="prose">Build a <strong>walking skeleton</strong>: a thin slice through every stage, not one stage built to completion.</p>
+    <div class="note"><strong>The MVP is one demo, working.</strong><br>Replay a real cold front → <em>nothing flags</em>. Inject a fault of the same magnitude → <em>flags instantly, names the fault, says why it is not weather</em>. Do those back to back and the thesis is proven.</div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Component</th><th>MVP</th><th>Later</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Stations</td><td>One station + 3 neighbours, ~3 months</td><td class="m">Full network, years</td></tr>
+          <tr><td class="k">Residualise</td><td>Harmonic baseline + neighbour difference</td><td class="m">+ hierarchical shrinkage</td></tr>
+          <tr><td class="k">Physics</td><td>Range, Hampel + return, frozen + cross-channel</td><td class="m">+ tide, anchors, q invariants</td></tr>
+          <tr><td class="k">Injector</td><td>Spike, frozen, drift</td><td class="m">All 7 + intermittent + multi-fault</td></tr>
+          <tr><td class="k">Harness</td><td>POD-vs-amplitude for 3 faults + one held-out front</td><td class="m">Full metric suite</td></tr>
+          <tr><td class="k">Signature</td><td>Rules only, 3 classes + <code>unknown</code></td><td class="m">GBT + TreeSHAP</td></tr>
+          <tr><td class="k">Output</td><td>Terminal verdict card</td><td class="m">Three screens</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="warn"><strong>Three things not to do first.</strong> Do not build the dashboard first — it is visible so it feels like progress, it is worth 5 %, and teams reach the harness stage with no way to measure anything. Do not reach for an LSTM — you would be building everyone else's submission with no benchmark to know if it helped. Do not buy hardware yet — ₹2,240 and one evening, meaningless until the pipeline exists.</div>
+    <p class="prose"><strong>Definition of done:</strong> one command produces a POD-vs-amplitude curve for three fault types, zero flags across the held-out front, an alerts-per-station-day figure, and a verdict card with a named root cause. Four artifacts, not "it looks like it works".</p>
+  </section>
+
+  <section>
+    <h2>Build order</h2>
+    <ol class="phases">
+      <li><span class="ph">Phase 0</span><span><b>Ingest audit.</b> Sentinel values, station-vs-MSLP pressure, reporting cadence, sensor resolution, local solar time. <b>Half a day that prevents three weeks of wrong results.</b></span></li>
+      <li><span class="ph">Phase 1</span><span><b>Residual layer.</b> Harmonic baselines, neighbour selection by difference-sigma, elevation reduction. Everything downstream depends on this being right.</span></li>
+      <li><span class="ph">Phase 2</span><span><b>Physics screen.</b> Range with propagated uncertainty, Hampel + return test, frozen + cross-channel, conditional rate limits. Deterministic, testable, no data needed beyond the residuals.</span></li>
+      <li><span class="ph">Phase 3</span><span><b>Injector and harness.</b> Seven fault types with ground truth; POD-vs-amplitude at fixed alert budget; held-out real events. <b>Before any modelling</b> — you cannot measure what you cannot inject.</span></li>
+      <li><span class="ph">Phase 4</span><span><b>Detectors.</b> CUSUM and Page-Hinkley on neighbour-difference, dispersion chart, 6-dim Mahalanobis. Benchmark each against median/MAD and publish the losses.</span></li>
+      <li><span class="ph">Phase 5</span><span><b>Signature classifier.</b> The novelty. Rules where signatures are exact, GBT where ambiguous, <code>unknown</code> always available.</span></li>
+      <li><span class="ph">Phase 6</span><span><b>Explainability.</b> Uncertainty propagation, exact conditional Shapley, grouped attribution, counterfactual thresholds, isotonic calibration, reliability diagram.</span></li>
+      <li><span class="ph">Phase 7</span><span><b>Health state and TTOS.</b> Five components, asymmetric EWMA, robust drift regression, maintenance priority index.</span></li>
+      <li><span class="ph">Phase 8</span><span><b>Dashboard and scale test.</b> Three screens; 1,000+ stations loaded and smooth.</span></li>
+      <li><span class="ph">Phase 9</span><span><b>Hardware stations</b> (optional). Two nodes feeding the same pipeline live.</span></li>
+    </ol>
+    <div class="note"><strong>Phase 3 before Phase 4 is the discipline that decides the outcome.</strong> Teams routinely build the model first and the evaluation last, then discover their numbers were never comparable.</div>
+  </section>
+
+  <section>
+    <h2>Execution reality</h2>
+    <p class="prose">The plan above is achievable, but it is a heavy software engineering lift rather than a weekend project. Four things will decide whether it lands.</p>
+
+    <h4>1 &nbsp;The injector is the largest single line item — and that is correct</h4>
+    <p class="prose">Expect the injector and harness to consume something like <strong>a third to 40 % of total effort</strong>. Do not treat that as overhead. Evaluation happens <em>on anomaly-injected data</em>, so the injector <strong>is</strong> the instrument that produces every number you will quote. Spending that share on it is correctly weighted.</p>
+    <p class="prose">Two things make it manageable:</p>
+    <ul class="plain">
+      <li><strong>It parallelises cleanly.</strong> One person owns the injector while others build the residual and physics layers, which have zero dependency on it.</li>
+      <li><strong>Build it in tiers.</strong> Three fault types at fixed amplitudes gets the MVP moving in days. Amplitude sweeps, onset shapes and intermittent flapping are refinements you add once the harness is already consuming output.</li>
+    </ul>
+
+    <h4>2 &nbsp;Station density is the gate — answer it in week one</h4>
+    <div class="fix"><strong>The risk that outranks everything else.</strong> The entire spatial thesis — the 20× noise reduction, drift detection, the fault-versus-weather discriminator — assumes neighbours close enough to be correlated. If the network you can actually obtain is sparse, or the stations are hundreds of kilometres apart, that channel degrades badly and much of the design falls back to single-station self-consistency.
+    <br><br><strong>Answer it before writing the injector.</strong> Pull real station data, compute σ of the pairwise difference series against distance, and find your usable correlation radius. If it is good, everything proceeds. If it is poor, you learn it while there is still time to adjust — not in month three.</div>
+
+    <h4>3 &nbsp;Two correctness traps that look like difficulty traps</h4>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Item</th><th>Actually</th><th>The real risk</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Local solar time</td><td class="m">mean_solar_time = utc + lon / 15</td><td>Three lines, not tedious maths — the equation of time swings ±16 min, well inside an hourly bin, so ignore it. The risk is <strong>forgetting it entirely</strong> and smearing every diurnal baseline across two hours of India.</td></tr>
+          <tr><td class="k">MSLP reduction</td><td class="m">a question before it is maths</td><td><strong>Does your feed already give MSLP or station pressure?</strong> Ten minutes to answer, and it determines whether you need the correction at all. Getting it wrong makes every hill station look broken.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>4 &nbsp;The two disciplines that fail quietly</h4>
+    <ul class="plain">
+      <li><strong>Never let the baseline update online.</strong> A climatology that refits on incoming data silently absorbs slow drift and makes it permanently undetectable. It is a one-line mistake with a fatal consequence, and it survives code review because it looks like good practice.</li>
+      <li><strong>UI restraint.</strong> Building charts <em>feels</em> like progress and produces nothing measurable. Three screens, dense and actionable. A decision-free chart gallery is worth the same 5 % as a good dashboard and costs three weeks more.</li>
+    </ul>
+
+    <div class="note"><strong>The sequencing rule that matters most:</strong> harness before model, always. A team that builds the model first and the evaluation last discovers in month three that none of its numbers were ever comparable.</div>
+  </section>
+
+  <section>
+    <h2>Work split</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Role</th><th>Owns</th><th>Phases</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Data engineering</td><td>Ingest audit, residual layer, injector</td><td class="m">0, 1, 3</td></tr>
+          <tr><td class="k">Physics / backend</td><td><code>physics/</code>, uncertainty propagation, API, edge port</td><td class="m">2, 6, 9</td></tr>
+          <tr><td class="k">Evaluation</td><td>The harness, the scoreboard, held-out events</td><td class="m">3, 8</td></tr>
+          <tr><td class="k">ML</td><td>Detectors, signature classifier, calibration, SHAP</td><td class="m">4, 5, 6</td></tr>
+          <tr><td class="k">Health / spatial</td><td>Neighbour graph, health state, TTOS, planner</td><td class="m">1, 7</td></tr>
+          <tr><td class="k">Frontend</td><td>Three screens, alert feed, demo flow</td><td class="m">8</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">The evaluation role is the one teams skip and the one that decides the outcome. Give it to whoever will refuse to accept an unmeasured claim.</p>
+  </section>
+
+  <section>
+    <h2>Demo script</h2>
+    <ol class="phases">
+      <li><span class="ph">Step 1</span><span><b>The network at rest.</b> 1,000+ stations on the board, mostly green, live-updating from a replayed day at 60×. Throughput and latency counters on screen.</span></li>
+      <li><span class="ph">Step 2</span><span><b>Replay a real cold front.</b> T, P and RH excurse together across a cluster; the advection lag is visible station to station. <b>Nothing flags.</b> Say aloud that this is the case most detectors get wrong.</span></li>
+      <li><span class="ph">Step 3</span><span><b>Inject the same magnitude as a fault</b> into one station from the control panel. Flags in seconds, names the mode, shows neighbours unaffected. The paired contrast is the whole problem statement answered on screen.</span></li>
+      <li><span class="ph">Step 4</span><span><b>Fog.</b> Replay a genuine winter fog episode — RH sits at 100 % for hours. A naive frozen-value detector flags it; yours does not, because T tracks Td down to saturation and neighbours agree. <b>Ten seconds that proves the thesis.</b></span></li>
+      <li><span class="ph">Step 5</span><span><b>The stuck station.</b> Freeze one station while a front passes its neighbours. Individually plausible values, caught anyway — the failure single-station detectors cannot see.</span></li>
+      <li><span class="ph">Step 6</span><span><b>Slow drift.</b> Fast-forward a two-week ramp. Watch health slide Healthy → Watch → Degrading, the map dot turn amber, and a row appear in the maintenance planner with a TTOS interval.</span></li>
+      <li><span class="ph">Step 7</span><span><b>Self-healing.</b> Accept the suggested correction; station returns to green with the corrected value and its uncertainty logged for audit.</span></li>
+      <li><span class="ph">Step 8</span><span><b>The reliability diagram.</b> One slide showing stated confidence versus observed frequency. This is what "0.7 means seven in ten" looks like.</span></li>
+    </ol>
+    <div class="note"><strong>Steps 2 and 4 are what win it.</strong> Every team can show a detector firing. Showing one <em>correctly staying silent</em> through a real front and a real fog is the harder demonstration, and it is precisely what the statement asks for. Build the fault-injector control panel early — one injection traverses your entire architecture in twenty seconds and is worth more than any model improvement you could make in the same time.</div>
+  </section>
+
+  <section>
+    <h2>Success criteria</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Measure</th><th>Target</th><th>Serves</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Hard-fault recall (spike, frozen, dropout, saturation)</td><td class="m">&gt; 98%</td><td class="m">Accuracy</td></tr>
+          <tr><td class="k">Minimum detectable step at 90% POD</td><td class="m">&lt; 1.0 σ_local</td><td class="m">Accuracy</td></tr>
+          <tr><td class="k">Drift detection latency at 0.02 K/day</td><td class="m">report measured curve</td><td class="m">Accuracy · Real-time</td></tr>
+          <tr><td class="k"><strong>Real weather events not flagged</strong></td><td class="m">&gt; 99%</td><td class="m">Accuracy</td></tr>
+          <tr><td class="k">Alerts/station/day during <em>active weather</em></td><td class="m">&lt; 0.5</td><td class="m">Accuracy</td></tr>
+          <tr><td class="k">Signature classification accuracy (7 classes + unknown)</td><td class="m">&gt; 85%</td><td class="m">Innovation</td></tr>
+          <tr><td class="k">Confidence calibration error (ECE)</td><td class="m">&lt; 0.05</td><td class="m">Explainability</td></tr>
+          <tr><td class="k">Latency per reading, full pipeline</td><td class="m">&lt; 50 ms</td><td class="m">Real-time</td></tr>
+          <tr><td class="k">Throughput, single core</td><td class="m">&gt; 1,000 stations/s</td><td class="m">Scalability</td></tr>
+          <tr><td class="k">Uplink bytes/station/day, before vs after</td><td class="m">&gt; 90% reduction</td><td class="m">Energy</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose" style="font-size:.92rem;color:var(--ink-3)">Targets, not results. Replace each with harness output before it goes in front of a judge.</p>
+  </section>
+
+  <section>
+    <h2>Optional hardware — ₹1,120 per station</h2>
+    <p class="prose">A <strong>software</strong> category statement, so pure software is fully compliant. But a live station a judge can touch is the cheapest memorable moment available.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Item</th><th>Measures</th><th>≈ ₹</th></tr></thead>
+        <tbody>
+          <tr><td class="k">ESP32 dev board</td><td>—</td><td class="m">600</td></tr>
+          <tr><td class="k">BME280</td><td>Temperature, pressure, humidity — <em>exactly the three named parameters</em></td><td class="m">250</td></tr>
+          <tr><td class="k">DS18B20</td><td>Independent temperature reference</td><td class="m">120</td></tr>
+          <tr><td class="k">Breadboard, jumpers</td><td>—</td><td class="m">150</td></tr>
+          <tr><td class="k"><strong>Per station</strong></td><td></td><td class="m"><strong>1,120</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose"><strong>Build two, ₹2,240.</strong> That demonstrates the spatial check from IMD's own example — one station lying while its neighbour reads normally. Two <em>different</em> temperature sensors matter: identical parts share failure modes, so if both drift together you learn nothing.</p>
+    <div class="note"><strong>The demo that lands:</strong> breathe on the BME280 and watch RH climb toward saturation while the node distinguishes it from a wetted element — because T is tracking T<sub>d</sub> coherently — then compare against the second station reading normally one metre away.</div>
+  </section>
+
+  <section>
+    <h2>Verify before you build</h2>
+    <p class="prose">None of these should be assumed — not from this page, and not from any review. Each one can invalidate a whole subsystem.</p>
+    <ul class="plain">
+      <li><strong>Station pressure or MSLP?</strong> Determines whether neighbour comparison needs elevation correction. Get it wrong and every hill station looks broken.</li>
+      <li><strong>Sentinel values and QC flags</strong> in your feed, and how ingest currently handles them.</li>
+      <li><strong>Reporting cadence and sensor resolution</strong> — these set every window length, run-length constant and the MAD floor.</li>
+      <li><strong>Published accuracy specs</strong> for the specific T/RH probe and barometer in your dataset. The entire physics-confidence calculation depends on them.</li>
+      <li><strong>Instrument spec tolerances</strong> — TTOS is meaningless without the correct limit values.</li>
+      <li><strong>σ of inter-station difference series</strong> by distance, hour and month. That table <em>is</em> your neighbour-selection rule and your threshold table.</li>
+      <li><strong>Semidiurnal tide amplitude</strong> at your sites — measure it, do not quote it.</li>
+      <li><strong>Residual autocorrelation</strong> and the resulting real ARL₀ for CUSUM.</li>
+      <li><strong>Distribution of |Δx|</strong> by station-month for conditional rate limits.</li>
+      <li><strong>A defensible estimate of the real fault base rate</strong>, for the prior correction.</li>
+      <li><strong>WMO / IMD QC documentation</strong> — every standard test name and document number cited in a report. Treat the ones in this blueprint as leads, not citations. <em>Do not cite what you have not read.</em></li>
+      <li><strong>Whether IMD already runs an internal QC system</strong>, and its terminology. Matching their vocabulary is disproportionately persuasive to a ministry judge.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Deliverables</h2>
+    <p class="prose">The statement's final line is a hard requirement that is easy to overlook:</p>
+    <div class="note"><strong>"Fully executable code with example usage and a document explaining various use cases."</strong><br><br>Not a prototype and slides. <strong>Runnable code</strong> with worked examples, plus a use-case document. Budget for it: a clean README with a one-command demo, example notebooks per fault type, and a use-case document covering the operator workflows — triage, judgement, maintenance planning. Write the document as you build, not in the last week.</div>
+  </section>
+
+  <section>
+    <h2>What carries over from the PS26178 work</h2>
+    <p class="prose">Nothing was wasted, and nothing was spent — the entire node build was simulated.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Asset</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Audit engine — range, frozen, rate, no-response</td><td><span class="chip ok">PORTS DIRECTLY</span></td></tr>
+          <tr><td class="k">Health mask, per-channel confidence, named reasons</td><td><span class="chip ok">PORTS DIRECTLY</span></td></tr>
+          <tr><td class="k">Abstention — "cannot assess", never "all clear"</td><td><span class="chip ok">PORTS DIRECTLY</span></td></tr>
+          <tr><td class="k">"One of two disagrees, but not which"</td><td><span class="chip ok">BECOMES SPATIAL ARBITRATION</span></td></tr>
+          <tr><td class="k">Labelled fault injection</td><td><span class="chip ok">BECOMES THE EVAL METHOD</span></td></tr>
+          <tr><td class="k">Magnus dew-point implementation</td><td><span class="chip sus">KEEP, BUT AS A VARIABLE NOT A CHECK</span></td></tr>
+          <tr><td class="k">Wokwi testbench</td><td><span class="chip sus">RETARGET TO BME280</span></td></tr>
+          <tr><td class="k">Flood, landslide, heat logic · solar, LoRa, enclosure</td><td><span class="chip bad">NOT NEEDED</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footnote">Blueprint only — nothing here has been built or measured, unlike the PS26178 testbench where every output was captured from a running simulation. Success criteria are targets. The Magnus tautology and the specific-humidity worked example were verified numerically; every empirical claim about tide amplitudes, correlation lengths, standard QC document numbers and component prices should be verified independently before it drives a decision or appears in a submission. Quoted statement text and scoring weights are from sih.gov.in.</p>
+  </section>
+
+</div>
+
+</body>
+</html>
