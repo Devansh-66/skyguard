@@ -99,6 +99,22 @@ main{
 .bg-DEGRADING{background:var(--degrade)} .bg-SUSPECT{background:var(--suspect)}
 .bg-FAILED{background:var(--failed)}
 
+#state-filter{
+  width:100%; margin-bottom:10px; padding:6px 8px; border-radius:5px;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  font:inherit; font-size:12.5px; cursor:pointer;
+}
+#state-filter:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.state-head{
+  display:flex; align-items:baseline; gap:8px; margin:12px 0 5px;
+  padding-bottom:4px; border-bottom:1px solid var(--line);
+  font-family:Chivo,sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2);
+}
+.state-head:first-child{margin-top:0}
+.state-count{margin-left:auto; font-size:9.5px; font-weight:500; color:var(--ink-3);
+  letter-spacing:0; text-transform:none}
+
 /* ------------------------------------------------------------- chart stack */
 .chan{border-top:1px solid var(--line); padding-top:12px; margin-top:14px}
 .chan:first-of-type{border-top:0; margin-top:6px; padding-top:0}
@@ -106,7 +122,14 @@ main{
 .chan-head .unit{font-size:11px; color:var(--ink-3)}
 .chan-head .hc{margin-left:auto}
 canvas{width:100%; display:block; touch-action:none}
-.legend{display:flex; gap:16px; font-size:11px; color:var(--ink-3); margin-top:5px}
+.tip{
+  position:absolute; top:4px; pointer-events:none; z-index:5;
+  background:var(--surface); border:1px solid var(--line); border-radius:4px;
+  padding:5px 7px; font-family:"IBM Plex Mono",monospace; font-size:10.5px;
+  line-height:1.45; color:var(--ink); box-shadow:var(--shadow); white-space:nowrap;
+}
+.tip span{color:var(--ink-3)}
+.legend{display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--ink-3); margin-top:5px}
 .swatch{display:inline-block; width:16px; height:2px; vertical-align:middle; margin-right:5px}
 
 /* ------------------------------------------------------------------ alerts */
@@ -156,7 +179,8 @@ footer{padding:14px 22px; border-top:1px solid var(--line); background:var(--sur
 
 <main>
   <section class="pane">
-    <div class="lbl" style="margin-bottom:8px">Network</div>
+    <div class="lbl" style="margin-bottom:6px">Network</div>
+    <select id="state-filter" aria-label="Filter stations by state"></select>
     <div id="rail"></div>
   </section>
 
@@ -225,16 +249,51 @@ $("summary").innerHTML = ORDER.map(k =>
    <small>to ${DATA.window[1].slice(0,10)}</small></div></div>`;
 
 /* ------------------------------------------------------------ station rail */
+const STATES = [...new Set(DATA.stations.map(s => s.state))].sort();
+let stateFilter = "all";
+
+$("state-filter").innerHTML =
+  `<option value="all">All states &mdash; ${DATA.stations.length} stations</option>`
+  + STATES.map(st => {
+      const n = DATA.stations.filter(s => s.state === st).length;
+      return `<option value="${esc(st)}">${esc(st)} &mdash; ${n} stations</option>`;
+    }).join("");
+$("state-filter").onchange = (e) => {
+  stateFilter = e.target.value;
+  const visible = DATA.stations.filter(s => stateFilter === "all" || s.state === stateFilter);
+  // Keep the selection if it is still visible; otherwise move to the first
+  // station of the chosen state rather than showing an empty centre pane.
+  if (!visible.some(s => s.name === current)) { current = visible[0].name; openAlert = null; }
+  render();
+};
+
 function drawRail(){
-  $("rail").innerHTML = DATA.stations.map(s => {
-    const n = DATA.alerts.filter(a => a.station === s.name).length;
-    return `<button class="stn" data-s="${esc(s.name)}" aria-current="${s.name===current}">
-      <span class="stripe bg-${s.health.station}"></span>
-      <span><span class="nm">${esc(s.name.replace(/_/g," "))}</span>
-        <div class="meta">${s.elevation.toFixed(0)} m &middot; ${n} alert${n===1?"":"s"}</div></span>
-      <span class="chip h-${s.health.station}">${s.health.station}</span>
-    </button>`;
+  // Grouped by state, always. The two regions are 1,700 km apart with nothing
+  // in common meteorologically, and an alphabetical list interleaves them --
+  // Guwahati, Jorhat, Mahabaleshwar -- which reads as one network when it is
+  // two. The neighbour graph is built within a region, so the grouping is also
+  // the boundary the detector actually works across.
+  const shown = DATA.stations.filter(s => stateFilter === "all" || s.state === stateFilter);
+  const byState = {};
+  for (const s of shown) (byState[s.state] ||= []).push(s);
+
+  $("rail").innerHTML = Object.keys(byState).sort().map(st => {
+    const group = byState[st];
+    const bad = group.filter(s => s.health.station !== "HEALTHY").length;
+    return `<div class="state-head">
+        <span>${esc(st)}</span>
+        <span class="state-count mono">${bad ? bad + " need attention" : "all clear"}</span>
+      </div>` + group.map(s => {
+      const n = DATA.alerts.filter(a => a.station === s.name).length;
+      return `<button class="stn" data-s="${esc(s.name)}" aria-current="${s.name===current}">
+        <span class="stripe bg-${s.health.station}"></span>
+        <span><span class="nm">${esc(s.name.replace(/_/g," "))}</span>
+          <div class="meta">${s.elevation.toFixed(0)} m &middot; ${n} alert${n===1?"":"s"}</div></span>
+        <span class="chip h-${s.health.station}">${s.health.station}</span>
+      </button>`;
+    }).join("");
   }).join("");
+
   $("rail").querySelectorAll(".stn").forEach(b =>
     b.onclick = () => { current = b.dataset.s; openAlert = null; render(); });
 }
@@ -242,34 +301,30 @@ function drawRail(){
 /* ------------------------------------------------------------------ charts */
 function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
-function plot(cv, t, series, dseries, alerts, varname){
+function plot(cv, t, series, dseries, alerts, varname, sigma){
   const dpr = window.devicePixelRatio || 1;
-  const W = cv.clientWidth, H = 118;
+  const W = cv.clientWidth, H = 132;
   cv.width = W*dpr; cv.height = H*dpr;
   const g = cv.getContext("2d"); g.scale(dpr,dpr);
   g.clearRect(0,0,W,H);
 
-  const PAD = {l:38, r:8, t:8, b:14};
+  const PAD = {l:40, r:10, t:8, b:22};
   const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
   const vals = series.filter(v => v !== null);
   if (!vals.length){ g.fillStyle = css("--ink-3"); g.font = "11px 'IBM Plex Mono'";
-    g.fillText("no data", PAD.l, H/2); return; }
+    g.fillText("no data", PAD.l, H/2); return null; }
   let lo = Math.min(...vals), hi = Math.max(...vals);
   if (hi - lo < 1e-6){ hi += .5; lo -= .5; }
   const pad = (hi-lo)*0.12; lo -= pad; hi += pad;
   const X = i => PAD.l + i/(series.length-1)*iw;
   const Y = v => PAD.t + (1-(v-lo)/(hi-lo))*ih;
 
-  // Chart ruling. A recorder draws on ruled stock, and the rules are what let
-  // an eye read an amplitude off a trace without a tooltip. Five divisions,
-  // faint enough to sit behind everything.
   g.strokeStyle = css("--rule"); g.lineWidth = 1;
-  for (let k = 0; k <= 5; k++){
-    const y = Math.round(PAD.t + k/5*ih) + 0.5;
+  for (let k = 0; k <= 4; k++){
+    const y = Math.round(PAD.t + k/4*ih) + 0.5;
     g.beginPath(); g.moveTo(PAD.l, y); g.lineTo(PAD.l+iw, y); g.stroke();
   }
 
-  // alert bands, drawn over the ruling so the trace still sits on top
   g.fillStyle = css("--band");
   for (const a of alerts){
     if (a.variable !== varname) continue;
@@ -279,28 +334,56 @@ function plot(cv, t, series, dseries, alerts, varname){
     g.fillRect(X(i0), PAD.t, Math.max(X(i1)-X(i0), 2), ih);
   }
 
-  // axis
   g.strokeStyle = css("--line"); g.lineWidth = 1;
   g.beginPath(); g.moveTo(PAD.l, PAD.t); g.lineTo(PAD.l, PAD.t+ih); g.stroke();
   g.fillStyle = css("--ink-3"); g.font = "10px 'IBM Plex Mono'"; g.textAlign = "right";
   g.fillText(hi.toFixed(1), PAD.l-5, PAD.t+8);
+  g.fillText(((hi+lo)/2).toFixed(1), PAD.l-5, PAD.t+ih/2+3);
   g.fillText(lo.toFixed(1), PAD.l-5, PAD.t+ih);
 
-  // neighbour-difference residual, faint, on its own scale
+  // Month ticks. A three-month window with no time axis forces the reader to
+  // guess when anything happened, which is the first question an alert raises.
+  g.textAlign = "center";
+  let lastMonth = "";
+  for (let i = 0; i < t.length; i++){
+    const m = t[i].slice(0,7);
+    if (m === lastMonth) continue;
+    lastMonth = m;
+    if (i === 0) continue;
+    const x = X(i);
+    g.strokeStyle = css("--line"); g.beginPath();
+    g.moveTo(x, PAD.t); g.lineTo(x, PAD.t+ih); g.stroke();
+    g.fillStyle = css("--ink-3");
+    g.fillText(new Date(t[i]+"Z").toLocaleString("en", {month:"short"}),
+               x, PAD.t+ih+13);
+  }
+
+  // The neighbour-difference residual, on its own symmetric scale, with the
+  // +/-3 sigma band the detector actually uses. The band is the threshold --
+  // showing the trace without it asks the reader to judge "is that a lot?"
+  // with no reference.
   const dv = dseries.filter(v => v !== null);
+  let dScale = null;
   if (dv.length){
-    const m = Math.max(...dv.map(Math.abs)) || 1;
+    const m = Math.max(Math.max(...dv.map(Math.abs)), sigma*3.5) || 1;
+    const mid = PAD.t + ih/2, half = ih*0.42;
+    dScale = v => mid - (v/m)*half;
+    for (const k of [3, -3]){
+      const y = dScale(k*sigma);
+      g.strokeStyle = css("--degrade"); g.globalAlpha = .45;
+      g.setLineDash([3,3]); g.lineWidth = 1;
+      g.beginPath(); g.moveTo(PAD.l, y); g.lineTo(PAD.l+iw, y); g.stroke();
+      g.setLineDash([]); g.globalAlpha = 1;
+    }
     g.strokeStyle = css("--trace-2"); g.lineWidth = 1; g.beginPath();
-    let started = false;
+    let st = false;
     dseries.forEach((v,i) => {
-      if (v === null){ started = false; return; }
-      const y = PAD.t + ih/2 - (v/m)*(ih*0.42);
-      started ? g.lineTo(X(i), y) : g.moveTo(X(i), y); started = true;
+      if (v === null){ st = false; return; }
+      st ? g.lineTo(X(i), dScale(v)) : g.moveTo(X(i), dScale(v)); st = true;
     });
     g.stroke();
   }
 
-  // the observation itself
   g.strokeStyle = css("--trace"); g.lineWidth = 1.6;
   g.lineJoin = "round"; g.beginPath();
   let started = false;
@@ -309,6 +392,42 @@ function plot(cv, t, series, dseries, alerts, varname){
     started ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); started = true;
   });
   g.stroke();
+
+  // Gaps are information, not absence. A dropout leaves a hole in the trace and
+  // the hole is the fault, so it is marked rather than silently interpolated.
+  g.fillStyle = css("--suspect");
+  series.forEach((v,i) => {
+    if (v !== null) return;
+    g.fillRect(X(i)-1, PAD.t+ih-3, 2, 3);
+  });
+
+  return {X, Y, PAD, iw, ih, lo, hi, dScale};
+}
+
+// Crosshair readout. Values on a three-month trace are unreadable by eye; the
+// question "what was it at 04:00 on the 12th" needs an answer without leaving
+// the page.
+function attachHover(cv, geo, t, series, dseries, unit){
+  if (!geo) return;
+  const tip = document.createElement("div");
+  tip.className = "tip"; tip.hidden = true;
+  cv.parentNode.style.position = "relative";
+  cv.parentNode.appendChild(tip);
+
+  function at(ev){
+    const r = cv.getBoundingClientRect();
+    const x = ev.clientX - r.left;
+    const i = Math.round((x - geo.PAD.l) / geo.iw * (series.length-1));
+    if (i < 0 || i >= series.length){ tip.hidden = true; return; }
+    const v = series[i], d = dseries[i];
+    tip.hidden = false;
+    tip.style.left = Math.min(Math.max(geo.X(i), 4), r.width-150) + "px";
+    tip.innerHTML = `<b>${t[i]}</b><br>${v === null ? "no reading"
+      : v.toFixed(1) + " " + unit}<br><span>vs neighbours `
+      + `${d === null ? "n/a" : (d >= 0 ? "+" : "") + d.toFixed(2)}</span>`;
+  }
+  cv.addEventListener("pointermove", at);
+  cv.addEventListener("pointerleave", () => { tip.hidden = true; });
 }
 
 /* ------------------------------------------------------------------ render */
@@ -335,10 +454,14 @@ function render(){
       <span><i class="swatch" style="background:var(--trace)"></i>observed</span>
       <span><i class="swatch" style="background:var(--trace-2)"></i>difference from neighbours</span>
       <span><i class="swatch" style="background:var(--band);height:9px"></i>flagged window</span>
+      <span><i class="swatch" style="background:var(--degrade)"></i>&plusmn;3&sigma; alert threshold</span>
     </div>`;
 
-  for (const v of ["temp","rh","pres"])
-    plot($("cv-"+v), s.series.t, s.series[v], s.series["d_"+v], mine, v);
+  for (const v of ["temp","rh","pres"]){
+    const geo = plot($("cv-"+v), s.series.t, s.series[v], s.series["d_"+v],
+                     mine, v, (s.sigma||{})[v] || 1);
+    attachHover($("cv-"+v), geo, s.series.t, s.series[v], s.series["d_"+v], UNIT[v]);
+  }
 
   $("alerts").innerHTML = mine.length ? mine.map((a,i) => {
     const hit = a.label === a.truth;

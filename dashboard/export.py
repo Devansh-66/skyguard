@@ -28,6 +28,12 @@ from health import state as H
 VARIABLES = ("temp", "rh", "pres")
 STEP = 3          # export every 3rd hour; the browser cannot use more
 
+# The cluster label is an internal grouping, not a place. Operators think in
+# states and IMD organises by them, so the console groups by state and keeps
+# the cluster available underneath.
+STATE = {"Assam_Flood_Basins": "Assam",
+         "Maharashtra_Diversity": "Maharashtra"}
+
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -126,13 +132,21 @@ def main() -> None:
                            for x in sub[var]]
             series[f"d_{var}"] = [None if not np.isfinite(x) else round(float(x), 3)
                                   for x in d_res.loc[sub.index]]
+        # robust sigma per channel, so the chart can draw a real +/-3 sigma
+        # band rather than an arbitrary decorative one
+        sig = {}
+        for var in VARIABLES:
+            dr, _ = coherence_series(live, var, coefs[var], graph)
+            sig[var] = round(float(B.robust_sigma(dr.loc[g.index].to_numpy(), var)), 4)
         alerts_here = [a for a in out["alerts"] if a["station"] == st]
         out["stations"].append({
             "name": st,
             "cluster": g.cluster.iloc[0],
+            "state": STATE.get(g.cluster.iloc[0], g.cluster.iloc[0]),
             "elevation": float(g.elevation.iloc[0]),
             "longitude": float(g.longitude.iloc[0]),
             "health": H.roll_up({v: H.assess(alerts_here, v) for v in VARIABLES}),
+            "sigma": sig,
             "series": series,
         })
 
