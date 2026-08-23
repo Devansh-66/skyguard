@@ -5,37 +5,19 @@
 
 <style>
 :root{
-  /* Ground is recorder chart paper: the warm rose stock a barograph draws on,
-     ruled in orange. Traces are pen indigo. The identity comes from the
-     instrument this software replaces, not from a dashboard template. */
-  --ground:#F7EDE7; --surface:#FFFBF9; --surface-2:#F2E2D9; --line:#E2C9BC;
-  --rule:#EBD3C6;
-  --ink:#1B2140; --ink-2:#4E5878; --ink-3:#8B8397;
-  --accent:#243FA8; --accent-soft:#DFE3F7;
-  --ok:#136B52; --watch:#B4720C; --degrade:#C6501B; --suspect:#A62828; --failed:#701818;
-  --trace:#243FA8; --trace-2:#C0A99D; --band:rgba(198,80,27,.16);
-  --shadow:0 1px 2px rgba(60,30,20,.07),0 10px 26px -18px rgba(60,30,20,.35);
-}
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    /* Not grey. Night-shift indigo -- the same pen ink, now the ground. */
-    --ground:#11162B; --surface:#1A2140; --surface-2:#232B4E; --line:#333C63;
-    --rule:#2A3358;
-    --ink:#EDEEF8; --ink-2:#A7ADCB; --ink-3:#787FA3;
-    --accent:#8FA5FF; --accent-soft:#242E5C;
-    --ok:#4FBF97; --watch:#E0AE4E; --degrade:#F08A50; --suspect:#F07070; --failed:#C05050;
-    --trace:#8FA5FF; --trace-2:#4A5378; --band:rgba(240,138,80,.20);
-    --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px -20px rgba(0,0,0,.9);
-  }
-}
-:root[data-theme="dark"]{
-  --ground:#11162B; --surface:#1A2140; --surface-2:#232B4E; --line:#333C63;
-  --rule:#2A3358;
-  --ink:#EDEEF8; --ink-2:#A7ADCB; --ink-3:#787FA3;
-  --accent:#8FA5FF; --accent-soft:#242E5C;
-  --ok:#4FBF97; --watch:#E0AE4E; --degrade:#F08A50; --suspect:#F07070; --failed:#C05050;
-  --trace:#8FA5FF; --trace-2:#4A5378; --band:rgba(240,138,80,.20);
-  --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px -20px rgba(0,0,0,.9);
+  /* Single committed light theme -- no dark variant, by request. The page
+     therefore paints every colour explicitly rather than inheriting anything
+     from the host, so it holds whatever ground it is dropped onto.
+
+     White recorder stock: a near-white cool paper, ruled, with deep indigo pen
+     ink for the traces and recorder orange reserved for flagged windows. */
+  --ground:#F3F6FA; --surface:#FFFFFF; --surface-2:#EDF1F7; --line:#D9E0EA;
+  --rule:#E7ECF3;
+  --ink:#161C33; --ink-2:#4A5470; --ink-3:#828CA3;
+  --accent:#243FA8; --accent-soft:#E1E6F7;
+  --ok:#12694F; --watch:#A96C0B; --degrade:#C2501C; --suspect:#A32626; --failed:#6E1616;
+  --trace:#243FA8; --trace-2:#B9C2D2; --band:rgba(194,80,28,.15);
+  --shadow:0 1px 2px rgba(22,28,51,.06),0 10px 26px -18px rgba(22,28,51,.30);
 }
 
 *{box-sizing:border-box}
