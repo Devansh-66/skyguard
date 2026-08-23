@@ -19,8 +19,8 @@ import pandas as pd
 
 from detect import baseline as B
 from detect import features as FT
-from detect.learned import LearnedDetector
-from evaluation.metrics import _runs, threshold_for_budget
+from detect.learned import LearnedDetector, conformalize, ensemble
+from evaluation.metrics import _runs, merge_runs, threshold_for_budget
 from evaluation.run_full import coherence_series, REF_END, RAILS
 from signature import classify as SIG
 from health import state as H
@@ -54,15 +54,22 @@ def main() -> None:
         "generated_from": args.data,
         "window": [str(live.timestamp.min()), str(live.timestamp.max())],
         "alert_budget_per_station_day": args.budget,
-        "versions": {"learned": dets["temp"].version,
+        "versions": {"detector": "ensemble/" + dets["temp"].version,
                      "signature": SIG.VERSION, "health": H.VERSION},
         "neighbours": {s: graph[s]["neighbours"] for s in stations if s in graph},
         "stations": [], "alerts": [],
     }
 
     for var in VARIABLES:
-        sc = dets[var].score(F_live)
-        p = dets[var].p_value(F_live)
+        # The console shows what the best detector we have actually produces:
+        # the conformal ensemble, not the learned layer alone.
+        sc = ensemble([
+            conformalize(dets[var].distance(F_ref), dets[var].distance(F_live)),
+            conformalize(B.neighbour_z(ref, var, coefs[var], graph),
+                         B.neighbour_z(live, var, coefs[var], graph)),
+            conformalize(B.persistence(ref, var), B.persistence(live, var)),
+        ], certain=~np.isfinite(live[var].to_numpy(dtype=float)))
+        p = 10.0 ** (-sc)
         clean = sc[~live[f"is_fault_{var}"].to_numpy().astype(bool)]
         thr = threshold_for_budget(clean, len(clean) / 24.0, args.budget)
         flag = np.nan_to_num(sc, nan=0.0) >= thr
@@ -79,7 +86,7 @@ def main() -> None:
 
         for st, g in live.groupby("station_name", sort=False):
             pos = live.index.get_indexer(g.index)
-            for a, b in _runs(flag[pos]):
+            for a, b in merge_runs(_runs(flag[pos])):
                 if b - a < 2:
                     continue
                 idx = g.index[a:b]

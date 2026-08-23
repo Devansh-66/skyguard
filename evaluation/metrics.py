@@ -71,6 +71,27 @@ def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
     return list(zip(np.flatnonzero(d == 1), np.flatnonzero(d == -1)))
 
 
+def merge_runs(runs: list[tuple[int, int]], gap: int = 12
+               ) -> list[tuple[int, int]]:
+    """Join flagged runs separated by less than `gap` samples.
+
+    A detector rarely flags a 400-hour step offset continuously -- it fires,
+    drops below threshold as the residual settles, and fires again. Classified
+    as separate windows those fragments are SHORT, so the signature stage sees
+    high brevity and calls a step offset a spike. Merging first is also what an
+    operator wants: one fault, one dispatch, not eleven tickets.
+    """
+    if not runs:
+        return []
+    out = [list(runs[0])]
+    for a, b in runs[1:]:
+        if a - out[-1][1] <= gap:
+            out[-1][1] = b
+        else:
+            out.append([a, b])
+    return [(a, b) for a, b in out]
+
+
 def event_scores(df: pd.DataFrame, var: str, flag_col: str) -> pd.DataFrame:
     """Per-event hit/miss and time-to-detection, in hours from event onset."""
     rows = []

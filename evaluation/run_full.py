@@ -16,8 +16,8 @@ import pandas as pd
 
 from detect import baseline as B
 from detect import features as FT
-from detect.learned import LearnedDetector
-from evaluation.metrics import evaluate, mark_weather_activity, _runs
+from detect.learned import LearnedDetector, conformalize, ensemble
+from evaluation.metrics import evaluate, mark_weather_activity, _runs, merge_runs
 from signature import classify as SIG
 
 VARIABLES = ("temp", "rh", "pres")
@@ -75,6 +75,18 @@ def main() -> None:
     # with two healthy ones and loses to a plain z-score.
     dets = {v: LearnedDetector(variable=v).fit(F_ref) for v in VARIABLES}
     learned_score = {v: dets[v].score(F_test) for v in VARIABLES}
+
+    # Ensemble: each detector conformalised against the same reference window,
+    # then combined by minimum p. They are blind to different things, so a
+    # minimum rather than a blend -- see detect/learned.ensemble.
+    ens = {}
+    for v in VARIABLES:
+        ens[v] = ensemble([
+            conformalize(dets[v].distance(F_ref), dets[v].distance(F_test)),
+            conformalize(B.neighbour_z(ref, v, coefs[v], graph),
+                         B.neighbour_z(test, v, coefs[v], graph)),
+            conformalize(B.persistence(ref, v), B.persistence(test, v)),
+        ], certain=~np.isfinite(test[v].to_numpy(dtype=float)))
     print(f"learned: {dets['temp'].version}  "
           f"{dets['temp'].fitted_on['n_fit']} fit / "
           f"{dets['temp'].fitted_on['n_calib']} calib rows per variable")
@@ -87,6 +99,7 @@ def main() -> None:
             "neighbour_z": B.neighbour_z(test, var, coefs[var], graph),
             "combined": B.combined(test, var, coefs[var], graph),
             "learned": learned_score[var],
+            "ensemble": ens[var],
         }
         for name, s in cands.items():
             r = evaluate(t.assign(_s=s), events, var, "_s", args.budget)
@@ -108,7 +121,7 @@ def main() -> None:
 
     pred_rows, examples = [], []
     for var in VARIABLES:
-        sc = learned_score[var]
+        sc = ens[var]
         clean = sc[~test[f"is_fault_{var}"].to_numpy().astype(bool)]
         thr = threshold_for_budget(clean, len(clean) / 24.0, args.budget)
         flag = np.nan_to_num(sc, nan=0.0) >= thr
@@ -126,7 +139,7 @@ def main() -> None:
             nat[s_] = float(np.mean(v[1:] == v[:-1])) if len(v) > 1 else 0.0
         for (run, st), g in test.groupby(["run_id", "station_name"], sort=False):
             pos = test.index.get_indexer(g.index)
-            for a, b in _runs(flag[pos]):
+            for a, b in merge_runs(_runs(flag[pos])):
                 if b - a < 2:
                     continue
                 idx = g.index[a:b]
