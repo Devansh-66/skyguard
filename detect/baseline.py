@@ -4,8 +4,11 @@ If a learned model cannot beat `neighbour_z` on the harness at a fixed alert
 budget, the learned model does not go in the submission. Reporting a neural
 result without this comparison is how teams lose the accuracy marks.
 
-All three are CAUSAL (no future samples) unless stated, so the latency they cost
-is zero. That matters for the Real-Time score.
+All three are CAUSAL by default -- trailing window, never a future sample -- so
+the latency they cost is zero. That matters for the Real-Time score, and it is
+the difference between code that can serve a live request and code that cannot.
+Pass causal=False to reproduce the centred variant for comparison; it is faster
+and its numbers are not honest.
 """
 from __future__ import annotations
 
@@ -17,6 +20,32 @@ import pandas as pd
 # floor is a fraction of the logger resolution, per CLAUDE.md rule 5.
 MAD_FLOOR_C = 0.75
 RESOLUTION = {"temp": 0.1, "rh": 0.1, "pres": 0.1}
+
+
+def causal_scale(x, var: str, window: int = 720,
+                 min_periods: int = 24):
+    """Trailing-window median and robust sigma. STRICTLY CAUSAL.
+
+    The centred version -- a median and MAD over the whole series -- is what the
+    first draft used, and it is a lookahead leak: a reading in October was
+    normalised using statistics that included December. It inflates every
+    metric, and worse, it cannot serve a live request at all, because when the
+    current hour is the last hour there is no rest of the year to normalise
+    against.
+
+    `.shift(1)` excludes the current sample from its own scale estimate.
+    Without it a large excursion inflates the very sigma it is measured against
+    and partially hides itself.
+
+    The first `min_periods` samples return NaN: a detector with no history has
+    nothing to say, and saying so beats guessing. That warm-up is real, and it
+    is what a newly commissioned station experiences.
+    """
+    s = pd.Series(np.asarray(x, dtype=float)).shift(1)
+    med = s.rolling(window, min_periods=min_periods).median()
+    mad = (s - med).abs().rolling(window, min_periods=min_periods).median()
+    sigma = np.maximum(1.4826 * mad.to_numpy(), MAD_FLOOR_C * RESOLUTION[var])
+    return med.to_numpy(), sigma
 
 
 def robust_sigma(x: np.ndarray, var: str) -> float:
@@ -95,17 +124,24 @@ def residual(df: pd.DataFrame, var: str, coefs: dict) -> pd.Series:
 
 # ------------------------------------------------------------------ detectors
 
-def self_z(df: pd.DataFrame, var: str, coefs: dict) -> np.ndarray:
+def self_z(df: pd.DataFrame, var: str, coefs: dict,
+           causal: bool = True) -> np.ndarray:
     """Single-station robust z on the harmonic residual. The naive baseline."""
     r = residual(df, var, coefs)
     out = np.full(len(df), np.nan)
     for (_, s), g in df.groupby(["run_id", "station_name"], sort=False):
         v = r.loc[g.index].to_numpy()
-        out[df.index.get_indexer(g.index)] = np.abs(v - np.nanmedian(v)) / robust_sigma(v, var)
+        pos = df.index.get_indexer(g.index)
+        if causal:
+            med, sig = causal_scale(v, var)
+            out[pos] = np.abs(v - med) / sig
+        else:
+            out[pos] = np.abs(v - np.nanmedian(v)) / robust_sigma(v, var)
     return out
 
 
-def neighbour_z(df: pd.DataFrame, var: str, coefs: dict, graph: dict) -> np.ndarray:
+def neighbour_z(df: pd.DataFrame, var: str, coefs: dict, graph: dict,
+                causal: bool = True) -> np.ndarray:
     """Robust z on the NEIGHBOUR-DIFFERENCE residual. The bar to beat.
 
     Weather is common to the neighbourhood and cancels in the difference; a
@@ -128,7 +164,11 @@ def neighbour_z(df: pd.DataFrame, var: str, coefs: dict, graph: dict) -> np.ndar
         if not m.any():
             continue
         v = diff[s].reindex(key[m]).to_numpy()
-        out[m] = np.abs(v - np.nanmedian(v)) / robust_sigma(v, var)
+        if causal:
+            med, sig = causal_scale(v, var)
+            out[m] = np.abs(v - med) / sig
+        else:
+            out[m] = np.abs(v - np.nanmedian(v)) / robust_sigma(v, var)
     return out
 
 
@@ -150,14 +190,15 @@ def persistence(df: pd.DataFrame, var: str) -> np.ndarray:
     return out
 
 
-def combined(df: pd.DataFrame, var: str, coefs: dict, graph: dict) -> np.ndarray:
+def combined(df: pd.DataFrame, var: str, coefs: dict, graph: dict,
+             causal: bool = True) -> np.ndarray:
     """max(neighbour z, scaled persistence, dropout).
 
     A max, not a sum: these detect disjoint failure modes and averaging them
     dilutes both. Dropout scores infinite because a missing observation is not
     a borderline call.
     """
-    z = neighbour_z(df, var, coefs, graph)
+    z = neighbour_z(df, var, coefs, graph, causal=causal)
     p = persistence(df, var) / 6.0          # 6 identical samples ~ z of 1
     miss = ~np.isfinite(df[var].to_numpy(dtype=float))
     s = np.fmax(np.nan_to_num(z, nan=0.0), p)

@@ -2,3 +2,7 @@
 # physics/ is dependency-free on purpose and imports none of this.
 numpy>=1.26
 pandas>=2.1
+
+# API
+fastapi>=0.110
+uvicorn[standard]>=0.29

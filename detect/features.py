@@ -33,7 +33,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from detect.baseline import residual, robust_sigma, RESOLUTION
+from detect.baseline import residual, robust_sigma, causal_scale, RESOLUTION
 
 VARIABLES = ("temp", "rh", "pres")
 
@@ -71,8 +71,14 @@ def neighbour_residual(df: pd.DataFrame, var: str, coefs: dict,
     return out
 
 
-def build(df: pd.DataFrame, coefs: dict, graph: dict) -> pd.DataFrame:
-    """Return the 6-dim feature frame, aligned to df's index."""
+def build(df: pd.DataFrame, coefs: dict, graph: dict,
+          causal: bool = True) -> pd.DataFrame:
+    """Return the 6-dim feature frame, aligned to df's index.
+
+    Causal by default: every axis uses the current sample and a trailing window
+    only. The centred variant is kept behind a flag so the cost of honesty can
+    be measured rather than asserted.
+    """
     f = pd.DataFrame(index=df.index, dtype=float)
 
     # --- three LEVEL axes -------------------------------------------------
@@ -80,11 +86,16 @@ def build(df: pd.DataFrame, coefs: dict, graph: dict) -> pd.DataFrame:
     for var in VARIABLES:
         d = neighbour_residual(df, var, coefs[var], graph)
         dres[var] = d
-        sig = {}
-        for s, g in df.groupby("station_name", sort=False):
-            sig[s] = robust_sigma(d.loc[g.index].to_numpy(), var)
-        scale = df.station_name.map(sig).to_numpy()
-        f[f"z_{var}"] = (d.to_numpy() - np.nanmedian(d.to_numpy())) / scale
+        z = np.full(len(df), np.nan)
+        for _, g in df.groupby(["run_id", "station_name"], sort=False):
+            pos = df.index.get_indexer(g.index)
+            v = d.loc[g.index].to_numpy()
+            if causal:
+                med, sig = causal_scale(v, var)
+                z[pos] = (v - med) / sig
+            else:
+                z[pos] = (v - np.nanmedian(v)) / robust_sigma(v, var)
+        f[f"z_{var}"] = z
 
     # --- three SHAPE axes, kept PER VARIABLE ------------------------------
     # Not maxed across channels. A fault hits one probe, and a max would let a
@@ -115,9 +126,14 @@ def build(df: pd.DataFrame, coefs: dict, graph: dict) -> pd.DataFrame:
 
             # spread: trailing-window scatter against the station's own typical
             # scatter. This is the only axis that sees a noise burst.
+            # The rolling window was already trailing; the BASELINE it was
+            # compared against was not. A median over the whole series is a
+            # lookahead, so it becomes an expanding median -- only what has
+            # been seen so far.
             s_roll = d.rolling(WIN, min_periods=8).std().to_numpy()
-            base = np.nanmedian(s_roll)
-            base = max(base if base == base else 0.0, RESOLUTION[var])
+            base = (pd.Series(s_roll).expanding(min_periods=24).median().to_numpy()
+                    if causal else np.nanmedian(s_roll))
+            base = np.maximum(np.nan_to_num(base, nan=0.0), RESOLUTION[var])
             shape[f"spread_{var}"][pos] = np.nan_to_num(s_roll / base, nan=1.0)
 
     for k, v in shape.items():

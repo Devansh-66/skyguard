@@ -49,6 +49,9 @@ def main() -> None:
     ap.add_argument("--events", default="data/injected_events.csv")
     ap.add_argument("--graph", default="data/neighbours_realistic.json")
     ap.add_argument("--budget", type=float, default=1 / 7)
+    ap.add_argument("--centred", dest="causal", action="store_false",
+                    default=True,
+                    help="reproduce the lookahead variant, for comparison only")
     ap.add_argument("--runs", type=int, default=4,
                     help="replicates to score; all 10 is slow and adds little")
     args = ap.parse_args()
@@ -65,8 +68,8 @@ def main() -> None:
     test = df[df.split == "test"].reset_index(drop=True)
 
     print("building features ...")
-    F_ref = FT.build(ref, coefs, graph)
-    F_test = FT.build(test, coefs, graph)
+    F_ref = FT.build(ref, coefs, graph, causal=args.causal)
+    F_test = FT.build(test, coefs, graph, causal=args.causal)
 
     # Fitted on the frozen reference window with NO labels -- the same data a
     # deployed system would have on day one.
@@ -83,8 +86,8 @@ def main() -> None:
     for v in VARIABLES:
         miss = ~np.isfinite(test[v].to_numpy(dtype=float))
         p_learn = conformalize(dets[v].distance(F_ref), dets[v].distance(F_test))
-        p_nz = conformalize(B.neighbour_z(ref, v, coefs[v], graph),
-                            B.neighbour_z(test, v, coefs[v], graph))
+        p_nz = conformalize(B.neighbour_z(ref, v, coefs[v], graph, args.causal),
+                            B.neighbour_z(test, v, coefs[v], graph, args.causal))
         p_per = conformalize(B.persistence(ref, v), B.persistence(test, v))
         ens[v] = ensemble([p_learn, p_nz, p_per], certain=miss)
         ens_nl[v] = ensemble([p_nz, p_per], certain=miss)
@@ -97,8 +100,8 @@ def main() -> None:
     for var in VARIABLES:
         t = mark_weather_activity(test, var)
         cands = {
-            "neighbour_z": B.neighbour_z(test, var, coefs[var], graph),
-            "combined": B.combined(test, var, coefs[var], graph),
+            "neighbour_z": B.neighbour_z(test, var, coefs[var], graph, args.causal),
+            "combined": B.combined(test, var, coefs[var], graph, args.causal),
             "learned": learned_score[var],
             "ensemble": ens[var],
             "ens_no_learned": ens_nl[var],

@@ -99,6 +99,8 @@ main{
 .bg-DEGRADING{background:var(--degrade)} .bg-SUSPECT{background:var(--suspect)}
 .bg-FAILED{background:var(--failed)}
 
+#budget{width:100%; margin-top:6px; accent-color:var(--accent); cursor:pointer}
+#budget:disabled{cursor:not-allowed; opacity:.45}
 #state-filter{
   width:100%; margin-bottom:10px; padding:6px 8px; border-radius:5px;
   border:1px solid var(--line); background:var(--surface); color:var(--ink);
@@ -214,7 +216,24 @@ footer{padding:14px 22px; border-top:1px solid var(--line); background:var(--sur
 // The `null` after the token keeps THIS file valid JavaScript, so the template
 // opens in a browser instead of throwing a syntax error -- it renders the
 // "no data" notice below rather than a blank page.
-const DATA = /*__DATA__*/null;
+let DATA = /*__DATA__*/null;
+
+// Live service if one is reachable, inlined snapshot if not.
+//
+// The API returns exactly the shape build.py inlines, so the two are
+// interchangeable and nothing below this line knows the difference. That is
+// deliberate: the console has to work on a projector with no network, and it
+// has to show live data when there is one. Override with
+// `window.SKYGUARD_API = "https://..."` before this script.
+const API = (typeof window !== "undefined" && window.SKYGUARD_API) || "http://localhost:8000";
+let LIVE = false;
+let budget = 1/7;
+
+async function load(b){
+  const r = await fetch(`${API}/api/snapshot?budget=${b}`, {cache:"no-store"});
+  if (!r.ok) throw new Error(`api ${r.status}`);
+  return r.json();
+}
 
 const UNIT = {temp:"°C", rh:"%", pres:"hPa"};
 const NAME = {temp:"Temperature", rh:"Relative humidity", pres:"Pressure"};
@@ -225,6 +244,7 @@ let current = DATA.stations[0].name;
 let openAlert = null;
 
 /* ------------------------------------------------------------------ header */
+function banner(){
 $("vers").innerHTML = Object.entries(DATA.versions)
   .map(([k,v]) => `<span>${esc(k)} <b style="color:var(--ink-2)">${esc(v)}</b></span>`).join("");
 
@@ -234,7 +254,10 @@ $("caveat").innerHTML =
   + `so the console shows its own misses rather than a curated demo. `
   + `${DATA.alerts.length} alerts over this window: ${real} on real injected faults, `
   + `${DATA.alerts.length - real} false. Budget is `
-  + `${(DATA.alert_budget_per_station_day*7).toFixed(1)} alert per station per week.`;
+  + `${(DATA.alert_budget_per_station_day*7).toFixed(1)} alert per station per week.`
+  + (LIVE
+      ? ` <b style="color:var(--ok)">Live</b> from the API &mdash; the budget slider re-thresholds server-side.`
+      : ` <b>Static snapshot</b> &mdash; no API reachable at <code>${esc(API)}</code>; showing the build-time export.`);
 
 /* ----------------------------------------------------------------- summary */
 const counts = {};
@@ -246,18 +269,41 @@ $("summary").innerHTML = ORDER.map(k =>
 ).join("") +
   `<div class="stat"><div class="lbl">Window</div>
    <div class="n mono" style="font-size:15px">${DATA.window[0].slice(0,10)}
-   <small>to ${DATA.window[1].slice(0,10)}</small></div></div>`;
+   <small>to ${DATA.window[1].slice(0,10)}</small></div></div>`
+  + `<div class="stat"><div class="lbl">Alert budget</div>
+     <div class="n mono" style="font-size:15px" id="budget-val">
+       ${(DATA.alert_budget_per_station_day*7).toFixed(1)}<small> /station/week</small></div>
+     <input id="budget" type="range" min="0.5" max="14" step="0.5"
+       value="${(DATA.alert_budget_per_station_day*7).toFixed(1)}"
+       ${LIVE ? "" : "disabled"} aria-label="Alerts per station per week"></div>`;
+
+const bslider = $("budget");
+if (bslider){
+  bslider.title = LIVE ? "Re-thresholds server-side"
+                       : "Needs the API running to change";
+  let t = null;
+  bslider.oninput = (e) => {
+    $("budget-val").innerHTML =
+      `${(+e.target.value).toFixed(1)}<small> /station/week</small>`;
+    clearTimeout(t);
+    t = setTimeout(() => refresh(+e.target.value / 7), 250);
+  };
+}
+}
 
 /* ------------------------------------------------------------ station rail */
-const STATES = [...new Set(DATA.stations.map(s => s.state))].sort();
 let stateFilter = "all";
 
-$("state-filter").innerHTML =
-  `<option value="all">All states &mdash; ${DATA.stations.length} stations</option>`
-  + STATES.map(st => {
-      const n = DATA.stations.filter(s => s.state === st).length;
-      return `<option value="${esc(st)}">${esc(st)} &mdash; ${n} stations</option>`;
-    }).join("");
+function buildStateFilter(){
+  const states = [...new Set(DATA.stations.map(s => s.state))].sort();
+  $("state-filter").innerHTML =
+    `<option value="all">All states &mdash; ${DATA.stations.length} stations</option>`
+    + states.map(st => {
+        const n = DATA.stations.filter(s => s.state === st).length;
+        return `<option value="${esc(st)}"${st===stateFilter?" selected":""}>`
+             + `${esc(st)} &mdash; ${n} stations</option>`;
+      }).join("");
+}
 $("state-filter").onchange = (e) => {
   stateFilter = e.target.value;
   const visible = DATA.stations.filter(s => stateFilter === "all" || s.state === stateFilter);
@@ -518,6 +564,35 @@ $("foot").innerHTML =
   + `Neighbours are selected by lowest difference-sigma, not by distance or cluster label. `
   + `Health is the worst of the three channels, never the mean.`;
 
+async function boot(){
+  try {
+    const live = await load(budget);
+    DATA = live; LIVE = true;
+  } catch (err) {
+    // Not an error worth shouting about -- the static build is a supported
+    // mode, not a degraded one. It is labelled so nobody mistakes a frozen
+    // snapshot for a live feed.
+    LIVE = false;
+    if (!DATA) return;
+  }
+  start();
+}
+
+async function refresh(b){
+  if (!LIVE) return;
+  budget = b;
+  DATA = await load(b);
+  banner(); buildStateFilter(); render();
+}
+
+function start(){
+  banner();
+  buildStateFilter();
+  if (!DATA.stations.some(s => s.name === current)) current = DATA.stations[0].name;
+  render();
+  addEventListener("resize", render);
+}
+
 if (!DATA) {
   document.body.innerHTML =
     '<p style="font:15px/1.6 system-ui;padding:40px;max-width:38em;color:#161C33">'
@@ -525,7 +600,6 @@ if (!DATA) {
     + 'Run <code>python -m dashboard.build</code> and open '
     + '<code>dashboard/console.html</code> instead.</p>';
 } else {
-  render();
-  addEventListener("resize", render);
+  boot();
 }
 </script>
