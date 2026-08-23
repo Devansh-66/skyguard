@@ -18,6 +18,8 @@ data/**
 !data/.gitkeep
 !data/neighbours.json
 !data/audit_report.json
+!data/neighbours_realistic.json
+!data/realism_comparison.json
 
 # Models and artefacts
 *.pkl

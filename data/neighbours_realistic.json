@@ -1,0 +1,142 @@
+{
+  "Dhubri": {
+    "neighbours": [
+      "Guwahati",
+      "Tezpur"
+    ],
+    "pair_sigma_K": {
+      "Guwahati": 1.0523,
+      "Tezpur": 1.2156
+    },
+    "combined_sigma_K": 1.0477,
+    "own_sigma_K": 1.6609,
+    "gain": 1.59,
+    "drift_latency_days_at_0.02K_per_day": 157
+  },
+  "Guwahati": {
+    "neighbours": [
+      "Tezpur",
+      "Jorhat"
+    ],
+    "pair_sigma_K": {
+      "Tezpur": 0.8827,
+      "Jorhat": 0.9535
+    },
+    "combined_sigma_K": 0.8242,
+    "own_sigma_K": 1.6334,
+    "gain": 1.98,
+    "drift_latency_days_at_0.02K_per_day": 124
+  },
+  "Jorhat": {
+    "neighbours": [
+      "Tezpur",
+      "Guwahati"
+    ],
+    "pair_sigma_K": {
+      "Tezpur": 0.8118,
+      "Guwahati": 0.9535
+    },
+    "combined_sigma_K": 0.7677,
+    "own_sigma_K": 1.4869,
+    "gain": 1.94,
+    "drift_latency_days_at_0.02K_per_day": 115
+  },
+  "Mahabaleshwar": {
+    "neighbours": [
+      "Pune",
+      "Ratnagiri"
+    ],
+    "pair_sigma_K": {
+      "Pune": 0.8768,
+      "Ratnagiri": 1.2662
+    },
+    "combined_sigma_K": 0.8809,
+    "own_sigma_K": 1.3903,
+    "gain": 1.58,
+    "drift_latency_days_at_0.02K_per_day": 132
+  },
+  "Mumbai_Colaba": {
+    "neighbours": [
+      "Mumbai_Santacruz",
+      "Ratnagiri"
+    ],
+    "pair_sigma_K": {
+      "Mumbai_Santacruz": 0.6877,
+      "Ratnagiri": 0.9155
+    },
+    "combined_sigma_K": 0.6617,
+    "own_sigma_K": 1.3199,
+    "gain": 1.99,
+    "drift_latency_days_at_0.02K_per_day": 99
+  },
+  "Mumbai_Santacruz": {
+    "neighbours": [
+      "Mumbai_Colaba",
+      "Ratnagiri"
+    ],
+    "pair_sigma_K": {
+      "Mumbai_Colaba": 0.6877,
+      "Ratnagiri": 0.9331
+    },
+    "combined_sigma_K": 0.6799,
+    "own_sigma_K": 1.3768,
+    "gain": 2.03,
+    "drift_latency_days_at_0.02K_per_day": 102
+  },
+  "Pune": {
+    "neighbours": [
+      "Mahabaleshwar",
+      "Ratnagiri"
+    ],
+    "pair_sigma_K": {
+      "Mahabaleshwar": 0.8768,
+      "Ratnagiri": 1.2807
+    },
+    "combined_sigma_K": 0.8965,
+    "own_sigma_K": 1.3673,
+    "gain": 1.53,
+    "drift_latency_days_at_0.02K_per_day": 134
+  },
+  "Ratnagiri": {
+    "neighbours": [
+      "Mumbai_Colaba",
+      "Mumbai_Santacruz"
+    ],
+    "pair_sigma_K": {
+      "Mumbai_Colaba": 0.9155,
+      "Mumbai_Santacruz": 0.9331
+    },
+    "combined_sigma_K": 0.858,
+    "own_sigma_K": 1.3814,
+    "gain": 1.61,
+    "drift_latency_days_at_0.02K_per_day": 129
+  },
+  "Silchar": {
+    "neighbours": [
+      "Guwahati",
+      "Jorhat"
+    ],
+    "pair_sigma_K": {
+      "Guwahati": 1.0981,
+      "Jorhat": 1.1417
+    },
+    "combined_sigma_K": 1.0136,
+    "own_sigma_K": 1.4202,
+    "gain": 1.4,
+    "drift_latency_days_at_0.02K_per_day": 152
+  },
+  "Tezpur": {
+    "neighbours": [
+      "Jorhat",
+      "Guwahati"
+    ],
+    "pair_sigma_K": {
+      "Jorhat": 0.8118,
+      "Guwahati": 0.8827
+    },
+    "combined_sigma_K": 0.7013,
+    "own_sigma_K": 1.6327,
+    "gain": 2.33,
+    "drift_latency_days_at_0.02K_per_day": 105
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "assumptions": {
+    "temp": {
+      "daily_sigma": 0.45,
+      "efold_hours": 12.0,
+      "instrument": 0.1,
+      "resolution": 0.1
+    },
+    "rh": {
+      "daily_sigma": 2.5,
+      "efold_hours": 12.0,
+      "instrument": 0.8,
+      "resolution": 0.1
+    },
+    "pres": {
+      "daily_sigma": 0.15,
+      "efold_hours": 24.0,
+      "instrument": 0.05,
+      "resolution": 0.1
+    }
+  },
+  "warning": "REALISM parameters are assumptions, not measurements. Replace with the measured daily-mean difference sigma of two nearby real AWS stations before any threshold is fixed.",
+  "seed": 20260823,
+  "per_station": [
+    {
+      "station": "Dhubri",
+      "era5_sigma_K": 0.8771,
+      "era5_gain": 1.81,
+      "realistic_sigma_K": 1.0477,
+      "realistic_gain": 1.59,
+      "era5_latency_d": 132,
+      "realistic_latency_d": 157
+    },
+    {
+      "station": "Guwahati",
+      "era5_sigma_K": 0.6598,
+      "era5_gain": 2.39,
+      "realistic_sigma_K": 0.8242,
+      "realistic_gain": 1.98,
+      "era5_latency_d": 99,
+      "realistic_latency_d": 124
+    },
+    {
+      "station": "Jorhat",
+      "era5_sigma_K": 0.5618,
+      "era5_gain": 2.55,
+      "realistic_sigma_K": 0.7677,
+      "realistic_gain": 1.94,
+      "era5_latency_d": 84,
+      "realistic_latency_d": 115
+    },
+    {
+      "station": "Mahabaleshwar",
+      "era5_sigma_K": 0.7492,
+      "era5_gain": 1.73,
+      "realistic_sigma_K": 0.8809,
+      "realistic_gain": 1.58,
+      "era5_latency_d": 112,
+      "realistic_latency_d": 132
+    },
+    {
+      "station": "Mumbai_Colaba",
+      "era5_sigma_K": 0.3824,
+      "era5_gain": 3.27,
+      "realistic_sigma_K": 0.6617,
+      "realistic_gain": 1.99,
+      "era5_latency_d": 57,
+      "realistic_latency_d": 99
+    },
+    {
+      "station": "Mumbai_Santacruz",
+      "era5_sigma_K": 0.4294,
+      "era5_gain": 3.03,
+      "realistic_sigma_K": 0.6799,
+      "realistic_gain": 2.03,
+      "era5_latency_d": 64,
+      "realistic_latency_d": 102
+    },
+    {
+      "station": "Pune",
+      "era5_sigma_K": 0.7144,
+      "era5_gain": 1.74,
+      "realistic_sigma_K": 0.8965,
+      "realistic_gain": 1.53,
+      "era5_latency_d": 107,
+      "realistic_latency_d": 134
+    },
+    {
+      "station": "Ratnagiri",
+      "era5_sigma_K": 0.687,
+      "era5_gain": 1.83,
+      "realistic_sigma_K": 0.858,
+      "realistic_gain": 1.61,
+      "era5_latency_d": 103,
+      "realistic_latency_d": 129
+    },
+    {
+      "station": "Silchar",
+      "era5_sigma_K": 0.9294,
+      "era5_gain": 1.49,
+      "realistic_sigma_K": 1.0136,
+      "realistic_gain": 1.4,
+      "era5_latency_d": 139,
+      "realistic_latency_d": 152
+    },
+    {
+      "station": "Tezpur",
+      "era5_sigma_K": 0.4163,
+      "era5_gain": 3.76,
+      "realistic_sigma_K": 0.7013,
+      "realistic_gain": 2.33,
+      "era5_latency_d": 62,
+      "realistic_latency_d": 105
+    }
+  ]
+}
