@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Station data — large, cached, never committed
+data/**
+!data/.gitkeep
+
+# Models and artefacts
+*.pkl
+*.joblib
+models/**
+!models/.gitkeep
+
+# Old project — superseded, kept locally for reference only
+SIH2026_Disaster_Engine_Master_Blueprint.pdf
+.freebuff/
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
