@@ -296,8 +296,19 @@ class LearnedDetector:
         # any scale the covariance reports is an artefact of which rows were
         # kept, never information. The only thing worth estimating robustly
         # here is the CORRELATION between axes.
-        sd = np.sqrt(np.clip(np.diag(self.cov), 1e-6, None))
+        sd = np.sqrt(np.clip(np.diag(self.cov), 1e-12, None))
         self.cov = self.cov / np.outer(sd, sd)
+        # Force the diagonal rather than trusting the division to land on 1.
+        # For a zero-inflated axis the concentrated subset IS the atom, so its
+        # variance arrives at ~7e-7 -- inside the ridge floor -- and the divide
+        # left flat_temp at 0.684 instead of 1. The object is a correlation
+        # matrix by construction, so it should be made one by construction and
+        # not by arithmetic that a floor can perturb.
+        np.fill_diagonal(self.cov, 1.0)
+        # Off-diagonals from a near-degenerate axis are noise amplified by a
+        # tiny denominator; clamping keeps the matrix invertible.
+        off = ~np.eye(len(self.cov), dtype=bool)
+        self.cov[off] = np.clip(self.cov[off], -0.98, 0.98)
         self.mu = np.zeros_like(self.mu)   # standard normal marginals, centred
         self.calib = np.sort(_mahal(self._normal_score(X[cut:]), self.mu, self.cov))
         self.fitted_on = {"n_fit": int(cut), "n_calib": int(len(X) - cut),
