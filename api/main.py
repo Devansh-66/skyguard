@@ -87,9 +87,16 @@ async def lifespan(app: FastAPI):
     import pandas as pd
     CLOCK.span_seconds = float(
         (pd.Timestamp(hi) - pd.Timestamp(lo)).total_seconds())
-    # Starts at the beginning, PAUSED. A demo that is already running when the
-    # page opens has usually run past the thing you wanted to show.
-    CLOCK.origin = 0.0
+    # Starts at the END, paused. Opening at t=0 is defensible and makes a
+    # terrible first impression: the clock has seen one hour of data, no
+    # detector has enough history to say anything, and the console renders
+    # completely empty. Anyone opening it concludes it is broken.
+    #
+    # Starting at the end means the page loads fully populated -- every station,
+    # every alert, the whole window -- and Play then replays from the beginning,
+    # because Clock.play() rewinds when it is already at the end. So the default
+    # view is the finished state and the replay is a deliberate act.
+    CLOCK.origin = CLOCK.span_seconds
     READY = True
     yield
 
