@@ -140,6 +140,24 @@ def self_z(df: pd.DataFrame, var: str, coefs: dict,
     return out
 
 
+def _neighbour_difference(df: pd.DataFrame, var: str, coefs: dict,
+                          graph: dict) -> np.ndarray:
+    """Harmonic residual minus the median residual of the chosen neighbours."""
+    r = residual(df, var, coefs)
+    wide = (pd.DataFrame({"run_id": df.run_id, "t": df.timestamp,
+                          "s": df.station_name, "r": r})
+            .pivot_table(index=["run_id", "t"], columns="s", values="r"))
+    key = pd.MultiIndex.from_arrays([df.run_id, df.timestamp])
+    out = np.full(len(df), np.nan)
+    for s in wide.columns:
+        nb = [n for n in graph.get(s, {}).get("neighbours", []) if n in wide.columns]
+        diff = wide[s] - (wide[nb].median(axis=1) if nb else 0.0)
+        m = (df.station_name == s).to_numpy()
+        if m.any():
+            out[m] = diff.reindex(key[m]).to_numpy()
+    return out
+
+
 def neighbour_z(df: pd.DataFrame, var: str, coefs: dict, graph: dict,
                 causal: bool = True) -> np.ndarray:
     """Robust z on the NEIGHBOUR-DIFFERENCE residual. The bar to beat.
@@ -187,6 +205,67 @@ def persistence(df: pd.DataFrame, var: str) -> np.ndarray:
         for i in range(1, len(v)):
             run[i] = run[i - 1] + 1 if v[i] == v[i - 1] else 0.0
         out[df.index.get_indexer(g.index)] = run
+    return out
+
+
+def local_outlier(df: pd.DataFrame, var: str, coefs: dict, graph: dict,
+                  window: int = 24) -> np.ndarray:
+    """Hampel score: deviation from the LOCAL median, in local MAD.
+
+    Targets `spike`, which the long-window z-score is poor at. Both are
+    z-scores; the difference is the reference. A 720-hour MAD is a seasonal
+    scale, and a one-hour excursion has to beat a whole season's variability to
+    clear it. A trailing-24-hour median and MAD ask the operative question
+    instead: is this sample unlike the last day at this station?
+
+    Median and MAD rather than mean and sd because the window is short and an
+    injected spike is up to half of it -- a mean would chase the outlier it is
+    meant to expose. `.shift(1)` keeps the sample out of its own reference.
+
+    Honest about its ceiling: measured on this data the local scale is only
+    1.2x tighter than the seasonal one for temperature and 1.5x for pressure,
+    so this recovers a modest band of amplitudes, not every missed spike. Spikes
+    below roughly 2 sigma stay undetectable at a one-alert-per-week budget, and
+    that is a property of the budget rather than of the detector.
+    """
+    d = _neighbour_difference(df, var, coefs, graph)
+    out = np.full(len(df), np.nan)
+    for _, g in df.groupby(["run_id", "station_name"], sort=False):
+        pos = df.index.get_indexer(g.index)
+        x = pd.Series(d[pos]).shift(1)
+        med = x.rolling(window, min_periods=8).median()
+        mad = (x - med).abs().rolling(window, min_periods=8).median()
+        sig = np.maximum(1.4826 * mad.to_numpy(), MAD_FLOOR_C * RESOLUTION[var])
+        out[pos] = np.abs(d[pos] - med.to_numpy()) / sig
+    return out
+
+
+def dispersion(df: pd.DataFrame, var: str, coefs: dict, graph: dict,
+               window: int = 24) -> np.ndarray:
+    """Trailing scatter against the station's own usual scatter.
+
+    Targets `noise_burst`, which every other channel is structurally blind to:
+    a noise burst leaves the mean where it was, so a level detector sees
+    nothing, and it keeps the sensor moving, so the persistence detector sees
+    nothing either.
+
+    Scatter is measured as an interquartile range, not a standard deviation.
+    An sd would fire on a single spike, which is a DIFFERENT fault -- keeping
+    the two channels responsive to different things is the whole reason for
+    having both, and a channel that answers yes to everything adds only false
+    alarms to the ensemble.
+    """
+    d = _neighbour_difference(df, var, coefs, graph)
+    out = np.full(len(df), np.nan)
+    for _, g in df.groupby(["run_id", "station_name"], sort=False):
+        pos = df.index.get_indexer(g.index)
+        x = pd.Series(d[pos])
+        iqr = (x.rolling(window, min_periods=12).quantile(0.75)
+               - x.rolling(window, min_periods=12).quantile(0.25))
+        base = iqr.expanding(min_periods=48).median()
+        base = np.maximum(np.nan_to_num(base.to_numpy(), nan=0.0),
+                          RESOLUTION[var])
+        out[pos] = np.nan_to_num(iqr.to_numpy() / base, nan=1.0)
     return out
 
 

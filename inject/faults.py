@@ -96,17 +96,27 @@ def _quantise(v: np.ndarray, var: str) -> np.ndarray:
 
 
 def _apply(values: np.ndarray, ft: str, var: str, amp: float, sign: int,
-           rng: np.random.Generator) -> np.ndarray:
-    """Return the faulted segment. `values` is the clean segment, copied."""
+           rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+    """Return (faulted segment, mask of samples actually modified).
+
+    The mask exists because a spike displaces only a few samples inside its
+    window, and labelling the untouched ones as faulted is simply wrong. It
+    depressed every spike metric in the repo: for a three-hour spike two of the
+    three labelled points were clean data, so point-level precision and recall
+    were being scored against samples no fault had ever touched.
+    """
     v = values.astype(float).copy()
     n = len(v)
     lo, hi = RAILS[var]
+    touched = np.ones(n, dtype=bool)
 
     if ft == "spike":
         # a few isolated points, not the whole window
         k = max(1, n // 2)
         idx = rng.choice(n, size=k, replace=False)
         v[idx] += sign * amp
+        touched = np.zeros(n, dtype=bool)
+        touched[idx] = True
 
     elif ft == "frozen":
         # the probe stops responding: last good value repeats exactly
@@ -138,7 +148,7 @@ def _apply(values: np.ndarray, ft: str, var: str, amp: float, sign: int,
     if ft != "dropout":
         v = np.clip(v, lo, hi)
         v = _quantise(v, var)
-    return v
+    return v, touched
 
 
 def inject(df: pd.DataFrame, events_per_station_year: float = 1.5,
@@ -198,15 +208,19 @@ def inject(df: pd.DataFrame, events_per_station_year: float = 1.5,
                        if ft in AMPLITUDE else float("nan"))
 
                 rows = idx[s:s + dur]
-                out.loc[rows, var] = _apply(out.loc[rows, var].to_numpy(),
-                                            ft, var, amp, sign, rng)
-                out.loc[rows, f"is_fault_{var}"] = True
-                out.loc[rows, f"fault_type_{var}"] = ft
-                out.loc[rows, f"event_id_{var}"] = eid
+                new, touched = _apply(out.loc[rows, var].to_numpy(),
+                                      ft, var, amp, sign, rng)
+                out.loc[rows, var] = new
+                # Label only what was actually changed.
+                lab = rows[touched]
+                out.loc[lab, f"is_fault_{var}"] = True
+                out.loc[lab, f"fault_type_{var}"] = ft
+                out.loc[lab, f"event_id_{var}"] = eid
 
-                ts = out.loc[rows, "timestamp"]
+                ts = out.loc[lab, "timestamp"]
                 events.append(Event(station, var, ft, str(ts.iloc[0]), str(ts.iloc[-1]),
-                                    dur, round(amp, 4) if amp == amp else float("nan"),
+                                    int(touched.sum()),
+                                    round(amp, 4) if amp == amp else float("nan"),
                                     sign))
                 eid += 1
 

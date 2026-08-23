@@ -16,7 +16,8 @@ import pandas as pd
 
 from detect import baseline as B
 from detect import features as FT
-from detect.learned import LearnedDetector, conformalize, ensemble
+from detect.learned import (LearnedDetector, conformalize, ensemble,
+                            ensemble_budgeted)
 from evaluation.metrics import evaluate, mark_weather_activity, _runs, merge_runs
 from signature import classify as SIG
 
@@ -89,14 +90,26 @@ def main() -> None:
         p_nz = conformalize(B.neighbour_z(ref, v, coefs[v], graph, args.causal),
                             B.neighbour_z(test, v, coefs[v], graph, args.causal))
         p_per = conformalize(B.persistence(ref, v), B.persistence(test, v))
+        # Two blind-spot channels. `spike` and `noise_burst` are invisible to a
+        # long-window level detector and to a run-length detector, so they get
+        # detectors of their own rather than a threshold tweak.
+        p_ham = conformalize(B.local_outlier(ref, v, coefs[v], graph),
+                             B.local_outlier(test, v, coefs[v], graph))
+        p_dis = conformalize(B.dispersion(ref, v, coefs[v], graph),
+                             B.dispersion(test, v, coefs[v], graph))
         ens[v] = ensemble([p_learn, p_nz, p_per], certain=miss)
-        ens_nl[v] = ensemble([p_nz, p_per], certain=miss)
+        # Per-channel budget. The two blind-spot channels get a share each
+        # instead of competing with drift-dominated channels for one threshold.
+        ens_nl[v] = ensemble_budgeted(
+            [p_learn, p_nz, p_per, p_ham, p_dis], args.budget,
+            weights=[3, 3, 2, 1, 1], certain=miss)
     print(f"learned: {dets['temp'].version}  "
           f"{dets['temp'].fitted_on['n_fit']} fit / "
           f"{dets['temp'].fitted_on['n_calib']} calib rows per variable")
 
     # ------------------------------------------------ 1. detection comparison
     rows = []
+    per_type = {}
     for var in VARIABLES:
         t = mark_weather_activity(test, var)
         cands = {
@@ -104,7 +117,7 @@ def main() -> None:
             "combined": B.combined(test, var, coefs[var], graph, args.causal),
             "learned": learned_score[var],
             "ensemble": ens[var],
-            "ens_no_learned": ens_nl[var],
+            "ens_budgeted": ens_nl[var],
         }
         for name, s in cands.items():
             r = evaluate(t.assign(_s=s), events, var, "_s", args.budget)
@@ -114,8 +127,16 @@ def main() -> None:
                          "event_recall": round(r["event_recall"], 3),
                          "FA quiet": round(fa["quiet"], 3),
                          "FA active": round(fa["active"], 3)})
+            per_type[(var, name)] = r["event_recall_by_type"]
     print(f"\nalert budget {args.budget:.4f}/station/day (1/week)\n")
     print(pd.DataFrame(rows).to_string(index=False))
+
+    # Per fault type. The headline hides exactly the classes we are trying to
+    # fix -- spike and noise_burst are rare, so they barely move the average.
+    pt = pd.DataFrame(per_type).round(2)
+    pt.columns = pd.MultiIndex.from_tuples(pt.columns)
+    print("\nevent recall by fault type:")
+    print(pt.fillna(0).to_string())
 
     # ------------------------------------------------ 2. signature classifier
     #

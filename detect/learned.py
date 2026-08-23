@@ -211,6 +211,46 @@ def ensemble(p_values: list[np.ndarray],
     return out
 
 
+def ensemble_budgeted(p_values: list[np.ndarray], alerts_per_station_day: float,
+                      weights: list[float] | None = None,
+                      certain: np.ndarray | None = None) -> np.ndarray:
+    """Give every channel its OWN share of the alert budget.
+
+    A minimum over p-values puts all channels under one global threshold, and
+    that threshold is set by whichever channel has the heaviest clean tail. Add
+    a channel and the tail grows, the threshold rises, and every channel loses
+    recall -- measured twice in this repo now, once with a supervised channel
+    and once with these two.
+
+    Worse, the shared threshold is dominated by what is COMMON. Drift and step
+    offsets occupy hundreds of samples each and set the tail; a one-hour spike
+    then has to out-shout a ninety-day drift for the same budget. It cannot,
+    and no amount of tuning fixes that -- it is the wrong comparison.
+
+    Here each channel gets rate r_k and is thresholded against it individually.
+    Conformal p-values make this exact rather than approximate: p is uniform on
+    the reference window by construction, so "p below r" IS a rate of r per
+    sample, with no quantile to estimate.
+
+    The returned score crosses zero exactly where a channel meets its own
+    budget, so a single global cut at zero reproduces the per-channel
+    allocation, and PR-AUC stays well defined because the score is monotone.
+    """
+    k = len(p_values)
+    w = np.array(weights if weights else [1.0] * k, dtype=float)
+    w = w / w.sum()
+    rate = alerts_per_station_day / 24.0            # per sample
+    out = np.full(len(p_values[0]), -np.inf)
+    for p, wk in zip(p_values, w):
+        r = max(rate * wk, 1e-9)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            s = np.log10(r) - np.log10(np.clip(p, 1e-12, 1.0))
+        out = np.fmax(out, np.nan_to_num(s, nan=-np.inf))
+    if certain is not None:
+        out = np.where(certain, 1e6, out)
+    return out
+
+
 # ---------------------------------------------------------------- the model
 
 @dataclass
