@@ -1,34 +1,41 @@
 <title>SkyGuard Station Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
 
 <style>
 :root{
-  --ground:#EAEEF1; --surface:#FFFFFF; --surface-2:#F4F7F9; --line:#D3DBE1;
-  --ink:#101820; --ink-2:#48555F; --ink-3:#79878F;
-  --accent:#0B6B70; --accent-soft:#DCEDEC;
-  --ok:#2E7D4F; --watch:#A9760F; --degrade:#B35309; --suspect:#9E2B2B; --failed:#5F1717;
-  --trace:#0B6B70; --trace-2:#B0BCC4; --band:rgba(11,107,112,.11);
-  --shadow:0 1px 2px rgba(16,24,32,.06),0 8px 24px -16px rgba(16,24,32,.28);
+  /* Ground is recorder chart paper: the warm rose stock a barograph draws on,
+     ruled in orange. Traces are pen indigo. The identity comes from the
+     instrument this software replaces, not from a dashboard template. */
+  --ground:#F7EDE7; --surface:#FFFBF9; --surface-2:#F2E2D9; --line:#E2C9BC;
+  --rule:#EBD3C6;
+  --ink:#1B2140; --ink-2:#4E5878; --ink-3:#8B8397;
+  --accent:#243FA8; --accent-soft:#DFE3F7;
+  --ok:#136B52; --watch:#B4720C; --degrade:#C6501B; --suspect:#A62828; --failed:#701818;
+  --trace:#243FA8; --trace-2:#C0A99D; --band:rgba(198,80,27,.16);
+  --shadow:0 1px 2px rgba(60,30,20,.07),0 10px 26px -18px rgba(60,30,20,.35);
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --ground:#0C1216; --surface:#141C22; --surface-2:#1A242B; --line:#2A363E;
-    --ink:#E4EDF2; --ink-2:#9DAEB8; --ink-3:#6E808B;
-    --accent:#4FC3C6; --accent-soft:#123334;
-    --ok:#57B87E; --watch:#D9A441; --degrade:#E0813F; --suspect:#E06A6A; --failed:#B34A4A;
-    --trace:#4FC3C6; --trace-2:#465561; --band:rgba(79,195,198,.14);
-    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.8);
+    /* Not grey. Night-shift indigo -- the same pen ink, now the ground. */
+    --ground:#11162B; --surface:#1A2140; --surface-2:#232B4E; --line:#333C63;
+    --rule:#2A3358;
+    --ink:#EDEEF8; --ink-2:#A7ADCB; --ink-3:#787FA3;
+    --accent:#8FA5FF; --accent-soft:#242E5C;
+    --ok:#4FBF97; --watch:#E0AE4E; --degrade:#F08A50; --suspect:#F07070; --failed:#C05050;
+    --trace:#8FA5FF; --trace-2:#4A5378; --band:rgba(240,138,80,.20);
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px -20px rgba(0,0,0,.9);
   }
 }
 :root[data-theme="dark"]{
-  --ground:#0C1216; --surface:#141C22; --surface-2:#1A242B; --line:#2A363E;
-  --ink:#E4EDF2; --ink-2:#9DAEB8; --ink-3:#6E808B;
-  --accent:#4FC3C6; --accent-soft:#123334;
-  --ok:#57B87E; --watch:#D9A441; --degrade:#E0813F; --suspect:#E06A6A; --failed:#B34A4A;
-  --trace:#4FC3C6; --trace-2:#465561; --band:rgba(79,195,198,.14);
-  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.8);
+  --ground:#11162B; --surface:#1A2140; --surface-2:#232B4E; --line:#333C63;
+  --rule:#2A3358;
+  --ink:#EDEEF8; --ink-2:#A7ADCB; --ink-3:#787FA3;
+  --accent:#8FA5FF; --accent-soft:#242E5C;
+  --ok:#4FBF97; --watch:#E0AE4E; --degrade:#F08A50; --suspect:#F07070; --failed:#C05050;
+  --trace:#8FA5FF; --trace-2:#4A5378; --band:rgba(240,138,80,.20);
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px -20px rgba(0,0,0,.9);
 }
 
 *{box-sizing:border-box}
@@ -37,10 +44,10 @@ body{
   font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
 }
-h1,h2,h3{font-family:Archivo,"IBM Plex Sans",sans-serif; margin:0; text-wrap:balance}
+h1,h2,h3{font-family:Chivo,"IBM Plex Sans",sans-serif; margin:0; text-wrap:balance}
 .mono{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
 .lbl{
-  font-family:Archivo,sans-serif; font-size:10.5px; font-weight:600;
+  font-family:Chivo,sans-serif; font-size:10.5px; font-weight:600;
   letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3);
 }
 
@@ -68,7 +75,7 @@ header .spacer{flex:1}
   gap:1px; background:var(--line); border-bottom:1px solid var(--line);
 }
 .stat{background:var(--surface); padding:12px 22px}
-.stat .n{font-family:Archivo,sans-serif; font-size:24px; font-weight:600; line-height:1.1}
+.stat .n{font-family:Chivo,sans-serif; font-size:24px; font-weight:600; line-height:1.1}
 .stat .n small{font-size:13px; color:var(--ink-3); font-weight:500}
 
 /* ------------------------------------------------------------------ layout */
@@ -124,7 +131,7 @@ canvas{width:100%; display:block; touch-action:none}
 .alert:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
 .alert[aria-current="true"]{background:var(--accent-soft); border-color:var(--accent)}
 .alert .top{display:flex; gap:8px; align-items:baseline; margin-bottom:3px}
-.alert .lab{font-family:Archivo,sans-serif; font-weight:600; font-size:12.5px}
+.alert .lab{font-family:Chivo,sans-serif; font-weight:600; font-size:12.5px}
 .alert .when{margin-left:auto; font-size:10.5px; color:var(--ink-3)}
 .alert p{margin:3px 0 0; font-size:12px; color:var(--ink-2); line-height:1.45}
 .verdict{font-size:10px; padding:1px 5px; border-radius:3px; font-weight:600;
@@ -254,7 +261,16 @@ function plot(cv, t, series, dseries, alerts, varname){
   const X = i => PAD.l + i/(series.length-1)*iw;
   const Y = v => PAD.t + (1-(v-lo)/(hi-lo))*ih;
 
-  // alert bands, drawn first so the trace sits on top
+  // Chart ruling. A recorder draws on ruled stock, and the rules are what let
+  // an eye read an amplitude off a trace without a tooltip. Five divisions,
+  // faint enough to sit behind everything.
+  g.strokeStyle = css("--rule"); g.lineWidth = 1;
+  for (let k = 0; k <= 5; k++){
+    const y = Math.round(PAD.t + k/5*ih) + 0.5;
+    g.beginPath(); g.moveTo(PAD.l, y); g.lineTo(PAD.l+iw, y); g.stroke();
+  }
+
+  // alert bands, drawn over the ruling so the trace still sits on top
   g.fillStyle = css("--band");
   for (const a of alerts){
     if (a.variable !== varname) continue;
@@ -350,7 +366,7 @@ function render(){
         const max = Math.max(...c.map(([,v]) => Math.abs(v))) || 1;
         const tpl = Object.entries(a.template_scores).sort((x,y) => y[1]-x[1]).slice(0,3);
         return `
-        <div style="font-family:Archivo;font-weight:600;font-size:14px">
+        <div style="font-family:Chivo;font-weight:600;font-size:14px">
           ${esc(a.label.replace(/_/g," "))}
           <span class="mono" style="font-size:11px;color:var(--ink-3)">
             confidence ${a.confidence.toFixed(2)}</span>
