@@ -1,0 +1,903 @@
+{
+  "temp/self_z": {
+    "variable": "temp",
+    "alert_budget_per_station_day": 0.14285714285714285,
+    "threshold": 3.0543101411024383,
+    "pr_auc": 0.047286695732083626,
+    "point_recall": 0.04260536398467433,
+    "event_recall": 0.43859649122807015,
+    "event_recall_by_type": {
+      "calibration_drift": 0.778,
+      "dropout": 0.0,
+      "frozen": 0.625,
+      "noise_burst": 0.5,
+      "saturation": 1.0,
+      "spike": 0.32,
+      "step_offset": 0.5
+    },
+    "false_alarms_per_station_day": {
+      "all": 0.06361303231980513,
+      "quiet": 0.05621762259855507,
+      "active": 0.09566392846001871
+    },
+    "pod_curve": [
+      {
+        "n": 2,
+        "pod": 0.5,
+        "amp_median": 0.00885
+      },
+      {
+        "n": 2,
+        "pod": 1.0,
+        "amp_median": 0.027299999999999998
+      },
+      {
+        "n": 4,
+        "pod": 0.75,
+        "amp_median": 0.05615
+      },
+      {
+        "n": 1,
+        "pod": 1.0,
+        "amp_median": 0.1302
+      },
+      {
+        "n": 6,
+        "pod": 0.16666666666666666,
+        "amp_median": 0.57965
+      },
+      {
+        "n": 6,
+        "pod": 0.0,
+        "amp_median": 1.0044499999999998
+      },
+      {
+        "n": 9,
+        "pod": 0.3333333333333333,
+        "amp_median": 2.176
+      },
+      {
+        "n": 12,
+        "pod": 0.6666666666666666,
+        "amp_median": 5.646599999999999
+      }
+    ],
+    "amplitude_at_90pct_pod": NaN,
+    "ttd_hours_by_type": {
+      "calibration_drift": {
+        "count": 7.0,
+        "50%": 78.0,
+        "90%": 178.4
+      },
+      "frozen": {
+        "count": 5.0,
+        "50%": 10.0,
+        "90%": 31.2
+      },
+      "noise_burst": {
+        "count": 1.0,
+        "50%": 19.0,
+        "90%": 19.0
+      },
+      "saturation": {
+        "count": 1.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "spike": {
+        "count": 8.0,
+        "50%": 0.0,
+        "90%": 1.0
+      },
+      "step_offset": {
+        "count": 3.0,
+        "50%": 36.0,
+        "90%": 44.0
+      }
+    },
+    "n_events": 57,
+    "prevalence": 0.018570696721311477
+  },
+  "temp/neighbour_z": {
+    "variable": "temp",
+    "alert_budget_per_station_day": 0.14285714285714285,
+    "threshold": 2.781579191135073,
+    "pr_auc": 0.06107694618904294,
+    "point_recall": 0.05900383141762452,
+    "event_recall": 0.40350877192982454,
+    "event_recall_by_type": {
+      "calibration_drift": 0.667,
+      "dropout": 0.0,
+      "frozen": 0.375,
+      "noise_burst": 0.5,
+      "saturation": 1.0,
+      "spike": 0.32,
+      "step_offset": 0.667
+    },
+    "false_alarms_per_station_day": {
+      "all": 0.08024707468789422,
+      "quiet": 0.07758961135503055,
+      "active": 0.10010051644657031
+    },
+    "pod_curve": [
+      {
+        "n": 2,
+        "pod": 0.5,
+        "amp_median": 0.00885
+      },
+      {
+        "n": 2,
+        "pod": 1.0,
+        "amp_median": 0.027299999999999998
+      },
+      {
+        "n": 4,
+        "pod": 0.75,
+        "amp_median": 0.05615
+      },
+      {
+        "n": 1,
+        "pod": 0.0,
+        "amp_median": 0.1302
+      },
+      {
+        "n": 6,
+        "pod": 0.3333333333333333,
+        "amp_median": 0.57965
+      },
+      {
+        "n": 6,
+        "pod": 0.16666666666666666,
+        "amp_median": 1.0044499999999998
+      },
+      {
+        "n": 9,
+        "pod": 0.4444444444444444,
+        "amp_median": 2.176
+      },
+      {
+        "n": 12,
+        "pod": 0.5,
+        "amp_median": 5.646599999999999
+      }
+    ],
+    "amplitude_at_90pct_pod": NaN,
+    "ttd_hours_by_type": {
+      "calibration_drift": {
+        "count": 6.0,
+        "50%": 126.0,
+        "90%": 532.5
+      },
+      "frozen": {
+        "count": 3.0,
+        "50%": 8.0,
+        "90%": 11.2
+      },
+      "noise_burst": {
+        "count": 1.0,
+        "50%": 19.0,
+        "90%": 19.0
+      },
+      "saturation": {
+        "count": 1.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "spike": {
+        "count": 8.0,
+        "50%": 0.0,
+        "90%": 1.0
+      },
+      "step_offset": {
+        "count": 4.0,
+        "50%": 18.0,
+        "90%": 38.8
+      }
+    },
+    "n_events": 57,
+    "prevalence": 0.018570696721311477
+  },
+  "temp/combined": {
+    "variable": "temp",
+    "alert_budget_per_station_day": 0.14285714285714285,
+    "threshold": 2.781579191135073,
+    "pr_auc": 0.15721028011349308,
+    "point_recall": 0.14559386973180077,
+    "event_recall": 0.543859649122807,
+    "event_recall_by_type": {
+      "calibration_drift": 0.667,
+      "dropout": 1.0,
+      "frozen": 0.625,
+      "noise_burst": 0.5,
+      "saturation": 1.0,
+      "spike": 0.32,
+      "step_offset": 0.667
+    },
+    "false_alarms_per_station_day": {
+      "all": 0.08024707468789422,
+      "quiet": 0.07758961135503055,
+      "active": 0.10010051644657031
+    },
+    "pod_curve": [
+      {
+        "n": 2,
+        "pod": 0.5,
+        "amp_median": 0.00885
+      },
+      {
+        "n": 2,
+        "pod": 1.0,
+        "amp_median": 0.027299999999999998
+      },
+      {
+        "n": 4,
+        "pod": 0.75,
+        "amp_median": 0.05615
+      },
+      {
+        "n": 1,
+        "pod": 0.0,
+        "amp_median": 0.1302
+      },
+      {
+        "n": 6,
+        "pod": 0.3333333333333333,
+        "amp_median": 0.57965
+      },
+      {
+        "n": 6,
+        "pod": 0.16666666666666666,
+        "amp_median": 1.0044499999999998
+      },
+      {
+        "n": 9,
+        "pod": 0.4444444444444444,
+        "amp_median": 2.176
+      },
+      {
+        "n": 12,
+        "pod": 0.5,
+        "amp_median": 5.646599999999999
+      }
+    ],
+    "amplitude_at_90pct_pod": NaN,
+    "ttd_hours_by_type": {
+      "calibration_drift": {
+        "count": 6.0,
+        "50%": 126.0,
+        "90%": 532.5
+      },
+      "dropout": {
+        "count": 6.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "frozen": {
+        "count": 5.0,
+        "50%": 12.0,
+        "90%": 17.0
+      },
+      "noise_burst": {
+        "count": 1.0,
+        "50%": 19.0,
+        "90%": 19.0
+      },
+      "saturation": {
+        "count": 1.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "spike": {
+        "count": 8.0,
+        "50%": 0.0,
+        "90%": 1.0
+      },
+      "step_offset": {
+        "count": 4.0,
+        "50%": 18.0,
+        "90%": 38.8
+      }
+    },
+    "n_events": 57,
+    "prevalence": 0.018570696721311477
+  },
+  "rh/self_z": {
+    "variable": "rh",
+    "alert_budget_per_station_day": 0.14285714285714285,
+    "threshold": 3.409242192726731,
+    "pr_auc": 0.036269327210744516,
+    "point_recall": 0.012385919165580182,
+    "event_recall": 0.1724137931034483,
+    "event_recall_by_type": {
+      "calibration_drift": 0.3,
+      "dropout": 0.0,
+      "frozen": 0.083,
+      "noise_burst": 0.0,
+      "saturation": 1.0,
+      "spike": 0.273,
+      "step_offset": 0.167
+    },
+    "false_alarms_per_station_day": {
+      "all": 0.061585943253954334,
+      "quiet": 0.05937515827531528,
+      "active": 0.09068469754220138
+    },
+    "pod_curve": [
+      {
+        "n": 3,
+        "pod": 0.3333333333333333,
+        "amp_median": 0.0264
+      },
+      {
+        "n": 3,
+        "pod": 0.0,
+        "amp_median": 0.0943
+      },
+      {
+        "n": 2,
+        "pod": 0.0,
+        "amp_median": 0.24295
+      },
+      {
+        "n": 2,
+        "pod": 0.5,
+        "amp_median": 0.79455
+      },
+      {
+        "n": 5,
+        "pod": 0.2,
+        "amp_median": 1.6164
+      },
+      {
+        "n": 12,
+        "pod": 0.0,
+        "amp_median": 3.8327999999999998
+      },
+      {
+        "n": 10,
+        "pod": 0.2,
+        "amp_median": 10.285499999999999
+      },
+      {
+        "n": 2,
+        "pod": 1.0,
+        "amp_median": 47.1426
+      }
+    ],
+    "amplitude_at_90pct_pod": 47.1426,
+    "ttd_hours_by_type": {
+      "calibration_drift": {
+        "count": 3.0,
+        "50%": 333.0,
+        "90%": 585.0
+      },
+      "frozen": {
+        "count": 1.0,
+        "50%": 3.0,
+        "90%": 3.0
+      },
+      "saturation": {
+        "count": 1.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "spike": {
+        "count": 3.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "step_offset": {
+        "count": 2.0,
+        "50%": 179.0,
+        "90%": 317.4
+      }
+    },
+    "n_events": 58,
+    "prevalence": 0.02619535519125683
+  },
+  "rh/neighbour_z": {
+    "variable": "rh",
+    "alert_budget_per_station_day": 0.14285714285714285,
+    "threshold": 2.8771812946592,
+    "pr_auc": 0.06270482690522357,
+    "point_recall": 0.03335506301607997,
+    "event_recall": 0.3448275862068966,
+    "event_recall_by_type": {
+      "calibration_drift": 0.6,
+      "dropout": 0.0,
+      "frozen": 0.083,
+      "noise_burst": 0.286,
+      "saturation": 1.0,
+      "spike": 0.273,
+      "step_offset": 0.583
+    },
+    "false_alarms_per_station_day": {
+      "all": 0.08038438606951215,
+      "quiet": 0.08228368390909835,
+      "active": 0.08675409145678088
+    },
+    "pod_curve": [
+      {
+        "n": 3,
+        "pod": 0.6666666666666666,
+        "amp_median": 0.0264
+      },
+      {
+        "n": 3,
+        "pod": 0.6666666666666666,
+        "amp_median": 0.0943
+      },
+      {
+        "n": 2,
+        "pod": 0.5,
+        "amp_median": 0.24295
+      },
+      {
+        "n": 2,
+        "pod": 0.0,
+        "amp_median": 0.79455
+      },
+      {
+        "n": 5,
+        "pod": 0.4,
+        "amp_median": 1.6164
+      },
+      {
+        "n": 12,
+        "pod": 0.16666666666666666,
+        "amp_median": 3.8327999999999998
+      },
+      {
+        "n": 10,
+        "pod": 0.6,
+        "amp_median": 10.285499999999999
+      },
+      {
+        "n": 2,
+        "pod": 1.0,
+        "amp_median": 47.1426
+      }
+    ],
+    "amplitude_at_90pct_pod": 47.1426,
+    "ttd_hours_by_type": {
+      "calibration_drift": {
+        "count": 6.0,
+        "50%": 244.0,
+        "90%": 589.0
+      },
+      "frozen": {
+        "count": 1.0,
+        "50%": 2.0,
+        "90%": 2.0
+      },
+      "noise_burst": {
+        "count": 2.0,
+        "50%": 3.0,
+        "90%": 5.4
+      },
+      "saturation": {
+        "count": 1.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "spike": {
+        "count": 3.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "step_offset": {
+        "count": 7.0,
+        "50%": 22.0,
+        "90%": 146.0
+      }
+    },
+    "n_events": 58,
+    "prevalence": 0.02619535519125683
+  },
+  "rh/combined": {
+    "variable": "rh",
+    "alert_budget_per_station_day": 0.14285714285714285,
+    "threshold": 2.8771812946592,
+    "pr_auc": 0.11632707299973934,
+    "point_recall": 0.08539765319426336,
+    "event_recall": 0.5344827586206896,
+    "event_recall_by_type": {
+      "calibration_drift": 0.6,
+      "dropout": 1.0,
+      "frozen": 0.583,
+      "noise_burst": 0.286,
+      "saturation": 1.0,
+      "spike": 0.273,
+      "step_offset": 0.583
+    },
+    "false_alarms_per_station_day": {
+      "all": 0.08038438606951215,
+      "quiet": 0.08228368390909835,
+      "active": 0.08675409145678088
+    },
+    "pod_curve": [
+      {
+        "n": 3,
+        "pod": 0.6666666666666666,
+        "amp_median": 0.0264
+      },
+      {
+        "n": 3,
+        "pod": 0.6666666666666666,
+        "amp_median": 0.0943
+      },
+      {
+        "n": 2,
+        "pod": 0.5,
+        "amp_median": 0.24295
+      },
+      {
+        "n": 2,
+        "pod": 0.0,
+        "amp_median": 0.79455
+      },
+      {
+        "n": 5,
+        "pod": 0.4,
+        "amp_median": 1.6164
+      },
+      {
+        "n": 12,
+        "pod": 0.16666666666666666,
+        "amp_median": 3.8327999999999998
+      },
+      {
+        "n": 10,
+        "pod": 0.6,
+        "amp_median": 10.285499999999999
+      },
+      {
+        "n": 2,
+        "pod": 1.0,
+        "amp_median": 47.1426
+      }
+    ],
+    "amplitude_at_90pct_pod": 47.1426,
+    "ttd_hours_by_type": {
+      "calibration_drift": {
+        "count": 6.0,
+        "50%": 244.0,
+        "90%": 589.0
+      },
+      "dropout": {
+        "count": 5.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "frozen": {
+        "count": 7.0,
+        "50%": 18.0,
+        "90%": 18.0
+      },
+      "noise_burst": {
+        "count": 2.0,
+        "50%": 3.0,
+        "90%": 5.4
+      },
+      "saturation": {
+        "count": 1.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "spike": {
+        "count": 3.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "step_offset": {
+        "count": 7.0,
+        "50%": 22.0,
+        "90%": 146.0
+      }
+    },
+    "n_events": 58,
+    "prevalence": 0.02619535519125683
+  },
+  "pres/self_z": {
+    "variable": "pres",
+    "alert_budget_per_station_day": 0.14285714285714285,
+    "threshold": 2.5024422976805516,
+    "pr_auc": 0.11046473654446763,
+    "point_recall": 0.0661255491846005,
+    "event_recall": 0.3835616438356164,
+    "event_recall_by_type": {
+      "calibration_drift": 0.545,
+      "dropout": 0.0,
+      "frozen": 0.3,
+      "noise_burst": 0.25,
+      "saturation": 1.0,
+      "spike": 0.467,
+      "step_offset": 0.429
+    },
+    "false_alarms_per_station_day": {
+      "all": 0.028905309071970312,
+      "quiet": 0.03252840798763485,
+      "active": 0.02357241430756033
+    },
+    "pod_curve": [
+      {
+        "n": 2,
+        "pod": 0.5,
+        "amp_median": 0.00835
+      },
+      {
+        "n": 4,
+        "pod": 0.75,
+        "amp_median": 0.028499999999999998
+      },
+      {
+        "n": 3,
+        "pod": 0.3333333333333333,
+        "amp_median": 0.0545
+      },
+      {
+        "n": 6,
+        "pod": 0.16666666666666666,
+        "amp_median": 0.27925
+      },
+      {
+        "n": 5,
+        "pod": 0.0,
+        "amp_median": 0.4572
+      },
+      {
+        "n": 12,
+        "pod": 0.25,
+        "amp_median": 1.15815
+      },
+      {
+        "n": 8,
+        "pod": 0.625,
+        "amp_median": 3.6912000000000003
+      },
+      {
+        "n": 10,
+        "pod": 0.9,
+        "amp_median": 10.1918
+      }
+    ],
+    "amplitude_at_90pct_pod": 10.1918,
+    "ttd_hours_by_type": {
+      "calibration_drift": {
+        "count": 6.0,
+        "50%": 40.5,
+        "90%": 538.5
+      },
+      "frozen": {
+        "count": 3.0,
+        "50%": 6.0,
+        "90%": 6.8
+      },
+      "noise_burst": {
+        "count": 1.0,
+        "50%": 40.0,
+        "90%": 40.0
+      },
+      "saturation": {
+        "count": 2.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "spike": {
+        "count": 7.0,
+        "50%": 0.0,
+        "90%": 0.4
+      },
+      "step_offset": {
+        "count": 9.0,
+        "50%": 1.0,
+        "90%": 184.4
+      }
+    },
+    "n_events": 73,
+    "prevalence": 0.03822005919854281
+  },
+  "pres/neighbour_z": {
+    "variable": "pres",
+    "alert_budget_per_station_day": 0.14285714285714285,
+    "threshold": 6.639386676356377,
+    "pr_auc": 0.2786955501045058,
+    "point_recall": 0.08891205599821282,
+    "event_recall": 0.2191780821917808,
+    "event_recall_by_type": {
+      "calibration_drift": 0.091,
+      "dropout": 0.0,
+      "frozen": 0.3,
+      "noise_burst": 0.5,
+      "saturation": 0.5,
+      "spike": 0.2,
+      "step_offset": 0.286
+    },
+    "false_alarms_per_station_day": {
+      "all": 0.009729796911203766,
+      "quiet": 0.004380616548478046,
+      "active": 0.028943344149789267
+    },
+    "pod_curve": [
+      {
+        "n": 2,
+        "pod": 0.0,
+        "amp_median": 0.00835
+      },
+      {
+        "n": 4,
+        "pod": 0.25,
+        "amp_median": 0.028499999999999998
+      },
+      {
+        "n": 3,
+        "pod": 0.0,
+        "amp_median": 0.0545
+      },
+      {
+        "n": 6,
+        "pod": 0.0,
+        "amp_median": 0.27925
+      },
+      {
+        "n": 5,
+        "pod": 0.0,
+        "amp_median": 0.4572
+      },
+      {
+        "n": 12,
+        "pod": 0.16666666666666666,
+        "amp_median": 1.15815
+      },
+      {
+        "n": 8,
+        "pod": 0.75,
+        "amp_median": 3.6912000000000003
+      },
+      {
+        "n": 10,
+        "pod": 0.3,
+        "amp_median": 10.1918
+      }
+    ],
+    "amplitude_at_90pct_pod": NaN,
+    "ttd_hours_by_type": {
+      "calibration_drift": {
+        "count": 1.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "frozen": {
+        "count": 3.0,
+        "50%": 7.0,
+        "90%": 7.8
+      },
+      "noise_burst": {
+        "count": 2.0,
+        "50%": 15.5,
+        "90%": 17.5
+      },
+      "saturation": {
+        "count": 1.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "spike": {
+        "count": 3.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "step_offset": {
+        "count": 6.0,
+        "50%": 0.5,
+        "90%": 105.0
+      }
+    },
+    "n_events": 73,
+    "prevalence": 0.03822005919854281
+  },
+  "pres/combined": {
+    "variable": "pres",
+    "alert_budget_per_station_day": 0.14285714285714285,
+    "threshold": 6.639386676356377,
+    "pr_auc": 0.2403968198562766,
+    "point_recall": 0.13292128974607192,
+    "event_recall": 0.3835616438356164,
+    "event_recall_by_type": {
+      "calibration_drift": 0.091,
+      "dropout": 1.0,
+      "frozen": 0.5,
+      "noise_burst": 0.5,
+      "saturation": 0.5,
+      "spike": 0.2,
+      "step_offset": 0.286
+    },
+    "false_alarms_per_station_day": {
+      "all": 0.009729796911203766,
+      "quiet": 0.004380616548478046,
+      "active": 0.028943344149789267
+    },
+    "pod_curve": [
+      {
+        "n": 2,
+        "pod": 0.0,
+        "amp_median": 0.00835
+      },
+      {
+        "n": 4,
+        "pod": 0.25,
+        "amp_median": 0.028499999999999998
+      },
+      {
+        "n": 3,
+        "pod": 0.0,
+        "amp_median": 0.0545
+      },
+      {
+        "n": 6,
+        "pod": 0.0,
+        "amp_median": 0.27925
+      },
+      {
+        "n": 5,
+        "pod": 0.0,
+        "amp_median": 0.4572
+      },
+      {
+        "n": 12,
+        "pod": 0.16666666666666666,
+        "amp_median": 1.15815
+      },
+      {
+        "n": 8,
+        "pod": 0.75,
+        "amp_median": 3.6912000000000003
+      },
+      {
+        "n": 10,
+        "pod": 0.3,
+        "amp_median": 10.1918
+      }
+    ],
+    "amplitude_at_90pct_pod": NaN,
+    "ttd_hours_by_type": {
+      "calibration_drift": {
+        "count": 1.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "dropout": {
+        "count": 10.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "frozen": {
+        "count": 5.0,
+        "50%": 8.0,
+        "90%": 39.0
+      },
+      "noise_burst": {
+        "count": 2.0,
+        "50%": 15.5,
+        "90%": 17.5
+      },
+      "saturation": {
+        "count": 1.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "spike": {
+        "count": 3.0,
+        "50%": 0.0,
+        "90%": 0.0
+      },
+      "step_offset": {
+        "count": 6.0,
+        "50%": 0.5,
+        "90%": 105.0
+      }
+    },
+    "n_events": 73,
+    "prevalence": 0.03822005919854281
+  }
+}
