@@ -87,6 +87,22 @@ Stage 4 is the novelty. Stages 1–2 run on-station (integer arithmetic, O(1) st
   would be fabricated. Linear drift extrapolation with honest intervals only.
 - **No transformer, no GNN, no LSTM autoencoder** unless it beats median/MAD on the
   harness and you can show the curve.
+- **Supervised learning on injected labels — tried, measured, rejected.** Gradient
+  boosting over the same six features (`detect/supervised.py`,
+  `signature/supervised.py`); both are kept as documented negative results and are
+  **off by default**. Reproduce with `python -m evaluation.run_supervised` and
+  `python -m evaluation.run_signature_ml`.
+  - *Detection*: no consistent win, and adding it as a fourth ensemble channel
+    **hurt** pressure (PR-AUC 0.282 → 0.207). Leave-one-fault-type-out gap
+    **+0.161**; `calibration_drift` on pressure fell from 1.00 recall to **0.00**
+    when the class was withheld. It was recognising the injector's linear ramp,
+    not drift.
+  - *Naming*: **0.500 vs 0.710** for the hand-written templates, and it never
+    abstains — 0 % `unknown` against the templates' 38 %. Withhold a class and it
+    is *confidently wrong* on 100 % of `calibration_drift`, `dropout` and
+    `frozen` windows. That is precisely the failure rule 7 exists to prevent.
+  - The labels describe `inject/faults.py`, not IMD's sensors. Any future
+    supervised model must pass leave-one-fault-type-out before it is believed.
 
 ---
 
