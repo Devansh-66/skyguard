@@ -132,6 +132,33 @@ def conformalize(ref_scores: np.ndarray, scores: np.ndarray) -> np.ndarray:
     return p
 
 
+def conformalize_by_station(ref_scores: np.ndarray, ref_station: np.ndarray,
+                            scores: np.ndarray, station: np.ndarray
+                            ) -> np.ndarray:
+    """Conformalise each station against its OWN reference history.
+
+    A global calibration asks "how odd is this run of identical readings across
+    the network", when the operative question is "how odd is it for THIS probe".
+    Pressure at a calm high-altitude station repeats for hours as a matter of
+    course; the same run at a coastal station is a dead sensor. One shared
+    reference distribution splits the difference and gets both wrong.
+
+    Falls back to the pooled reference for a station with no history of its own,
+    which is what a newly commissioned station has.
+    """
+    out = np.full(len(scores), np.nan)
+    pooled = np.sort(ref_scores[np.isfinite(ref_scores)])
+    for s in np.unique(station):
+        cal = ref_scores[(ref_station == s) & np.isfinite(ref_scores)]
+        cal = np.sort(cal) if len(cal) >= 200 else pooled
+        m = station == s
+        n = len(cal)
+        rank = n - np.searchsorted(cal, scores[m], side="left")
+        out[m] = (1.0 + rank) / (n + 1.0)
+    out[~np.isfinite(scores)] = np.nan
+    return out
+
+
 def ensemble(p_values: list[np.ndarray],
              certain: np.ndarray | None = None) -> np.ndarray:
     """Combine conformal p-values by MINIMUM, returned as -log10.
@@ -140,6 +167,27 @@ def ensemble(p_values: list[np.ndarray],
     things -- a level detector cannot see a frozen probe, a run-length detector
     cannot see a drift -- so averaging asks a detector that is structurally
     incapable of seeing a fault to vote on it, and it always votes no.
+
+    WHAT WAS TRIED AND REJECTED, so nobody repeats it (evaluation/diagnose_pres):
+
+      Simes            PR-AUC 0.436 vs 0.450 on pressure, same event recall.
+                       Correctly less trigger-happy than a bare minimum, and it
+                       bought nothing measurable here.
+      Fisher           0.270. Summing evidence across channels means a channel
+                       that is structurally blind to the fault still votes, and
+                       its noise drowns the one channel that can see it.
+      per-station
+        calibration    halves quiet false alarms (.098 -> .050) but costs
+                       recall (.724 -> .621). A real trade, not a win; kept in
+                       the module as conformalize_by_station for anyone who
+                       needs the quieter operating point.
+      dropping the
+        learned
+        channel        better on pressure (0.474), better PR-AUC but worse
+                       recall on rh, neutral on temp. No universal winner, so
+                       the three-channel form stays -- choosing channels per
+                       variable from these numbers would be fitting the harness
+                       rather than the problem.
 
     The minimum costs a multiplicity penalty: k independent tests at level a
     give up to k*a false alarms. It is not corrected here because the alert

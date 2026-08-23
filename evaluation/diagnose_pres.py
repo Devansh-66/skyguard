@@ -15,7 +15,8 @@ import pandas as pd
 
 from detect import baseline as B
 from detect import features as FT
-from detect.learned import LearnedDetector, conformalize, ensemble
+from detect.learned import (LearnedDetector, conformalize,
+                            conformalize_by_station, ensemble)
 from evaluation.metrics import evaluate, mark_weather_activity
 
 VAR = "pres"
@@ -42,16 +43,42 @@ def main() -> None:
     per_ref = B.persistence(ref, VAR)
     per = B.persistence(test, VAR)
 
+    miss = ~np.isfinite(test[VAR].to_numpy(dtype=float))
+    p_learn = conformalize(det.distance(F_ref), det.distance(F_test))
+    p_nz = conformalize(nz_ref, nz)
+    p_per = conformalize(per_ref, per)
+    p_per_st = conformalize_by_station(per_ref, ref.station_name.to_numpy(),
+                                       per, test.station_name.to_numpy())
+    p_nz_st = conformalize_by_station(nz_ref, ref.station_name.to_numpy(),
+                                      nz, test.station_name.to_numpy())
+
+    def simes(ps):
+        """Simes: sorted p_(k) * m / k, minimised. Valid under positive
+        dependence, and far less trigger-happy than a bare minimum."""
+        P = np.sort(np.vstack(ps), axis=0)
+        m = P.shape[0]
+        k = np.arange(1, m + 1)[:, None]
+        return -np.log10(np.clip(np.nanmin(P * m / k, axis=0), 1e-12, 1.0))
+
+    def fisher(ps):
+        """Fisher: -2 sum log p. Uses every channel's evidence rather than only
+        the loudest, so a fault that shows weakly in two channels can outrank a
+        single noisy excursion."""
+        return np.nansum([-np.log10(np.clip(x, 1e-12, 1.0)) for x in ps], axis=0)
+
+    def pin(x):
+        return np.where(miss, 1e6, np.nan_to_num(x))
+
     cands = {
         "neighbour_z": nz,
         "learned_6d": det.score(F_test),
-        # each detector conformalised against the same reference window, then
-        # combined by minimum p -- see detect/learned.ensemble
-        "ensemble": ensemble([
-            conformalize(det.distance(F_ref), det.distance(F_test)),
-            conformalize(nz_ref, nz),
-            conformalize(per_ref, per),
-        ], certain=~np.isfinite(test[VAR].to_numpy(dtype=float))),
+        "ens_min_3": ensemble([p_learn, p_nz, p_per], certain=miss),
+        "ens_simes_3": pin(simes([p_learn, p_nz, p_per])),
+        "ens_fisher_3": pin(fisher([p_learn, p_nz, p_per])),
+        "ens_min_nz_per": ensemble([p_nz, p_per], certain=miss),
+        "ens_fisher_nz_per": pin(fisher([p_nz, p_per])),
+        "ens_min_nz_per_ST": ensemble([p_nz_st, p_per_st], certain=miss),
+        "ens_min_3_ST": ensemble([p_learn, p_nz_st, p_per_st], certain=miss),
     }
 
     # Ablation: does the cross-channel context help or hurt on pressure? A

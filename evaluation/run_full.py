@@ -79,14 +79,15 @@ def main() -> None:
     # Ensemble: each detector conformalised against the same reference window,
     # then combined by minimum p. They are blind to different things, so a
     # minimum rather than a blend -- see detect/learned.ensemble.
-    ens = {}
+    ens, ens_nl = {}, {}
     for v in VARIABLES:
-        ens[v] = ensemble([
-            conformalize(dets[v].distance(F_ref), dets[v].distance(F_test)),
-            conformalize(B.neighbour_z(ref, v, coefs[v], graph),
-                         B.neighbour_z(test, v, coefs[v], graph)),
-            conformalize(B.persistence(ref, v), B.persistence(test, v)),
-        ], certain=~np.isfinite(test[v].to_numpy(dtype=float)))
+        miss = ~np.isfinite(test[v].to_numpy(dtype=float))
+        p_learn = conformalize(dets[v].distance(F_ref), dets[v].distance(F_test))
+        p_nz = conformalize(B.neighbour_z(ref, v, coefs[v], graph),
+                            B.neighbour_z(test, v, coefs[v], graph))
+        p_per = conformalize(B.persistence(ref, v), B.persistence(test, v))
+        ens[v] = ensemble([p_learn, p_nz, p_per], certain=miss)
+        ens_nl[v] = ensemble([p_nz, p_per], certain=miss)
     print(f"learned: {dets['temp'].version}  "
           f"{dets['temp'].fitted_on['n_fit']} fit / "
           f"{dets['temp'].fitted_on['n_calib']} calib rows per variable")
@@ -100,6 +101,7 @@ def main() -> None:
             "combined": B.combined(test, var, coefs[var], graph),
             "learned": learned_score[var],
             "ensemble": ens[var],
+            "ens_no_learned": ens_nl[var],
         }
         for name, s in cands.items():
             r = evaluate(t.assign(_s=s), events, var, "_s", args.budget)
