@@ -435,6 +435,10 @@ $("state-filter").onchange = (e) => {
   // station of the chosen state rather than showing an empty centre pane.
   if (!visible.some(s => s.name === current)) { current = visible[0].name; openAlert = null; }
   render();
+  // Fitting to every station spans 1,700 km and is indistinguishable from the
+  // all-India view, so the filter has to move the map itself to mean anything.
+  if (stateFilter === "all") { if (map) map.setView([22.6, 80.0], 4); }
+  else fitTo(visible.filter(s => s.latitude != null));
 };
 
 function drawRail(){
@@ -655,14 +659,23 @@ function divergence(s, varname){
 // Blue below, paper in the middle, orange above -- the palette's own ink and
 // alert colours, so the map stays in the same visual language as the traces
 // rather than importing a rainbow.
+// Saturated ends and a white centre. The paper-toned ramp used on the charts
+// is unreadable over satellite imagery -- mid greens and browns swallow a pale
+// fill, and the whole point of the map is that a diverging station is obvious
+// at a glance. White reads as "agrees with its neighbours" against any
+// background, and the two ends are far enough apart to tell sign at speed.
 function rampColour(z){
-  if (z === null || !isFinite(z)) return "#B9C2D2";
+  if (z === null || !isFinite(z)) return "#C9D2DE";
   const t = Math.max(-1, Math.min(1, z / 3));
-  const mid = [242, 236, 231];
-  const end = t < 0 ? [36, 63, 168] : [194, 80, 28];
+  const mid = [255, 255, 255];
+  const end = t < 0 ? [22, 96, 232] : [240, 90, 12];
   const k = Math.abs(t);
   return "rgb(" + mid.map((m, i) => Math.round(m + (end[i] - m) * k)).join(",") + ")";
 }
+
+// Health ring colours, picked for contrast on imagery rather than on paper.
+const HEALTH_RING = {HEALTHY:"#12C08A", WATCH:"#FFC93D", DEGRADING:"#FF8A2B",
+                     SUSPECT:"#FF5A5A", FAILED:"#D42020"};
 
 async function probeTiles(){
   if (!LIVE){ tilesOK = false; return false; }
@@ -708,7 +721,15 @@ function renderMaps(){
          <div id="lmap"></div>
          <div class="mapattrib" id="mapattrib"></div>
        </div>` ;
-    map = L.map("lmap", {zoomControl:true, attributionControl:false})
+    // zoomAnimation off, deliberately. With it on, setView and fitBounds were
+    // silently swallowed: Leaflet's _tryAnimatedZoom claims the move and hands
+    // it to a CSS transition that never runs here, so no view change happened
+    // and no event fired -- the state filter appeared to do nothing. _resetView
+    // works correctly, which is the path taken when animation is disabled. An
+    // instant view change is fine on a dashboard; a filter that does nothing is
+    // not.
+    map = L.map("lmap", {zoomControl:true, attributionControl:false,
+                         zoomAnimation:false, fadeAnimation:false})
            .setView([22.6, 80.0], 4);
     map._skyguardTiles = tilesOK;
 
@@ -752,15 +773,33 @@ function renderMaps(){
       const k = [s.name, nb].sort().join("|");
       if (drawn.has(k)) continue;
       drawn.add(k);
+      // drawn twice: a white casing under a dark core, so the graph is legible
+      // over both bright desert and dark forest
       edges.push(L.polyline([[s.latitude, s.longitude], [o.latitude, o.longitude]],
-                            {color:"#243FA8", weight:2, opacity:0.75}));
+                            {color:"#FFFFFF", weight:3.5, opacity:0.55}));
     }
   }
-  edgeLayer = L.layerGroup(edges).addTo(map);
+  const cores = [];
+  for (const s of shown){
+    for (const nb of (DATA.neighbours[s.name] || [])){
+      const o = shown.find(q => q.name === nb);
+      if (o) cores.push(L.polyline([[s.latitude,s.longitude],[o.latitude,o.longitude]],
+                {color:"#1B3FA8", weight:1.6, opacity:0.95}));
+    }
+  }
+  edgeLayer = L.layerGroup(edges.concat(cores)).addTo(map);
+
+  // A white casing behind each marker. Without it a light fill vanishes over
+  // desert and a dark ring vanishes over forest; with it every dot has its own
+  // background and the colour means the same thing everywhere on the map.
+  const halos = shown.map(s => L.circleMarker([s.latitude, s.longitude], {
+      radius: (s.health.station === "HEALTHY" ? 7 : 9) + 3.5,
+      fillColor: "#FFFFFF", fillOpacity: 0.92, stroke: false,
+      interactive: false }));
 
   const marks = shown.map(s => {
     const st = s.health.station;
-    const hcol = css("--" + HEALTH_COLOUR[st]);
+    const hcol = HEALTH_RING[st] || "#888";
     const z = mapColour === "health" ? null : divergence(s, mapColour);
     const m = L.circleMarker([s.latitude, s.longitude], {
       radius: st === "HEALTHY" ? 7 : 9,
@@ -769,9 +808,8 @@ function renderMaps(){
       // turn a station red.
       fillColor: mapColour === "health" ? hcol : rampColour(z),
       fillOpacity: 1,
-      color: s.name === current ? css("--accent")
-                                : (mapColour === "health" ? "#fff" : hcol),
-      weight: s.name === current ? 4 : (st === "HEALTHY" ? 2 : 3),
+      color: s.name === current ? "#111A33" : hcol,
+      weight: s.name === current ? 4 : (st === "HEALTHY" ? 2.5 : 3.5),
     });
     const nm = s.name.replace(/_/g, " ");
     m.bindTooltip(z === null ? nm
@@ -780,7 +818,7 @@ function renderMaps(){
     m.on("click", () => { current = s.name; openAlert = null; render(); });
     return m;
   });
-  stationLayer = L.layerGroup(marks).addTo(map);
+  stationLayer = L.layerGroup(halos.concat(marks)).addTo(map);
 
   const leg = document.querySelector(".maplegend");
   if (leg) leg.outerHTML = legendHTML(); else $("maps").insertAdjacentHTML("beforeend", legendHTML());
