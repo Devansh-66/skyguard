@@ -258,7 +258,8 @@ def inject_shield_failure(out: pd.DataFrame, events: list, eid: int,
 
 
 def inject(df: pd.DataFrame, events_per_station_year: float = 1.5,
-           seed: int = 7, min_gap_h: int = 72) -> tuple[pd.DataFrame, pd.DataFrame]:
+           seed: int = 7, min_gap_h: int = 72,
+           shield_rate: float = 0.15) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Inject faults into a prepared frame. Returns (faulted_df, events_df).
 
     The returned frame gains three ground-truth columns PER VARIABLE:
@@ -331,8 +332,9 @@ def inject(df: pd.DataFrame, events_per_station_year: float = 1.5,
                 eid += 1
 
     if "solar_hour" in out.columns:
-        out, events, eid = inject_shield_failure(out, events, eid,
-                                                 seed=seed + 4242)
+        out, events, eid = inject_shield_failure(
+            out, events, eid, rate_per_station_year=shield_rate,
+            seed=seed + 4242)
 
     ev = pd.DataFrame([asdict(e) for e in events])
     if not ev.empty:
@@ -362,6 +364,10 @@ def main() -> None:
     ap.add_argument("--rate", type=float, default=1.5,
                     help="events per station per variable per year")
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--shield-rate", type=float, default=0.15,
+                    help="radiation-shield failures per station-year. The "
+                         "default is the realistic rate; raise it only to get "
+                         "a usable n for measuring the classifier, and say so.")
     ap.add_argument("--replicates", type=int, default=10,
                     help="independent realisations; raises event count without "
                          "raising point-level prevalence")
@@ -377,7 +383,8 @@ def main() -> None:
     frames, evs = [], []
     for r in range(args.replicates):
         f, e = inject(df, events_per_station_year=args.rate,
-                      seed=args.seed + r * 100_003)
+                      seed=args.seed + r * 100_003,
+                      shield_rate=args.shield_rate)
         f.insert(0, "run_id", r)
         e.insert(0, "run_id", r)
         frames.append(f)

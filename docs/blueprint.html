@@ -1152,18 +1152,18 @@ td s{opacity:.55}
     <p class="prose">The control is a <strong>placebo event</strong>: same station, same duration, placed on a window with no injected fault at all. Recall on placebos is the floor the metric hands you for free. Report the <strong>excess</strong> — real minus placebo.</p>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>Event duration</th><th>Real recall</th><th>Placebo</th><th>Earned</th></tr></thead>
+        <thead><tr><th>Event duration</th><th>Temp real</th><th>Temp placebo</th><th>Temp earned</th><th>Pres earned</th><th>RH earned</th></tr></thead>
         <tbody>
-          <tr><td class="k">&lt; 6 h (spikes)</td><td class="m">0.40</td><td class="m">0.006</td><td class="m"><strong>0.394</strong></td></tr>
-          <tr><td class="k">6–24 h</td><td class="m">0.80</td><td class="m">0.105</td><td class="m"><strong>0.695</strong></td></tr>
-          <tr><td class="k">1–4 d</td><td class="m">0.67</td><td class="m">0.160</td><td class="m"><strong>0.507</strong></td></tr>
-          <tr><td class="k">4–16 d</td><td class="m">0.83</td><td class="m">0.347</td><td class="m"><strong>0.487</strong></td></tr>
-          <tr><td class="k">&gt; 16 d</td><td class="m">1.00</td><td class="m">0.526</td><td class="m"><strong>0.474</strong></td></tr>
+          <tr><td class="k">&lt; 6 h (spikes)</td><td class="m">0.50</td><td class="m">0.006</td><td class="m"><strong>0.494</strong></td><td class="m"><strong>0.667</strong></td><td class="m">0.000</td></tr>
+          <tr><td class="k">6–24 h</td><td class="m">1.00</td><td class="m">0.058</td><td class="m"><strong>0.942</strong></td><td class="m"><strong>0.979</strong></td><td class="m">−0.042</td></tr>
+          <tr><td class="k">1–4 d</td><td class="m">0.83</td><td class="m">0.149</td><td class="m"><strong>0.684</strong></td><td class="m"><strong>0.723</strong></td><td class="m"><strong>0.677</strong></td></tr>
+          <tr><td class="k">4–16 d</td><td class="m">0.67</td><td class="m">0.386</td><td class="m"><strong>0.281</strong></td><td class="m"><strong>0.447</strong></td><td class="m">−0.012</td></tr>
+          <tr><td class="k">&gt; 16 d</td><td class="m">1.00</td><td class="m">0.632</td><td class="m"><strong>0.368</strong></td><td class="m"><strong>0.365</strong></td><td class="m"><strong>−0.632</strong></td></tr>
         </tbody>
       </table>
     </div>
-    <p class="footnote">Temperature, 1 alert/station/week, 480 placebo events per variable, from <code>evaluation/run_placebo.py</code>. Pressure at 6–24 h is the strongest cell measured: 1.000 real against 0.010 placebo, earning 0.990.</p>
-    <div class="warn">Short faults are earned almost entirely. Long ones are not — a headline <code>calibration_drift recall 1.00</code> is <strong>about half event length</strong>. Two cells are honest failures: <strong>relative humidity earns 0.011 at 4–16 days and −0.053 beyond 16 days</strong>, meaning that on long humidity faults this pipeline does no better than firing at random. It is reported rather than dropped, because a metric that cannot fail is not measuring anything.<br><br><strong>Rule: never quote an event-level recall without the placebo floor beside it.</strong></div>
+    <p class="footnote">1 alert/station/week, 480 placebo events per variable, from <code>evaluation/run_placebo.py</code>. Pressure at 6–24 h is the strongest cell measured: 1.000 real against 0.021 placebo.</p>
+    <div class="warn">Short faults are earned almost entirely. Long ones are not — <code>calibration_drift recall 1.00</code> beyond 16 days is roughly a third earned; the rest is event length.<br><br><strong>Relative humidity fails outright beyond a day.</strong> At &gt;16 d it earns <strong>−0.632</strong>: real recall 0.000 against a placebo floor of 0.632, so the pipeline detects <em>none</em> of the long humidity faults while random windows of the same length fire 63 % of the time. Reported rather than dropped, because a metric that cannot fail is not measuring anything — and because the RH channel plainly needs work before it is quoted anywhere.<br><br><strong>Rule: never quote an event-level recall without the placebo floor beside it.</strong></div>
   </section>
 
   <section>
@@ -1570,15 +1570,22 @@ td s{opacity:.55}
       <table>
         <thead><tr><th>Result</th><th>Measured</th><th>Where</th></tr></thead>
         <tbody>
-          <tr><td class="k">Earned event recall, by duration</td><td class="m">0.394 → 0.474</td><td><code>evaluation/run_placebo.py</code></td></tr>
-          <tr><td class="k">RH, faults longer than 16 d</td><td class="m"><strong>−0.053 — no better than random</strong></td><td><code>evaluation/run_placebo.py</code></td></tr>
+          <tr><td class="k">Earned event recall, temp</td><td class="m">0.281 → 0.942 by duration</td><td><code>evaluation/run_placebo.py</code></td></tr>
+          <tr><td class="k">Earned event recall, pressure</td><td class="m">0.365 → 0.979 by duration</td><td><code>evaluation/run_placebo.py</code></td></tr>
+          <tr><td class="k">RH, faults longer than 16 d</td><td class="m"><strong>−0.632 — detects none of them</strong></td><td><code>evaluation/run_placebo.py</code></td></tr>
+          <tr><td class="k">Signature naming accuracy</td><td class="m">0.611, 33 % honest <code>unknown</code></td><td><code>evaluation/run_full.py</code></td></tr>
+          <tr><td class="k"><code>shield_failure</code> naming</td><td class="m"><strong>not achieved</strong></td><td><code>evaluation/run_full.py</code></td></tr>
+          <tr><td class="k">Online IRLS vs batch IRLS</td><td class="m">residual correlation 0.995–0.998</td><td><code>evaluation/run_edge_approx.py</code></td></tr>
+          <tr><td class="k">P² sketch vs exact median/MAD</td><td class="m">3σ agreement 99.2–99.4 %, 20 floats vs 720</td><td><code>evaluation/run_edge_approx.py</code></td></tr>
+          <tr><td class="k">Drift inside the fitting window</td><td class="m"><strong>absorbed by every estimator</strong> (0.008–0.064 recovered)</td><td><code>evaluation/run_edge_approx.py</code></td></tr>
           <tr><td class="k">σ, daily-mean neighbour difference</td><td class="m">0.876 K</td><td><code>evaluation/run_cadence.py</code></td></tr>
           <tr><td class="k">Drift latency at 0.02 K/day, 3σ</td><td class="m"><strong>131 days</strong></td><td><code>evaluation/run_cadence.py</code></td></tr>
           <tr><td class="k">Cadence dependence, 15 min → 6 h</td><td class="m">σ 0.875 → 0.921 K; latency 131 → 138 d</td><td><code>evaluation/run_cadence.py</code></td></tr>
         </tbody>
       </table>
     </div>
-    <div class="note"><strong>The drift latency is weeks, not real time, and that is the honest answer.</strong> The drift section predicted exactly this; it is now confirmed rather than assumed.<br><br><strong>Cadence-independence matters for deployment.</strong> A 24× change in sampling rate moves σ by 5 %, so the drift result describes a physical timescale and transfers to the 15-minute cadence real AWS report at. But <strong>every window in the code is expressed in samples</strong>: at 15-minute data the 720-sample scale window is 7.5 days rather than 30, and the 24-sample Hampel window is 6 hours rather than a full diurnal cycle — it would no longer contain the cycle it exists to normalise against. Any redeployment must rescale windows by <em>time</em>.</div>
+    <div class="note"><strong>The drift latency is weeks, not real time, and that is the honest answer.</strong> The drift section predicted exactly this; it is now confirmed rather than assumed.<br><br><strong>Robustness does not protect a baseline from a drift in its own fitting window.</strong> Fitted over a window containing a 0.02 K/day drift, the fraction still visible in the residual is 0.035 for OLS, <strong>0.008 for batch Huber</strong>, 0.064 for online Huber — the robust estimator is the <em>worst</em> of the three, because a slow drift never looks like an outlier. Only a frozen reference window preserves the signal, which is why the station tier is sent its coefficients and never refits.<br><br><strong>Cadence-independence matters for deployment.</strong> A 24× change in sampling rate moves σ by 5 %, so the drift result describes a physical timescale and transfers to the 15-minute cadence real AWS report at. But <strong>every window in the code is expressed in samples</strong>: at 15-minute data the 720-sample scale window is 7.5 days rather than 30, and the 24-sample Hampel window is 6 hours rather than a full diurnal cycle — it would no longer contain the cycle it exists to normalise against. Any redeployment must rescale windows by <em>time</em>.</div>
+    <div class="warn"><strong><code>shield_failure</code> is detected but cannot yet be named, and three fixes were measured and rejected.</strong> The fault is switched off by sunset, so the detector fires in short daily bursts and the classifier sees a 4-hour fragment rather than a 400-hour event. Adding a <code>diurnal_gain</code> descriptor changed nothing — an A/B against the pre-change classifier came back <em>identical</em> at 0.595 in both arms, because the template never fired at all. Repairing <code>td_ratio</code> to be measured on diurnal gain rather than the window median moved naming to 0.611 but still never named a shield fault. Widening the run-merge gap to 30 h finally let it fire, and cost more than it gained: naming fell to 0.489 as genuine 1-hour spikes merged into the quiet hours around them and read as weather. One global merge gap cannot serve both a spike and a sun-driven fault; that needs per-hypothesis merging, which is not built. <strong>The honest state is: detected, not named.</strong></div>
     <p class="footnote">Caveat on the 15-minute arm: ERA5 has no sub-hourly variability to resample, so that arm is explicitly synthetic. It answers "do the windows scale", not "how good are we on real 15-minute data".</p>
     <p class="footnote">Design sections remain a blueprint and their success criteria are targets. The "Measured so far" table and the placebo table are measured. The Magnus tautology and the specific-humidity worked example were verified numerically; every empirical claim about tide amplitudes, correlation lengths, standard QC document numbers and component prices should be verified independently before it drives a decision or appears in a submission. Quoted statement text and scoring weights are from sih.gov.in.</p>
   </section>

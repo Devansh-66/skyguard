@@ -71,24 +71,33 @@ def main() -> None:
 
     coefs = {v: B.fit_baseline(df[df.run_id == 0], v, ref_end=REF_END)
              for v in VARIABLES}
-    ref = df[df.timestamp < pd.Timestamp(REF_END, tz="UTC")].reset_index(drop=True)
-    test = df[df.split == "test"].reset_index(drop=True)
+    # Full frame first, subset after -- see the long note in run_full.py. Built
+    # the other way round, a holdout station loses its neighbours and 37.6 % of
+    # test rows get a NaN primary channel, which the flag turns into a miss.
+    ref_mask = (df.timestamp < pd.Timestamp(REF_END, tz="UTC")).to_numpy()
+    test_mask = (df.split == "test").to_numpy()
+    ref = df[ref_mask].reset_index(drop=True)
+    test = df[test_mask].reset_index(drop=True)
 
     print("building features ...")
-    F_ref, F_test = FT.build(ref, coefs, graph), FT.build(test, coefs, graph)
+    F_all = FT.build(df, coefs, graph)
+    F_ref = F_all[ref_mask].reset_index(drop=True)
+    F_test = F_all[test_mask].reset_index(drop=True)
+
+    def split_channel(fn, *a, **k):
+        v = np.asarray(fn(df, *a, **k), dtype=float)
+        return v[ref_mask], v[test_mask]
     dets = {v: LearnedDetector(variable=v).fit(F_ref) for v in VARIABLES}
 
     rows, dur_rows = [], []
     for var in VARIABLES:
         miss = ~np.isfinite(test[var].to_numpy(dtype=float))
         p_learn = conformalize(dets[var].distance(F_ref), dets[var].distance(F_test))
-        p_nz = conformalize(B.neighbour_z(ref, var, coefs[var], graph, True),
-                            B.neighbour_z(test, var, coefs[var], graph, True))
-        p_per = conformalize(B.persistence(ref, var), B.persistence(test, var))
-        p_ham = conformalize(B.local_outlier(ref, var, coefs[var], graph),
-                             B.local_outlier(test, var, coefs[var], graph))
-        p_dis = conformalize(B.dispersion(ref, var, coefs[var], graph),
-                             B.dispersion(test, var, coefs[var], graph))
+        p_nz = conformalize(*split_channel(B.neighbour_z, var, coefs[var],
+                                           graph, True))
+        p_per = conformalize(*split_channel(B.persistence, var))
+        p_ham = conformalize(*split_channel(B.local_outlier, var, coefs[var], graph))
+        p_dis = conformalize(*split_channel(B.dispersion, var, coefs[var], graph))
         sc = ensemble_budgeted([p_learn, p_nz, p_per, p_ham, p_dis], args.budget,
                                weights=[3, 3, 2, 1, 1], certain=miss)
 

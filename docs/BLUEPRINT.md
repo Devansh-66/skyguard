@@ -372,22 +372,24 @@ injected fault at all. Recall on placebos is the floor the metric hands you for 
 Report the **excess** — real minus placebo. Measured here (`evaluation/run_placebo.py`,
 1 alert/station/week, 480 placebos per variable):
 
-| Event duration | Real recall | Placebo | **Earned** |
-|---|---|---|---|
-| < 6 h (spikes) | 0.40 | 0.006 | **0.394** |
-| 6–24 h | 0.80 | 0.105 | **0.695** |
-| 1–4 d | 0.67 | 0.160 | **0.507** |
-| 4–16 d | 0.83 | 0.347 | **0.487** |
-| > 16 d | 1.00 | 0.526 | **0.474** |
+| Event duration | Temp real | Temp placebo | **Temp earned** | **Pres earned** | **RH earned** |
+|---|---|---|---|---|---|
+| < 6 h (spikes) | 0.50 | 0.006 | **0.494** | **0.667** | 0.000 |
+| 6–24 h | 1.00 | 0.058 | **0.942** | **0.979** | −0.042 |
+| 1–4 d | 0.83 | 0.149 | **0.684** | **0.723** | **0.677** |
+| 4–16 d | 0.67 | 0.386 | **0.281** | **0.447** | −0.012 |
+| > 16 d | 1.00 | 0.632 | **0.368** | **0.365** | **−0.632** |
 
-*(temperature; pressure at 6–24 h is the strongest cell measured — 1.000 real against 0.010
-placebo, earning 0.990.)*
+Short faults are earned almost entirely; pressure at 6–24 h is the strongest cell measured,
+1.000 real against 0.021 placebo. Long faults are not: a headline
+`calibration_drift recall 1.00` at >16 d is roughly a third earned and the rest is event
+length.
 
-Short faults are earned almost entirely. Long ones are not: a headline
-`calibration_drift recall 1.00` is about half event length. And two cells are honest
-failures — **relative humidity earns 0.011 at 4–16 days and −0.053 beyond 16 days**, i.e.
-on long humidity faults this pipeline does no better than firing at random. That number is
-reported rather than dropped, because a metric that cannot fail is not measuring anything.
+**Relative humidity fails outright beyond a day.** At >16 days it earns **−0.632** — real
+recall 0.000 against a placebo floor of 0.632, meaning the pipeline detects *none* of the
+long humidity faults while random windows of the same length fire 63 % of the time. It is
+reported rather than dropped, because a metric that cannot fail is not measuring anything,
+and because the RH channel plainly needs work before it is quoted anywhere.
 
 **Rule:** never quote an event-level recall without the placebo floor beside it.
 
@@ -605,14 +607,39 @@ to AWS realism with injected labelled faults. They supersede any target stated a
 
 | Result | Measured | Where |
 |---|---|---|
-| Earned event recall, by duration | 0.394 → 0.474 (see §10) | `evaluation/run_placebo.py` |
-| RH, faults longer than 16 d | **−0.053 earned — no better than random** | `evaluation/run_placebo.py` |
+| Earned event recall, temp | 0.281 → 0.942 by duration (see §10) | `evaluation/run_placebo.py` |
+| Earned event recall, pressure | 0.365 → 0.979 by duration | `evaluation/run_placebo.py` |
+| RH, faults longer than 16 d | **−0.632 earned — detects none of them** | `evaluation/run_placebo.py` |
+| Signature naming accuracy | 0.611, with 33 % honest `unknown` | `evaluation/run_full.py` |
+| `shield_failure` naming | **not achieved — see below** | `evaluation/run_full.py` |
+| Online IRLS vs batch IRLS | residual correlation 0.995–0.998 | `evaluation/run_edge_approx.py` |
+| P² sketch vs exact median/MAD | 3σ flag agreement 99.2–99.4 %, 20 floats vs 720 | `evaluation/run_edge_approx.py` |
+| Drift inside the fitting window | **absorbed by every estimator** (0.008–0.064 recovered) | `evaluation/run_edge_approx.py` |
 | σ, daily-mean neighbour difference | 0.876 K | `evaluation/run_cadence.py` |
 | Drift latency at 0.02 K/day, 3σ | **131 days** | `evaluation/run_cadence.py` |
 | Cadence dependence, 15 min → 6 h | σ 0.875 → 0.921 K; latency 131 → 138 d | `evaluation/run_cadence.py` |
 
 **The drift latency is weeks, not real time, and that is the honest answer** — §7 predicted
 exactly this and it is confirmed rather than assumed.
+
+**Robustness does not protect a baseline from a drift in its own fitting window.** Fitted
+over a window containing a 0.02 K/day drift, the fraction of that drift still visible in the
+residual is 0.035 for OLS, **0.008 for batch Huber**, 0.064 for online Huber. The robust
+estimator is the *worst* of the three, because a slow drift never looks like an outlier.
+Only a frozen reference window preserves the signal — which is why the station tier is sent
+its coefficients and never refits.
+
+**`shield_failure` is detected but cannot yet be named, and three fixes were measured and
+rejected.** The fault is switched off by sunset, so the detector fires in short daily bursts
+and the classifier sees a 4-hour fragment rather than a 400-hour event. Adding a
+`diurnal_gain` descriptor changed nothing (an A/B against the pre-change classifier was
+*identical*, 0.595 both arms — the template never fired at all). Repairing `td_ratio` to be
+measured on diurnal gain rather than the window median moved naming to 0.611 but still never
+named a shield fault. Widening the run-merge gap to 30 h finally let it fire — and cost more
+than it gained, dropping naming to 0.489 as genuine 1-hour spikes merged into surrounding
+quiet hours and read as weather. One global merge gap cannot serve both a spike and a
+sun-driven fault; that needs per-hypothesis merging, which is not built. **The honest state
+is: detected, not named.**
 
 **Cadence-independence matters for deployment.** A 24× change in sampling rate moves σ by
 5 %, so the drift result describes a physical timescale and transfers to the 15-minute

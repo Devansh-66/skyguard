@@ -58,7 +58,9 @@ class Window:
 def describe(seg: pd.DataFrame, F: pd.DataFrame, var: str,
              dres: pd.Series, sigma: float, rails: tuple[float, float],
              _unused_coherence: float = 0.0, natural_flat: float = 0.0,
-             td_ratio: float | None = None) -> Window:
+             td_ratio: float | None = None,
+             dres_td: pd.Series | None = None,
+             sigma_td: float = 0.0) -> Window:
     """Reduce one flagged window to eight scale-free shape descriptors.
 
     Scale-free is the point: the same template must fire for a 0.4 K step and a
@@ -138,7 +140,11 @@ def describe(seg: pd.DataFrame, F: pd.DataFrame, var: str,
     # its neighbours while its dew point does NOT has a radiation-shield or
     # siting problem, not weather. Near 0 = the probes are being heated; near 1
     # = the air really is different.
-    tdr = 1.0 if td_ratio is None else float(np.clip(td_ratio, 0.0, 2.0))
+    # Measured on whichever statistic actually carries the fault -- see below.
+    # A default of 1.0 when it cannot be measured would encode *absence of
+    # evidence as evidence against* a heated probe, which is how the first
+    # version of this silently disabled its own shield template.
+    tdr = None if td_ratio is None else float(np.clip(td_ratio, 0.0, 2.0))
 
     # diurnal_gain -- how strongly the departure from neighbours follows the
     # SOLAR cycle.
@@ -150,15 +156,32 @@ def describe(seg: pd.DataFrame, F: pd.DataFrame, var: str,
     # template made. What is large is the projection of the residual onto the
     # solar cycle. Level is the wrong statistic for a fault the sun switches on
     # and off; this is the right one.
-    dg = 0.0
+    sw = None
     if "solar_hour" in seg.columns and ok.sum() >= 12:
         sw = np.clip(np.sin(np.pi * (seg["solar_hour"].to_numpy()[ok] - 6.0) / 12.0),
                      0.0, None)
-        y = d[ok]
-        if np.std(sw) > 1e-6 and np.std(y) > 1e-9:
-            # regression slope of residual on solar weight, in sigma
-            dg = float(np.polyfit(sw, y, 1)[0] / sigma) if sigma > 0 else 0.0
+
+    def _gain(y: np.ndarray, sd: float) -> float:
+        """Regression slope of a residual on the solar weight, in sigma."""
+        if sw is None or sd <= 0 or np.std(sw) < 1e-6 or np.std(y) < 1e-9:
+            return 0.0
+        return float(np.polyfit(sw, y, 1)[0] / sd)
+
+    dg = _gain(d[ok], sigma)
     diurnal_gain = float(np.clip(dg, -6.0, 6.0))
+
+    # td_ratio, measured on the statistic that carries the fault.
+    #
+    # A shield fault is switched on and off by the sun, so its MEDIAN over a
+    # multi-week window is small and a median-ratio is computed from two numbers
+    # that are both nearly zero -- noise over noise. The diurnal gain is the
+    # quantity that is actually large for this fault, so when the window is
+    # diurnally driven the ratio is taken between GAINS instead. Same physical
+    # question -- does the departure survive in the dew point -- asked of the
+    # statistic that can answer it.
+    if tdr is None and dres_td is not None and abs(dg) > 0.3:
+        dg_td = _gain(dres_td.to_numpy(dtype=float)[ok], sigma_td)
+        tdr = float(np.clip(abs(dg_td) / abs(dg), 0.0, 2.0))
 
     return Window(
         descriptors={
@@ -166,7 +189,9 @@ def describe(seg: pd.DataFrame, F: pd.DataFrame, var: str,
             "at_rail": at_rail, "natural_flat": natural_flat,
             "level": level, "ramp": ramp, "linearity": max(linearity, 0.0),
             "spread": spread, "brevity": brevity, "coherence": coherence,
-            "td_ratio": tdr, "diurnal_gain": diurnal_gain,
+            "td_ratio": 1.0 if tdr is None else tdr,
+            "td_known": 0.0 if tdr is None else 1.0,
+            "diurnal_gain": diurnal_gain,
         },
         evidence={
             "duration_h": n, "median_residual": float(np.nanmedian(d)),
@@ -219,7 +244,8 @@ TEMPLATES = {
     # Gated on DIURNAL GAIN, not level: the sun switches this fault on and off,
     # so its median is small and its solar projection is large. Positive gain
     # only -- a shield failure warms, it never cools.
-    "shield_failure": lambda d: (_sat(max(d["diurnal_gain"], 0.0), 1.0)
+    "shield_failure": lambda d: (d["td_known"]
+                                 * _sat(max(d["diurnal_gain"], 0.0), 1.0)
                                  * (1 - d["brevity"]) * (1 - d["flat"])
                                  * (1 - d["missing"])
                                  * max(0.0, 1.0 - d["td_ratio"] / 0.6)),

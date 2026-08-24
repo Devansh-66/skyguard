@@ -53,9 +53,20 @@ def main() -> None:
     ap.add_argument("--centred", dest="causal", action="store_false",
                     default=True,
                     help="reproduce the lookahead variant, for comparison only")
+    ap.add_argument("--no-td", dest="use_td", action="store_false", default=True,
+                    help="A/B arm: withhold the td_ratio and diurnal_gain "
+                         "descriptors and the shield_failure template, i.e. the "
+                         "classifier as it stood before they were added. Naming "
+                         "must be compared on NON-shield faults only, since this "
+                         "arm cannot name shield at all.")
     ap.add_argument("--runs", type=int, default=4,
                     help="replicates to score; all 10 is slow and adds little")
     args = ap.parse_args()
+
+    if not args.use_td:
+        # Control arm: remove the template that depends on the new descriptors,
+        # so the comparison isolates their effect on the pre-existing classes.
+        SIG.TEMPLATES.pop("shield_failure", None)
 
     df = pd.read_csv(args.data, parse_dates=["timestamp"])
     df = df[df.run_id < args.runs].reset_index(drop=True)
@@ -71,12 +82,34 @@ def main() -> None:
     coefs = {v: B.fit_baseline(df[df.run_id == 0], v, ref_end=REF_END)
              for v in VARIABLES + ("td",)}
 
-    ref = df[df.timestamp < pd.Timestamp(REF_END, tz="UTC")].reset_index(drop=True)
-    test = df[df.split == "test"].reset_index(drop=True)
+    # EVERY channel is computed on the FULL frame and only then subset.
+    #
+    # Building them on the test subset instead is a bug that cost us a lot. The
+    # split marks a row test if its station is held out OR its timestamp is past
+    # the cut, so a holdout station is test for the whole year while its
+    # NEIGHBOURS before the cut are labelled train. Subsetting first deletes
+    # those neighbours, the neighbour-difference residual goes NaN for 75 % of
+    # the holdout stations' rows, and since the flag is nan_to_num(..., 0.0)
+    # every fault on a holdout station before the cut was silently scored as a
+    # miss. 37.6 % of all test rows had a NaN primary channel.
+    #
+    # Computing on the full frame does not leak: the features are causal, so a
+    # value at time t uses only data at or before t, and a neighbour's reading
+    # is something a deployed system would genuinely have.
+    ref_mask = (df.timestamp < pd.Timestamp(REF_END, tz="UTC")).to_numpy()
+    test_mask = (df.split == "test").to_numpy()
+    ref = df[ref_mask].reset_index(drop=True)
+    test = df[test_mask].reset_index(drop=True)
 
     print("building features ...")
-    F_ref = FT.build(ref, coefs, graph, causal=args.causal)
-    F_test = FT.build(test, coefs, graph, causal=args.causal)
+    F_all = FT.build(df, coefs, graph, causal=args.causal)
+    F_ref = F_all[ref_mask].reset_index(drop=True)
+    F_test = F_all[test_mask].reset_index(drop=True)
+
+    def split_channel(fn, *a, **k):
+        """Run a detector channel on the whole frame, return (ref, test) parts."""
+        v = np.asarray(fn(df, *a, **k), dtype=float)
+        return v[ref_mask], v[test_mask]
 
     # Fitted on the frozen reference window with NO labels -- the same data a
     # deployed system would have on day one.
@@ -93,16 +126,14 @@ def main() -> None:
     for v in VARIABLES:
         miss = ~np.isfinite(test[v].to_numpy(dtype=float))
         p_learn = conformalize(dets[v].distance(F_ref), dets[v].distance(F_test))
-        p_nz = conformalize(B.neighbour_z(ref, v, coefs[v], graph, args.causal),
-                            B.neighbour_z(test, v, coefs[v], graph, args.causal))
-        p_per = conformalize(B.persistence(ref, v), B.persistence(test, v))
+        p_nz = conformalize(*split_channel(B.neighbour_z, v, coefs[v], graph,
+                                           args.causal))
+        p_per = conformalize(*split_channel(B.persistence, v))
         # Two blind-spot channels. `spike` and `noise_burst` are invisible to a
         # long-window level detector and to a run-length detector, so they get
         # detectors of their own rather than a threshold tweak.
-        p_ham = conformalize(B.local_outlier(ref, v, coefs[v], graph),
-                             B.local_outlier(test, v, coefs[v], graph))
-        p_dis = conformalize(B.dispersion(ref, v, coefs[v], graph),
-                             B.dispersion(test, v, coefs[v], graph))
+        p_ham = conformalize(*split_channel(B.local_outlier, v, coefs[v], graph))
+        p_dis = conformalize(*split_channel(B.dispersion, v, coefs[v], graph))
         ens[v] = ensemble([p_learn, p_nz, p_per], certain=miss)
         # Per-channel budget. The two blind-spot channels get a share each
         # instead of competing with drift-dominated channels for one threshold.
@@ -119,8 +150,10 @@ def main() -> None:
     for var in VARIABLES:
         t = mark_weather_activity(test, var)
         cands = {
-            "neighbour_z": B.neighbour_z(test, var, coefs[var], graph, args.causal),
-            "combined": B.combined(test, var, coefs[var], graph, args.causal),
+            "neighbour_z": split_channel(B.neighbour_z, var, coefs[var], graph,
+                                         args.causal)[1],
+            "combined": split_channel(B.combined, var, coefs[var], graph,
+                                      args.causal)[1],
             "learned": learned_score[var],
             "ensemble": ens[var],
             "ens_budgeted": ens_nl[var],
@@ -158,8 +191,11 @@ def main() -> None:
         thr = threshold_for_budget(clean, len(clean) / 24.0, args.budget)
         flag = np.nan_to_num(sc, nan=0.0) >= thr
 
-        d_res, coh = coherence_series(test, var, coefs[var], graph)
-        d_td = FT.neighbour_residual(test, "td", coefs["td"], graph)
+        d_res_all, coh_all = coherence_series(df, var, coefs[var], graph)
+        d_res = d_res_all[test_mask].reset_index(drop=True)
+        coh = coh_all[test_mask].reset_index(drop=True)
+        d_td = (FT.neighbour_residual(df, "td", coefs["td"], graph)[test_mask]
+                .reset_index(drop=True))
         sigma = {s: B.robust_sigma(d_res.loc[g.index].to_numpy(), var)
                  for s, g in test.groupby("station_name", sort=False)}
         sig_td = {s: B.robust_sigma(d_td.loc[g.index].to_numpy(), "temp")
@@ -174,6 +210,19 @@ def main() -> None:
             nat[s_] = float(np.mean(v[1:] == v[:-1])) if len(v) > 1 else 0.0
         for (run, st), g in test.groupby(["run_id", "station_name"], sort=False):
             pos = test.index.get_indexer(g.index)
+            # MEASURED, and left at the 12 h default deliberately.
+            #
+            # A radiation-shield fault is switched off by sunset, so at a 12 h
+            # gap its daily bursts stay separate ~4 h windows and the signature
+            # stage calls a 400-hour siting fault a spike. Widening to 30 h
+            # bridges the night and does let shield_failure fire -- but it also
+            # merges genuine 1-hour spikes into the quiet hours around them, so
+            # the merged window looks mostly clean and reads as weather. Naming
+            # fell 0.611 -> 0.489 and false alarms called `genuine_weather` rose
+            # to 0.49. One global gap cannot serve a 1-hour spike and a fault
+            # the sun switches on and off; that needs per-hypothesis merging,
+            # which is not built. The gap stays at 12 and shield_failure stays
+            # unnameable, which is the honest state.
             for a, b in merge_runs(_runs(flag[pos])):
                 if b - a < 2:
                     continue
@@ -182,10 +231,13 @@ def main() -> None:
                 lvl = abs(float(np.nanmedian(d_res.loc[idx]))) / max(sigma[st], 1e-9)
                 lvl_td = abs(float(np.nanmedian(d_td.loc[idx]))) / max(sig_td[st], 1e-9)
                 tdr = (lvl_td / lvl) if lvl > 0.5 else None
+                if not args.use_td:
+                    tdr = None
                 w = SIG.describe(test.loc[idx], F_test.loc[idx], var,
                                  d_res.loc[idx], sigma[st], RAILS[var],
                                  float(coh.loc[idx].median()),
-                                 nat.get(st, 0.0), tdr)
+                                 nat.get(st, 0.0), tdr,
+                                 d_td.loc[idx], sig_td[st])
                 res = SIG.classify(w)
                 # A window with no injected fault is a FALSE ALARM, not
                 # weather. Labelling it `genuine_weather` would credit the

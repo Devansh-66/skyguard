@@ -1,0 +1,14 @@
+[wokwi]
+version = 1
+firmware = ".pio/build/esp32dev/firmware.bin"
+elf = ".pio/build/esp32dev/firmware.elf"
+
+# Let the simulated node reach a server running on this machine.
+#
+# Wokwi for VS Code bundles a private IoT gateway; without it the simulated
+# WiFi has no route to localhost at all. `host.wokwi.internal` is the name the
+# gateway resolves to the host, which is why the firmware posts there rather
+# than to 127.0.0.1 -- inside the simulation, 127.0.0.1 is the ESP32 itself.
+[[net.forward]]
+from = "localhost:9080"
+to   = "target:80"
