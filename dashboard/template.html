@@ -639,6 +639,7 @@ function attachHover(cv, geo, t, series, dseries, unit){
 let map = null, stationLayer = null, edgeLayer = null, boundaryLayer = null;
 let mapColour = "temp";
 let tilesOK = null;
+let TILE_TPL = null, BND_TPL = null;
 
 // Divergence from neighbours in sigma, at the latest sample in view. Signed on
 // purpose: "warmer than its neighbours" and "colder than its neighbours" are
@@ -669,6 +670,11 @@ async function probeTiles(){
     const r = await fetch(`${API}/api/tiles/status`, {cache:"no-store"});
     const j = await r.json();
     tilesOK = !!j.available;
+    // The server tells us the tile path, fingerprinted by source. We never
+    // build it ourselves -- that is how the browser ended up caching an
+    // obsolete basemap for a year at a URL that had not changed.
+    TILE_TPL = j.tile_template || "/api/tiles/{z}/{x}/{y}.png";
+    BND_TPL  = j.boundary_template || "/api/boundary/{z}/{x}/{y}.png";
     return tilesOK;
   } catch { tilesOK = false; return false; }
 }
@@ -709,9 +715,9 @@ function renderMaps(){
     if (tilesOK){
       // Through our own proxy: same origin, disk-cached, so the map keeps
       // drawing after the venue wifi dies.
-      L.tileLayer(`${API}/api/tiles/{z}/{x}/{y}.png`,
+      L.tileLayer(API + TILE_TPL,
                   {maxZoom:12, minZoom:3, crossOrigin:true}).addTo(map);
-      boundaryLayer = L.tileLayer(`${API}/api/boundary/{z}/{x}/{y}.png`,
+      boundaryLayer = L.tileLayer(API + BND_TPL,
                   {maxZoom:12, minZoom:3, opacity:0.9}).addTo(map);
       $("mapattrib").innerHTML =
         "Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; "

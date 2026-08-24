@@ -70,6 +70,21 @@ ATTRIBUTION = ("Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; "
 
 MAX_ZOOM = 12
 TIMEOUT = 12
+
+# A short fingerprint of the configured sources, carried in the tile PATH.
+#
+# Tiles are served with a one-year Cache-Control, which is correct -- a tile for
+# a fixed area does not change. But it means the URL is the cache key, so
+# changing the SOURCE while keeping the path identical leaves every browser
+# serving last week's basemap from its own cache, with no way to know. Switching
+# from OpenStreetMap to Esri did exactly that and looked like the proxy had
+# failed. Putting the fingerprint in the path makes a source change a different
+# URL, which is the only thing a browser cache respects.
+def _fingerprint() -> str:
+    return hashlib.sha1(
+        f"{TILE_URL}|{BOUNDARY_WMS}|{BOUNDARY_LAYER}".encode()).hexdigest()[:8]
+
+
 _R = 6378137.0                      # Web Mercator sphere radius
 
 
@@ -110,9 +125,9 @@ def _tile_bbox_3857(z: int, x: int, y: int) -> tuple[float, float, float, float]
     return (minx, maxy - span, minx + span, maxy)
 
 
-@router.get("/api/tiles/{z}/{x}/{y}.png")
-def tile(z: int, x: int, y: int) -> Response:
-    """One basemap tile."""
+@router.get("/api/tiles/{ver}/{z}/{x}/{y}.png")
+def tile(ver: str, z: int, x: int, y: int) -> Response:
+    """One basemap tile. `ver` is the source fingerprint -- see _fingerprint."""
     _check(z, x, y)
     url = TILE_URL.format(z=z, x=x, y=y)
     key = hashlib.sha1(f"base|{url}".encode()).hexdigest()
@@ -121,11 +136,11 @@ def tile(z: int, x: int, y: int) -> Response:
                     headers={"Cache-Control": "public, max-age=31536000"})
 
 
-@router.get("/api/boundary/{z}/{x}/{y}.png")
-def boundary(z: int, x: int, y: int) -> Response:
+@router.get("/api/boundary/{ver}/{z}/{x}/{y}.png")
+def boundary(ver: str, z: int, x: int, y: int) -> Response:
     """One boundary tile, rendered by NCMRWF's WMS for this tile's extent."""
     _check(z, x, y)
-    bbox = ",".join(f"{v:.6f}" for v in _tile_bbox_3857(z, x, y))
+    bbox = ",".join(f"{m:.6f}" for m in _tile_bbox_3857(z, x, y))
     q = urllib.parse.urlencode({
         "service": "WMS", "request": "GetMap", "version": "1.1.1",
         "layers": BOUNDARY_LAYER, "styles": "",
@@ -168,6 +183,9 @@ def status() -> dict:
         "boundary_wms": BOUNDARY_WMS,
         "boundary_layer": BOUNDARY_LAYER,
         "attribution": ATTRIBUTION,
+        "version": _fingerprint(),
+        "tile_template": f"/api/tiles/{_fingerprint()}/{{z}}/{{x}}/{{y}}.png",
+        "boundary_template": f"/api/boundary/{_fingerprint()}/{{z}}/{{x}}/{{y}}.png",
         "official_indian_boundary_source": "ncmrwf.gov.in" in BOUNDARY_WMS,
         "max_zoom": MAX_ZOOM,
     }
