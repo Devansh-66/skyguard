@@ -62,8 +62,14 @@ def main() -> None:
     events = pd.read_csv(args.events)
     graph = json.loads(Path(args.graph).read_text())
 
+    # Dew point is carried as a derived column with its own baseline, purely so
+    # a neighbour-difference residual can be formed for it. That residual is
+    # what separates a heated probe from a genuinely warmer airmass: heating at
+    # constant vapour content moves T and leaves Td alone.
+    from physics.relations import dew_point
+    df["td"] = [dew_point(t, r) for t, r in zip(df.temp, df.rh)]
     coefs = {v: B.fit_baseline(df[df.run_id == 0], v, ref_end=REF_END)
-             for v in VARIABLES}
+             for v in VARIABLES + ("td",)}
 
     ref = df[df.timestamp < pd.Timestamp(REF_END, tz="UTC")].reset_index(drop=True)
     test = df[df.split == "test"].reset_index(drop=True)
@@ -153,8 +159,11 @@ def main() -> None:
         flag = np.nan_to_num(sc, nan=0.0) >= thr
 
         d_res, coh = coherence_series(test, var, coefs[var], graph)
+        d_td = FT.neighbour_residual(test, "td", coefs["td"], graph)
         sigma = {s: B.robust_sigma(d_res.loc[g.index].to_numpy(), var)
                  for s, g in test.groupby("station_name", sort=False)}
+        sig_td = {s: B.robust_sigma(d_td.loc[g.index].to_numpy(), "temp")
+                  for s, g in test.groupby("station_name", sort=False)}
         # How often does this station's probe repeat a reading when healthy?
         # Measured on the frozen reference window, per station, because it is
         # set by the local climate and the logger resolution together.
@@ -169,10 +178,14 @@ def main() -> None:
                 if b - a < 2:
                     continue
                 idx = g.index[a:b]
+                # How much of the departure survives in the dew point?
+                lvl = abs(float(np.nanmedian(d_res.loc[idx]))) / max(sigma[st], 1e-9)
+                lvl_td = abs(float(np.nanmedian(d_td.loc[idx]))) / max(sig_td[st], 1e-9)
+                tdr = (lvl_td / lvl) if lvl > 0.5 else None
                 w = SIG.describe(test.loc[idx], F_test.loc[idx], var,
                                  d_res.loc[idx], sigma[st], RAILS[var],
                                  float(coh.loc[idx].median()),
-                                 nat.get(st, 0.0))
+                                 nat.get(st, 0.0), tdr)
                 res = SIG.classify(w)
                 # A window with no injected fault is a FALSE ALARM, not
                 # weather. Labelling it `genuine_weather` would credit the

@@ -34,6 +34,10 @@ VARIABLES = ("temp", "rh", "pres")
 FAULT_TYPES = ("spike", "frozen", "dropout", "saturation",
                "step_offset", "calibration_drift", "noise_burst")
 
+# Injected separately, because it is the only fault here that is DERIVED rather
+# than invented, and the only one that moves two channels at once.
+CROSS_CHANNEL_TYPES = ("shield_failure",)
+
 # Sensor rails, for saturation. These are the limits of the PROBE, not of the
 # climate -- a stuck-high RH probe reads 100, not 140.
 RAILS = {"temp": (-40.0, 60.0), "rh": (0.0, 100.0), "pres": (500.0, 1100.0)}
@@ -151,6 +155,108 @@ def _apply(values: np.ndarray, ft: str, var: str, amp: float, sign: int,
     return v, touched
 
 
+def inject_shield_failure(out: pd.DataFrame, events: list, eid: int,
+                          rate_per_station_year: float = 0.15,
+                          seed: int = 4242) -> tuple[pd.DataFrame, list, int]:
+    """Radiation-shield degradation: the one fault shape derived from physics.
+
+    Every other fault in this file is a shape someone chose. This one falls out
+    of thermodynamics, which is why it is worth having: it is the only injected
+    fault whose signature we did not get to pick.
+
+    A radiation shield keeps sunlight off the probes. When it degrades -- dirty,
+    cracked, or aspiration lost -- the air inside is heated above ambient during
+    daylight. Both probes then measure that heated air:
+
+        T reads high, by an amount that follows the solar cycle
+        RH reads low, because warmer air of the SAME vapour content is further
+          from saturation
+
+    and the consequence is the discriminator: heating air at constant vapour
+    content leaves the DEW POINT UNCHANGED. Verified numerically -- a 1.0, 2.5
+    or 4.0 K shield bias all leave Td at 20.102 C, to three decimals.
+
+    A genuine warm dry airmass, by contrast, carries less vapour: the same
+    warming moves Td from 20.1 to 17.5 or 15.5. So:
+
+        T up, RH down, Td unchanged   -> the shield, or the siting
+        T up, RH down, Td down        -> real weather
+
+    That is a test on three parameters we already have, and it separates a
+    sensor problem from an atmospheric one without any labelled training data.
+    """
+    from physics.relations import vapour_pressure, saturation_vapour_pressure
+
+    rng = np.random.default_rng(seed)
+    idx_all = out.index.to_numpy()
+
+    for si, (station, g) in enumerate(out.groupby("station_name", sort=True)):
+        idx = g.index.to_numpy()
+        n = len(idx)
+        n_ev = rng.poisson(rate_per_station_year * n / (365.25 * 24))
+        occupied = np.zeros(n, dtype=bool)
+
+        for _ in range(n_ev):
+            # Shields degrade over weeks, not hours.
+            dur = int(round(_loguniform(336, min(2160, n // 4), rng)))
+            # Must not land on a window that already carries a fault. The
+            # per-variable pass has already run, and overlapping it would both
+            # overwrite its label and break the physics this fault exists to
+            # demonstrate -- a drift underneath the shield heating moves the dew
+            # point, which is precisely the thing that is supposed to stay put.
+            for _try in range(60):
+                a = int(rng.integers(0, max(n - dur, 1)))
+                lo, hi = max(0, a - 72), min(n, a + dur + 72)
+                if occupied[lo:hi].any():
+                    continue
+                seg = idx[a:a + dur]
+                if bool(out.loc[seg, "is_fault_temp"].any()) or                    bool(out.loc[seg, "is_fault_rh"].any()):
+                    continue
+                break
+            else:
+                continue
+            occupied[a:a + dur] = True
+
+            rows = idx[a:a + dur]
+            peak = _loguniform(0.4, 4.0, rng)          # peak daytime bias, K
+
+            sh = out.loc[rows, "solar_hour"].to_numpy(dtype=float)
+            # Solar heating: a half sine from sunrise to sunset, zero at night.
+            # A shield that has failed does nothing in the dark, which is itself
+            # part of the signature.
+            w = np.clip(np.sin(np.pi * (sh - 6.0) / 12.0), 0.0, None)
+            # ramp in over the first third -- degradation is gradual
+            ramp = np.clip(np.arange(dur) / max(dur / 3.0, 1.0), 0.0, 1.0)
+            dT = peak * w * ramp
+
+            t = out.loc[rows, "temp"].to_numpy(dtype=float)
+            rh = out.loc[rows, "rh"].to_numpy(dtype=float)
+            ok = np.isfinite(t) & np.isfinite(rh)
+            e = np.array([vapour_pressure(a_, b_) if o else np.nan
+                          for a_, b_, o in zip(t, rh, ok)])
+            t_new = t + dT
+            es_new = np.array([saturation_vapour_pressure(v) if o else np.nan
+                               for v, o in zip(t_new, ok)])
+            rh_new = np.clip(100.0 * e / es_new, 0.0, 100.0)
+
+            out.loc[rows, "temp"] = np.round(t_new / RESOLUTION["temp"]) * RESOLUTION["temp"]
+            out.loc[rows, "rh"] = np.round(rh_new / RESOLUTION["rh"]) * RESOLUTION["rh"]
+
+            for var in ("temp", "rh"):
+                out.loc[rows, f"is_fault_{var}"] = True
+                out.loc[rows, f"fault_type_{var}"] = "shield_failure"
+                out.loc[rows, f"event_id_{var}"] = eid
+
+            ts = out.loc[rows, "timestamp"]
+            for var in ("temp", "rh"):
+                events.append(Event(station, var, "shield_failure",
+                                    str(ts.iloc[0]), str(ts.iloc[-1]), dur,
+                                    round(peak, 4), 1))
+            eid += 1
+
+    return out, events, eid
+
+
 def inject(df: pd.DataFrame, events_per_station_year: float = 1.5,
            seed: int = 7, min_gap_h: int = 72) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Inject faults into a prepared frame. Returns (faulted_df, events_df).
@@ -223,6 +329,10 @@ def inject(df: pd.DataFrame, events_per_station_year: float = 1.5,
                                     round(amp, 4) if amp == amp else float("nan"),
                                     sign))
                 eid += 1
+
+    if "solar_hour" in out.columns:
+        out, events, eid = inject_shield_failure(out, events, eid,
+                                                 seed=seed + 4242)
 
     ev = pd.DataFrame([asdict(e) for e in events])
     if not ev.empty:
