@@ -29,7 +29,7 @@ import pandas as pd
 
 VARIABLES = ("temp", "rh", "pres")
 
-# Fault taxonomy is fixed by CLAUDE.md. `unknown` is an OUTPUT label only --
+# The taxonomy is fixed across the repo. `unknown` is an OUTPUT label only --
 # the detector may emit it; the injector never produces it.
 FAULT_TYPES = ("spike", "frozen", "dropout", "saturation",
                "step_offset", "calibration_drift", "noise_burst")

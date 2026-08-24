@@ -15,7 +15,7 @@ THE AXES ARE STRUCTURALLY DISTINCT, NOT MERELY DIFFERENT NUMBERS.
 
 A Mahalanobis distance over the three level axes alone is a POINT detector and
 is structurally blind to frozen, dropout, drift and noise burst -- four of seven
-fault classes (CLAUDE.md). The three shape axes are what make the learned stage
+fault classes. The three shape axes are what make the learned stage
 able to see them at all. That is why the vector is 6-dim and not 3-dim.
 
 WHAT IS DELIBERATELY ABSENT: dew point and specific humidity. Both are exact

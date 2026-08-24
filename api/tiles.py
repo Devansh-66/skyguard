@@ -1,38 +1,39 @@
-"""Basemap tile proxy with an on-disk cache.
+"""Basemap tiles and boundary overlay, proxied and cached on disk.
 
-WHY PROXY RATHER THAN LET THE BROWSER FETCH DIRECTLY
+WHY THESE TWO SOURCES, AND NOT A STREET MAP
 
-  * Same origin. The console is served by this app, so a proxied tile needs no
-    CORS grant and no tile-host allowlist.
-  * It works offline once warm. A demo on a projector with no wifi still draws
-    its basemap, which is the difference between a working demo and an apology.
-  * One place to set a correct User-Agent. OSM's tile usage policy requires an
-    identifying UA and forbids bulk downloading; a proxy makes that a single
-    line rather than a promise.
+This is the arrangement NCMRWF uses on its own operational dashboard
+(nwp.ncmrwf.gov.in), and the reasoning behind it is worth stating because it
+solves a problem that has no other clean answer.
 
-WHICH BASEMAP TO ACTUALLY SHIP -- READ THIS BEFORE THE SUBMISSION
+    basemap   Esri World Imagery   satellite photography -- no political lines
+                                   are drawn on it at all, so there are none to
+                                   get wrong
+    boundary  NCMRWF GeoServer     the national outline, served by a Ministry of
+                                   Earth Sciences body, i.e. the official
+                                   Government of India depiction
 
-The default below is OpenStreetMap, which is correct for DEVELOPMENT and wrong
-for delivery. OSM renders international boundaries by its own community
-convention, and its depiction of the boundaries of Jammu & Kashmir and Aksai
-Chin is not the official Government of India depiction. Shipping it inside a
-console submitted to MoES / IMD puts a foreign rendering of disputed frontiers
-on a government screen.
+Boundary depiction on Indian maps is regulated, and the depiction of Jammu &
+Kashmir and Aksai Chin by foreign community-mapped sources is not the official
+one. Putting such a rendering on a screen shown to MoES/IMD is a problem no
+accuracy number recovers from. Imagery carries no borders; the borders come from
+an Indian government server. Verified: an Esri World Imagery tile over Kashmir
+contains no lines or labels of any kind.
 
-For the submission use an Indian government source:
+Both are proxied rather than fetched by the browser directly, for the same three
+reasons as before: same origin, so no CORS; one place to set an identifying
+User-Agent; and a disk cache, so a demo on a projector with no wifi still draws
+its map once warm.
 
-    Bhuvan (ISRO)      https://bhuvan.nrsc.gov.in  -- WMS/WMTS, registration
-                       required, and it is the officially approved depiction.
-    Survey of India    https://onlinemaps.surveyofindia.gov.in
-
-Point SKYGUARD_TILE_URL at one of those and nothing else here changes. The
-default is deliberately loud about being a development default rather than
-quietly shipping.
+ATTRIBUTION IS NOT OPTIONAL. Esri's imagery service and NCMRWF's WMS both
+require acknowledgement on any map that uses them. The console prints both.
 """
 from __future__ import annotations
 import hashlib
+import math
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -40,86 +41,133 @@ from fastapi import APIRouter, HTTPException, Response
 
 router = APIRouter()
 
-# {z}/{x}/{y}. Override with SKYGUARD_TILE_URL -- see the warning above.
+# Esri takes /tile/{z}/{y}/{x} -- row before column, unlike the {z}/{x}/{y} of
+# most XYZ services. Getting this backwards produces a map that looks almost
+# right and is transposed, which is worse than one that fails.
 TILE_URL = os.environ.get(
     "SKYGUARD_TILE_URL",
-    "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+    "https://server.arcgisonline.com/ArcGIS/rest/services/"
+    "World_Imagery/MapServer/tile/{z}/{y}/{x}")
+
+# NCMRWF's own boundary layers, discovered from their GetCapabilities:
+#   ncmrwf:india_boundary   national outline
+#   ncmrwf:india_state      state polygons
+#   ncmrwf:state_boundary   state outlines
+#   ncmrwf:global_boundaries
+BOUNDARY_WMS = os.environ.get(
+    "SKYGUARD_BOUNDARY_WMS",
+    "https://api.ncmrwf.gov.in/geoserver/ncmrwf/wms")
+BOUNDARY_LAYER = os.environ.get("SKYGUARD_BOUNDARY_LAYER",
+                                "ncmrwf:india_boundary")
 
 CACHE = Path(os.environ.get("SKYGUARD_TILE_CACHE", "data/tilecache"))
 USER_AGENT = os.environ.get(
     "SKYGUARD_TILE_UA",
     "SkyGuard/1.0 (SIH 2026 PS26073 prototype; contact via repository)")
 
-MAX_ZOOM = 12          # a station network does not need building-level detail
-TIMEOUT = 8
+ATTRIBUTION = ("Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; "
+               "Boundary &copy; NCMRWF, Ministry of Earth Sciences")
+
+MAX_ZOOM = 12
+TIMEOUT = 12
+_R = 6378137.0                      # Web Mercator sphere radius
 
 
-def _path(z: int, x: int, y: int) -> Path:
-    key = hashlib.sha1(f"{TILE_URL}|{z}/{x}/{y}".encode()).hexdigest()
-    return CACHE / key[:2] / f"{key}.png"
-
-
-@router.get("/api/tiles/{z}/{x}/{y}.png")
-def tile(z: int, x: int, y: int) -> Response:
-    """One basemap tile, cached forever on disk.
+def _fetch(url: str, key: str) -> bytes:
+    """Fetch once, then serve from disk forever.
 
     Tiles for a fixed area do not change on any timescale this project cares
-    about, so a cached tile is never revalidated. That is what makes the
-    offline demo work.
+    about, so a cached tile is never revalidated. That is what makes the offline
+    demo work.
     """
-    if not (0 <= z <= MAX_ZOOM) or not (0 <= x < 2 ** z) or not (0 <= y < 2 ** z):
-        raise HTTPException(400, "tile coordinates out of range")
-
-    p = _path(z, x, y)
+    p = CACHE / key[:2] / f"{key}.img"
     if p.exists():
-        return Response(p.read_bytes(), media_type="image/png",
-                        headers={"Cache-Control": "public, max-age=31536000",
-                                 "X-Tile-Cache": "hit"})
-
-    url = TILE_URL.format(z=z, x=x, y=y)
+        return p.read_bytes()
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
             data = r.read()
-    except (urllib.error.URLError, TimeoutError) as exc:
-        # 503, not 500: the upstream is unreachable, which is a normal state on
-        # a machine with no network. The console treats it as "no basemap" and
-        # falls back rather than showing an error.
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        # 503, not 500: an unreachable upstream is a normal state on a machine
+        # with no network, and the console treats it as "no basemap" rather
+        # than an error.
         raise HTTPException(503, f"tile upstream unavailable: {exc}") from exc
-
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_bytes(data)
+    return data
+
+
+def _check(z: int, x: int, y: int) -> None:
+    if not (0 <= z <= MAX_ZOOM) or not (0 <= x < 2 ** z) or not (0 <= y < 2 ** z):
+        raise HTTPException(400, "tile coordinates out of range")
+
+
+def _tile_bbox_3857(z: int, x: int, y: int) -> tuple[float, float, float, float]:
+    """Web Mercator metre bounds of an XYZ tile -- what a WMS GetMap needs."""
+    span = 2 * math.pi * _R / (2 ** z)
+    minx = -math.pi * _R + x * span
+    maxy = math.pi * _R - y * span
+    return (minx, maxy - span, minx + span, maxy)
+
+
+@router.get("/api/tiles/{z}/{x}/{y}.png")
+def tile(z: int, x: int, y: int) -> Response:
+    """One basemap tile."""
+    _check(z, x, y)
+    url = TILE_URL.format(z=z, x=x, y=y)
+    key = hashlib.sha1(f"base|{url}".encode()).hexdigest()
+    data = _fetch(url, key)
+    return Response(data, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=31536000"})
+
+
+@router.get("/api/boundary/{z}/{x}/{y}.png")
+def boundary(z: int, x: int, y: int) -> Response:
+    """One boundary tile, rendered by NCMRWF's WMS for this tile's extent."""
+    _check(z, x, y)
+    bbox = ",".join(f"{v:.6f}" for v in _tile_bbox_3857(z, x, y))
+    q = urllib.parse.urlencode({
+        "service": "WMS", "request": "GetMap", "version": "1.1.1",
+        "layers": BOUNDARY_LAYER, "styles": "",
+        "format": "image/png", "transparent": "true",
+        "srs": "EPSG:3857", "width": 256, "height": 256, "bbox": bbox,
+    })
+    url = f"{BOUNDARY_WMS}?{q}"
+    key = hashlib.sha1(f"bnd|{url}".encode()).hexdigest()
+    data = _fetch(url, key)
     return Response(data, media_type="image/png",
-                    headers={"Cache-Control": "public, max-age=31536000",
-                             "X-Tile-Cache": "miss"})
+                    headers={"Cache-Control": "public, max-age=31536000"})
 
 
 @router.get("/api/tiles/status")
 def status() -> dict:
-    """Whether a basemap is available, and how much of it is already cached.
+    """Whether a basemap is available, and how much is already cached.
 
-    The console asks this before offering the tile view, so it never presents a
-    map mode that will render blank.
+    The console asks before offering the tile view, so it never presents a map
+    mode that will render blank.
     """
-    n = sum(1 for _ in CACHE.rglob("*.png")) if CACHE.exists() else 0
-    official = "bhuvan" in TILE_URL.lower() or "surveyofindia" in TILE_URL.lower()
-    try:
-        req = urllib.request.Request(TILE_URL.format(z=3, x=5, y=3),
-                                     headers={"User-Agent": USER_AGENT})
-        with urllib.request.urlopen(req, timeout=4) as r:
-            reachable = r.status == 200
-    except Exception:
-        reachable = False
+    n = sum(1 for _ in CACHE.rglob("*.img")) if CACHE.exists() else 0
+    reachable = {}
+    for name, probe in (("basemap", TILE_URL.format(z=4, x=11, y=7)),
+                        ("boundary", f"{BOUNDARY_WMS}?service=WMS&request=GetMap"
+                                     "&version=1.1.1&layers=" + BOUNDARY_LAYER +
+                                     "&styles=&format=image/png&transparent=true"
+                                     "&srs=EPSG:4326&width=64&height=64"
+                                     "&bbox=68,6,98,38")):
+        try:
+            req = urllib.request.Request(probe, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(req, timeout=6) as r:
+                reachable[name] = r.status == 200
+        except Exception:
+            reachable[name] = False
     return {
-        "available": reachable or n > 0,
+        "available": any(reachable.values()) or n > 0,
         "upstream_reachable": reachable,
         "cached_tiles": n,
-        "source": TILE_URL,
-        "official_indian_source": official,
-        "warning": None if official else (
-            "Development basemap. OpenStreetMap's depiction of the boundaries "
-            "of Jammu & Kashmir and Aksai Chin is not the official Government "
-            "of India depiction. Set SKYGUARD_TILE_URL to a Bhuvan (ISRO) or "
-            "Survey of India endpoint before submitting."),
+        "basemap": TILE_URL,
+        "boundary_wms": BOUNDARY_WMS,
+        "boundary_layer": BOUNDARY_LAYER,
+        "attribution": ATTRIBUTION,
+        "official_indian_boundary_source": "ncmrwf.gov.in" in BOUNDARY_WMS,
         "max_zoom": MAX_ZOOM,
     }

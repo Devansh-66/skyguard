@@ -90,7 +90,6 @@ explaining various use cases.* Not a prototype and slides.
 
 | File | For |
 | --- | --- |
-| [`CLAUDE.md`](CLAUDE.md) | **Read first.** Hard rules, known-wrong things, conventions, what needs human verification. Written for teammates *and* AI agents. |
 | [`docs/BLUEPRINT.md`](docs/BLUEPRINT.md) | Full plan — physics, ML layer, explainability, health model, dashboard, evaluation, traps |
 | [`docs/blueprint.html`](docs/blueprint.html) | Same, with architecture diagrams, the transformation chain, the accuracy figure and dashboard wireframes. Open locally. |
 

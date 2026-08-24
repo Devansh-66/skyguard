@@ -146,7 +146,7 @@ def main() -> None:
                                (p.probability >= 0.7)).mean()), 2)})
     print(pd.DataFrame(out).to_string(index=False))
     print("\n`abstained` is the good column. `confidently_wrong` is the model\n"
-          "asserting a cause it has no basis for -- the failure CLAUDE.md rule 7\n"
+          "asserting a cause it has no basis for -- the failure that\n"
           "exists to prevent.")
 
 

@@ -17,7 +17,8 @@ import pandas as pd
 
 # MAD floor. On 0.1-resolution data the MAD hits exactly zero on calm nights and
 # the z-score goes to infinity, flagging the quietest hours of the year. The
-# floor is a fraction of the logger resolution, per CLAUDE.md rule 5.
+# floor is a fraction of the logger resolution: on quantised data the MAD
+# hits exactly zero on a calm night and the z-score goes infinite.
 MAD_FLOOR_C = 0.75
 RESOLUTION = {"temp": 0.1, "rh": 0.1, "pres": 0.1}
 
@@ -58,7 +59,7 @@ def harmonic_baseline(g: pd.DataFrame, var: str) -> np.ndarray:
     """Design matrix: 2 diurnal + 2 annual harmonics, ~9 parameters.
 
     Indexed by LOCAL SOLAR hour, not IST -- India spans two hours of solar time
-    and an IST bin smears the diurnal cycle (CLAUDE.md rule 3).
+    and an IST bin smears the diurnal cycle across that span.
     """
     sh, doy = g.solar_hour.to_numpy(), g.doy.to_numpy()
     cols = [np.ones(len(g))]
@@ -73,7 +74,7 @@ def _huber_irls(X: np.ndarray, y: np.ndarray, c: float = 1.345,
                 iters: int = 12) -> np.ndarray:
     """Huber regression by IRLS. Robust because the reference period contains
     UNLABELLED faults -- an OLS climatology fits the very drift it is meant to
-    expose (CLAUDE.md rule 6)."""
+    expose."""
     beta, *_ = np.linalg.lstsq(X, y, rcond=None)
     for _ in range(iters):
         r = y - X @ beta

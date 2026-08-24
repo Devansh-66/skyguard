@@ -14,7 +14,7 @@ them what to put in it.
 HOW IT WORKS. Each detected window is reduced to eight shape descriptors, and
 each fault class is a template over those descriptors. The classifier scores
 every template and takes the best -- but only if it beats the runner-up by a
-margin. Otherwise it returns `unknown`, per CLAUDE.md rule 7: a confidently
+margin. Otherwise it returns `unknown`: a confidently
 wrong root cause destroys operator trust faster than an honest "cause
 unclassified", and an operator who stops believing the labels stops reading the
 alerts at all.

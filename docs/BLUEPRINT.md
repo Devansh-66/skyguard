@@ -7,7 +7,6 @@
 > figure, and the three dashboard wireframes. This Markdown digest holds the substance
 > for reading on GitHub and for agent consumption.
 >
-> Operating rules for anyone writing code: [`../CLAUDE.md`](../CLAUDE.md)
 
 ---
 

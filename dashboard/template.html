@@ -4,6 +4,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
 
 <style>
+/*__LEAFLET_CSS__*/
 :root{
   /* Single committed light theme -- no dark variant, by request. The page
      therefore paints every colour explicitly rather than inheriting anything
@@ -127,6 +128,10 @@ main{
   letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2);
 }
 .mapbox canvas{border:1px solid var(--line); border-radius:5px; cursor:pointer}
+#lmap{height:420px; border:1px solid var(--line); border-radius:5px; background:var(--surface-2)}
+.mapattrib{font-size:10px; color:var(--ink-3); margin-top:4px; text-align:right}
+.leaflet-container{font:inherit; background:var(--surface-2)}
+.leaflet-tooltip{font-family:"IBM Plex Sans",sans-serif; font-size:11.5px}
 .clockbar{
   display:flex; align-items:center; gap:14px; flex-wrap:wrap;
   padding:9px 22px; background:var(--surface);
@@ -264,7 +269,7 @@ footer{padding:14px 22px; border-top:1px solid var(--line); background:var(--sur
     <label class="ctl-lab">View
       <select id="mapview" aria-label="Map extent">
         <option value="basemap" selected>All India</option>
-        <option value="regional">By region</option>
+        <option value="regional">Fit to region</option>
       </select>
     </label>
     <label class="ctl-lab">Colour
@@ -306,6 +311,14 @@ footer{padding:14px 22px; border-top:1px solid var(--line); background:var(--sur
 <footer id="foot"></footer>
 
 <script>
+/*__LEAFLET_JS__*/
+
+// NCMRWF's india_boundary layer, fetched from their GeoServer WFS and
+// simplified to ~1.1 km (area change 0.011%). Embedded so the border
+// still draws when no tile server is reachable -- and so the border that
+// draws is the official one rather than something we invented.
+const BOUNDARY = /*__BOUNDARY__*/null;
+
 // Build-time substitution. dashboard/build.py replaces the token below with
 // the contents of snapshot.json, producing console.html.
 //
@@ -601,286 +614,35 @@ function attachHover(cv, geo, t, series, dseries, unit){
 
 /* --------------------------------------------------------------------- map */
 //
-// A borderless coordinate plot, not a slippy map. Two reasons, both hard.
+// Leaflet, with the same two sources NCMRWF uses on its own operational
+// dashboard (nwp.ncmrwf.gov.in) -- verified by reading its network traffic:
 //
-//   1. Boundary depiction on Indian maps is regulated by Survey of India. This
-//      is an MoES/IMD submission and an approximate national outline near a
-//      disputed frontier is a legal problem, not a styling choice. So no
-//      outline is drawn at all -- a graticule and a scale bar carry the
-//      geography that matters here without asserting a border.
-//   2. The artifact runs under a CSP that blocks every external host, so no
-//      tile server is reachable. A basemap would be a grey rectangle.
+//   basemap   Esri World Imagery, satellite photography. It carries NO drawn
+//             boundaries at all, so there are none to get wrong. Confirmed by
+//             fetching a tile over Kashmir: terrain and snow, not one line.
+//   boundary  ncmrwf:india_boundary from NCMRWF's own GeoServer -- the official
+//             Government of India depiction, served by a Ministry of Earth
+//             Sciences body.
 //
-// What the map is FOR: the neighbour graph. The edges show which stations are
-// compared against which, so an operator can see at a glance whether an
-// excursion is isolated (one dot diverging while its neighbours sit still --
-// a fault) or shared (the whole cluster moving together -- weather). That is
-// the distinction PS26073 is about, and three stacked traces cannot show it.
+// That pairing is the answer to a problem with no other clean solution.
+// Boundary depiction on Indian maps is regulated, and a community-mapped
+// rendering of Jammu & Kashmir or Aksai Chin on a screen shown to MoES is a
+// problem no accuracy number recovers from. NCMRWF appear to have reached the
+// same conclusion; we are copying their homework, and saying so.
+//
+// Leaflet is VENDORED, not loaded from a CDN. The published artifact runs under
+// a CSP that blocks every external host, so a CDN import would leave a blank
+// rectangle for anyone opening the shared link. Same reason the boundary is
+// also embedded as simplified GeoJSON: when no tile server is reachable the map
+// still draws the coastline and the border from an official source.
 
-let mapView = "basemap";
+let map = null, stationLayer = null, edgeLayer = null, boundaryLayer = null;
 let mapColour = "temp";
+let tilesOK = null;
 
-// India's bounding box. This is an EXTENT, not an outline -- it frames the
-// coordinate space so the two clusters sit in their true relative positions and
-// you can see that Assam is 1,700 km east of Maharashtra. No boundary is drawn.
-//
-// If an officially approved outline is ever supplied (Survey of India, or
-// data.gov.in), drop its rings into INDIA_OUTLINE as [[lon,lat],...] arrays and
-// they will be stroked automatically. Nothing here invents one.
-const INDIA_EXTENT = {lat:[6.5, 37.5], lon:[67.5, 97.5]};
-const INDIA_OUTLINE = [];
-
-/* ------------------------------------------------------- slippy basemap ---
- * A tile map written out rather than pulled in. Leaflet or MapLibre would do
- * this too, but both are external scripts, and the artifact CSP blocks every
- * external host -- a CDN import would leave a blank rectangle for anyone
- * reading the published page. The Web Mercator maths below is about forty
- * lines, so the page stays dependency-free and works in both places.
- *
- * Tiles come from this app's own /api/tiles proxy: same origin, disk-cached,
- * and therefore still drawing after the wifi dies.
- *
- * BASEMAP PROVENANCE. The development default is OpenStreetMap, whose
- * depiction of the boundaries of Jammu & Kashmir and Aksai Chin is NOT the
- * official Government of India depiction. The console says so on screen. For
- * an MoES/IMD submission, point SKYGUARD_TILE_URL at Bhuvan (ISRO) or Survey
- * of India; nothing in this file changes.
- */
-const TILE = 256;
-let tilesOK = null;                     // null = not yet asked
-let tileWarning = null;
-let view = {lat: 22.6, lon: 80.0, zoom: 4};
-const tileCache = new Map();
-let tileRedraw = null;
-
-// The live tile canvas and its hit list.
-//
-// Panning used to call renderMaps(), which rebuilds the #maps innerHTML. That
-// destroys the very canvas the pointer is captured on, so the drag state died
-// after one frame and the map would not move -- only the wheel worked, because
-// a wheel gesture completes inside a single event. Redrawing IN PLACE keeps the
-// element, the capture, and the closure alive for the whole gesture.
-let tileCanvas = null, tileGroup = [], tileHits = [];
-
-function redrawTiles(){
-  if (!tileCanvas || !tileCanvas.isConnected){ renderMaps(); return; }
-  tileHits = drawTileMap(tileCanvas, tileGroup, current);
-}
-
-function lon2world(lon, z){ return (lon + 180) / 360 * TILE * Math.pow(2, z); }
-function lat2world(lat, z){
-  const r = lat * Math.PI / 180;
-  return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI)
-         / 2 * TILE * Math.pow(2, z);
-}
-function world2lon(x, z){ return x / (TILE * Math.pow(2, z)) * 360 - 180; }
-function world2lat(y, z){
-  const n = Math.PI - 2 * Math.PI * y / (TILE * Math.pow(2, z));
-  return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
-}
-
-async function probeTiles(){
-  if (!LIVE){ tilesOK = false; return false; }
-  try {
-    const r = await fetch(`${API}/api/tiles/status`, {cache:"no-store"});
-    const j = await r.json();
-    tilesOK = !!j.available;
-    tileWarning = j.warning;
-    return tilesOK;
-  } catch { tilesOK = false; return false; }
-}
-
-function getTile(z, x, y, onload){
-  const key = `${z}/${x}/${y}`;
-  if (tileCache.has(key)) return tileCache.get(key);
-  const img = new Image();
-  img.onload = onload;
-  img.onerror = () => { img.failed = true; };
-  img.src = `${API}/api/tiles/${z}/${x}/${y}.png`;
-  tileCache.set(key, img);
-  return img;
-}
-
-function drawTileMap(cv, group, sel){
-  const dpr = window.devicePixelRatio || 1;
-  const W = cv.clientWidth, H = 420;
-  cv.width = W*dpr; cv.height = H*dpr;
-  const g = cv.getContext("2d"); g.scale(dpr,dpr);
-  g.fillStyle = css("--surface-2"); g.fillRect(0,0,W,H);
-
-  const z = Math.round(view.zoom);
-  const cxw = lon2world(view.lon, z), cyw = lat2world(view.lat, z);
-  const ox = cxw - W/2, oy = cyw - H/2;
-  const n = Math.pow(2, z);
-
-  clearTimeout(tileRedraw);
-  const again = () => {
-    clearTimeout(tileRedraw);
-    tileRedraw = setTimeout(redrawTiles, 60);
-  };
-
-  for (let tx = Math.floor(ox/TILE); tx <= Math.floor((ox+W)/TILE); tx++){
-    for (let ty = Math.floor(oy/TILE); ty <= Math.floor((oy+H)/TILE); ty++){
-      if (ty < 0 || ty >= n) continue;
-      const img = getTile(z, ((tx % n) + n) % n, ty, again);
-      if (img.complete && !img.failed)
-        g.drawImage(img, tx*TILE - ox, ty*TILE - oy, TILE, TILE);
-    }
-  }
-
-  const X = lon => lon2world(lon, z) - ox;
-  const Y = lat => lat2world(lat, z) - oy;
-
-  // Neighbour edges, over the basemap. This is the reason for the map: the
-  // edges show who is compared against whom, and the fills show who is
-  // currently disagreeing.
-  const drawn = new Set();
-  g.strokeStyle = "rgba(36,63,168,.75)"; g.lineWidth = 2;
-  for (const s of group){
-    for (const nb of (DATA.neighbours[s.name] || [])){
-      const o = group.find(q => q.name === nb);
-      if (!o) continue;
-      const k = [s.name, nb].sort().join("|");
-      if (drawn.has(k)) continue;
-      drawn.add(k);
-      g.beginPath(); g.moveTo(X(s.longitude), Y(s.latitude));
-      g.lineTo(X(o.longitude), Y(o.latitude)); g.stroke();
-    }
-  }
-
-  const hits = [];
-  for (const s of group){
-    const x = X(s.longitude), y = Y(s.latitude);
-    if (x < -40 || x > W+40 || y < -40 || y > H+40) continue;
-    const st = s.health.station;
-    const hcol = css("--" + ({HEALTHY:"ok", WATCH:"watch", DEGRADING:"degrade",
-                              SUSPECT:"suspect", FAILED:"failed"}[st]));
-    const zz = mapColour === "health" ? null : divergence(s, mapColour);
-    const r = st === "HEALTHY" ? 6 : 8;
-
-    if (s.name === sel){
-      g.strokeStyle = css("--accent"); g.lineWidth = 2.5;
-      g.beginPath(); g.arc(x, y, r+5, 0, 2*Math.PI); g.stroke();
-    }
-    g.fillStyle = mapColour === "health" ? hcol : rampColour(zz);
-    g.beginPath(); g.arc(x, y, r, 0, 2*Math.PI); g.fill();
-    g.strokeStyle = mapColour === "health" ? "#fff" : hcol;
-    g.lineWidth = st === "HEALTHY" ? 2 : 3;
-    g.stroke();
-
-    // Label with a halo. Over photographic or coloured tiles plain text is
-    // unreadable about a third of the time, and which third depends on where
-    // the user has panned.
-    const nm = s.name.replace(/_/g," ").replace("Mumbai ","");
-    g.font = "600 11px 'IBM Plex Sans'"; g.textAlign = "center";
-    g.lineWidth = 3; g.strokeStyle = "rgba(255,255,255,.9)";
-    g.strokeText(nm, x, y - r - 6);
-    g.fillStyle = "#161C33"; g.fillText(nm, x, y - r - 6);
-    if (zz !== null){
-      const t = (zz >= 0 ? "+" : "") + zz.toFixed(1) + "\u03c3";
-      g.font = "600 10px 'IBM Plex Mono'";
-      g.lineWidth = 3; g.strokeStyle = "rgba(255,255,255,.9)";
-      g.strokeText(t, x, y + r + 12);
-      g.fillStyle = "#161C33"; g.fillText(t, x, y + r + 12);
-    }
-    hits.push({name: s.name, x, y, r: r + 7});
-  }
-
-  // Attribution is a licence condition for OSM, not decoration.
-  g.font = "9.5px 'IBM Plex Sans'"; g.textAlign = "right";
-  g.fillStyle = "rgba(255,255,255,.85)";
-  g.fillRect(W-186, H-15, 182, 13);
-  g.fillStyle = "#4A5470";
-  g.fillText("Basemap \u00a9 OpenStreetMap contributors", W-6, H-5);
-
-  return hits;
-}
-
-function wirePanZoom(cv, group){
-  let drag = null;
-  // Set when a gesture turns out to be a pan, cleared on the next pointerdown.
-  // A flag that only clears when a click arrives is worse than none: drag once
-  // without clicking and it silently eats the following genuine click.
-  // pointerdown always precedes click, so resetting there is self-cleaning.
-  let suppressClick = false;
-
-  // Click-to-select lives here rather than in wireMap, because it has to read
-  // the CURRENT hit list -- the dots move under the pointer as you pan, and a
-  // handler closed over a stale array selects whatever used to be there.
-  cv.onclick = (e) => {
-    if (suppressClick) return;
-    const r = cv.getBoundingClientRect();
-    const px = e.clientX - r.left, py = e.clientY - r.top;
-    let h = null, best = Infinity;
-    for (const o of tileHits){
-      const d = Math.hypot(o.x-px, o.y-py);
-      if (d <= o.r && d < best){ best = d; h = o; }
-    }
-    if (h){ current = h.name; openAlert = null; render(); }
-  };
-
-  cv.onpointerdown = (e) => {
-    drag = {x: e.clientX, y: e.clientY, lat: view.lat, lon: view.lon, moved: 0};
-    suppressClick = false;
-    cv.setPointerCapture(e.pointerId);
-    cv.style.cursor = "grabbing";
-  };
-  cv.onpointermove = (e) => {
-    if (!drag){
-      const r = cv.getBoundingClientRect();
-      const px = e.clientX - r.left, py = e.clientY - r.top;
-      cv.style.cursor = tileHits.some(o => Math.hypot(o.x-px, o.y-py) <= o.r)
-        ? "pointer" : "grab";
-      return;
-    }
-    const z = Math.round(view.zoom);
-    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
-    view.lon = world2lon(lon2world(drag.lon, z) - dx, z);
-    view.lat = world2lat(lat2world(drag.lat, z) - dy, z);
-    redrawTiles();
-  };
-  const endDrag = (e) => {
-    if (drag && drag.moved > 4) suppressClick = true;   // a pan is not a click
-    drag = null;
-    cv.style.cursor = "grab";
-    try { cv.releasePointerCapture(e.pointerId); } catch {}
-  };
-  cv.onpointerup = endDrag;
-  // Releasing outside the canvas, or the browser stealing the gesture, must
-  // still end the drag -- otherwise the map sticks to the cursor.
-  cv.onpointercancel = endDrag;
-  cv.onlostpointercapture = endDrag;
-  cv.onwheel = (e) => {
-    e.preventDefault();
-    // Zoom about the cursor, not the centre. Zooming about the centre makes a
-    // map feel like it is fighting you.
-    const r = cv.getBoundingClientRect();
-    const z = Math.round(view.zoom);
-    const px = e.clientX - r.left, py = e.clientY - r.top;
-    const lonAt = world2lon(lon2world(view.lon, z) - r.width/2 + px, z);
-    const latAt = world2lat(lat2world(view.lat, z) - 420/2 + py, z);
-    view.zoom = Math.max(3, Math.min(11, view.zoom + (e.deltaY < 0 ? 1 : -1)));
-    const nz = Math.round(view.zoom);
-    view.lon = world2lon(lon2world(lonAt, nz) + r.width/2 - px, nz);
-    view.lat = world2lat(lat2world(latAt, nz) + 420/2 - py, nz);
-    redrawTiles();
-  };
-}
-
-function fitTo(group){
-  if (!group.length) return;
-  const lats = group.map(s => s.latitude), lons = group.map(s => s.longitude);
-  view.lat = (Math.min(...lats) + Math.max(...lats)) / 2;
-  view.lon = (Math.min(...lons) + Math.max(...lons)) / 2;
-  const spread = Math.max(Math.max(...lats)-Math.min(...lats),
-                          Math.max(...lons)-Math.min(...lons)) || 1;
-  view.zoom = Math.max(3, Math.min(9, Math.round(Math.log2(200 / spread))));
-}
-
-// Divergence from neighbours, in sigma, at the latest sample in view. Signed on
+// Divergence from neighbours in sigma, at the latest sample in view. Signed on
 // purpose: "warmer than its neighbours" and "colder than its neighbours" are
-// different faults, and an absolute value throws that away.
+// different faults and an absolute value throws that away.
 function divergence(s, varname){
   const d = s.series && s.series["d_" + varname];
   if (!d) return null;
@@ -889,241 +651,140 @@ function divergence(s, varname){
   return null;
 }
 
-// Blue below, orange above, paper in the middle. Both ends are the palette's own
-// ink and alert colours, so the map stays in the same visual language as the
-// traces instead of importing a rainbow.
+// Blue below, paper in the middle, orange above -- the palette's own ink and
+// alert colours, so the map stays in the same visual language as the traces
+// rather than importing a rainbow.
 function rampColour(z){
-  if (z === null || !isFinite(z)) return css("--trace-2");
+  if (z === null || !isFinite(z)) return "#B9C2D2";
   const t = Math.max(-1, Math.min(1, z / 3));
   const mid = [242, 236, 231];
   const end = t < 0 ? [36, 63, 168] : [194, 80, 28];
   const k = Math.abs(t);
-  return "rgb(" + mid.map(function(m, i){
-    return Math.round(m + (end[i] - m) * k); }).join(",") + ")";
+  return "rgb(" + mid.map((m, i) => Math.round(m + (end[i] - m) * k)).join(",") + ")";
 }
 
-function drawMap(cv, group, sel, extent){
-  const dpr = window.devicePixelRatio || 1;
-  const W = cv.clientWidth, H = extent ? 340 : 210;
-  cv.width = W*dpr; cv.height = H*dpr;
-  const g = cv.getContext("2d"); g.scale(dpr,dpr);
-  g.clearRect(0,0,W,H);
-
-  const P = 30;
-  const lats = extent ? extent.lat : group.map(s => s.latitude);
-  const lons = extent ? extent.lon : group.map(s => s.longitude);
-  const latMid = (Math.min(...lats)+Math.max(...lats))/2;
-  // Equirectangular with a cos(lat) correction on x, so a degree of longitude
-  // is drawn the length it actually is at this latitude. Without it Assam looks
-  // 10 % wider than it is and the neighbour distances read wrong.
-  const kx = Math.cos(latMid*Math.PI/180);
-  const xs = lons.map(l => l*kx), ys = lats;
-  let x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
-  const padX=(x1-x0||0.5)*0.22, padY=(y1-y0||0.5)*0.22;
-  x0-=padX; x1+=padX; y0-=padY; y1+=padY;
-  const sc = Math.min((W-2*P)/(x1-x0), (H-2*P)/(y1-y0));
-  const cx = (W-(x1-x0)*sc)/2, cy = (H-(y1-y0)*sc)/2;
-  const X = lon => cx + (lon*kx - x0)*sc;
-  const Y = lat => cy + (y1 - lat)*sc;
-
-  // Graticule. Whole degrees is far too dense across a 31-degree national
-  // frame, so the step follows the extent.
-  const step = (y1 - y0) > 12 ? 5 : 1;
-  g.strokeStyle = css("--rule"); g.lineWidth = 1;
-  g.fillStyle = css("--ink-3"); g.font = "9px 'IBM Plex Mono'";
-  for (let la = Math.ceil(y0/step)*step; la <= y1; la += step){
-    const y = Math.round(Y(la))+0.5;
-    g.beginPath(); g.moveTo(4, y); g.lineTo(W-4, y); g.stroke();
-    g.textAlign = "left"; g.fillText(la+"°N", 5, y-3);
-  }
-  for (let lo = Math.ceil(x0/kx/step)*step; lo <= x1/kx; lo += step){
-    const x = Math.round(X(lo))+0.5;
-    g.beginPath(); g.moveTo(x, 4); g.lineTo(x, H-4); g.stroke();
-    g.textAlign = "center"; g.fillText(lo+"°E", x, H-5);
-  }
-
-  // An officially supplied outline, if there is one. Never invented here.
-  if (INDIA_OUTLINE.length){
-    g.strokeStyle = css("--ink-3"); g.lineWidth = 1;
-    for (const ring of INDIA_OUTLINE){
-      g.beginPath();
-      ring.forEach(function(pt, i){
-        i ? g.lineTo(X(pt[0]), Y(pt[1])) : g.moveTo(X(pt[0]), Y(pt[1])); });
-      g.stroke();
-    }
-  }
-
-  // neighbour edges, drawn once per undirected pair
-  const drawn = new Set();
-  g.strokeStyle = css("--trace-2"); g.lineWidth = 1.4;
-  for (const s of group){
-    for (const n of (DATA.neighbours[s.name] || [])){
-      const other = group.find(o => o.name === n);
-      if (!other) continue;
-      const key = [s.name, n].sort().join("|");
-      if (drawn.has(key)) continue;
-      drawn.add(key);
-      g.beginPath();
-      g.moveTo(X(s.longitude), Y(s.latitude));
-      g.lineTo(X(other.longitude), Y(other.latitude));
-      g.stroke();
-    }
-  }
-
-  // scale bar -- the honest substitute for a coastline. Without some distance
-  // reference the plot is unitless and a viewer cannot tell 40 km from 400.
-  const kmPerDeg = 111.32;
-  const target = (x1-x0)/kx*kmPerDeg*0.3;
-  const nice = [10,20,50,100,200,500].reduce((a,b) =>
-    Math.abs(b-target) < Math.abs(a-target) ? b : a);
-  const px = nice/kmPerDeg*kx*sc;
-  g.strokeStyle = css("--ink-2"); g.lineWidth = 1.5;
-  g.beginPath(); g.moveTo(W-P-px, H-14); g.lineTo(W-P, H-14); g.stroke();
-  g.beginPath(); g.moveTo(W-P-px, H-17); g.lineTo(W-P-px, H-11);
-  g.moveTo(W-P, H-17); g.lineTo(W-P, H-11); g.stroke();
-  g.fillStyle = css("--ink-2"); g.textAlign = "center"; g.font = "9.5px 'IBM Plex Mono'";
-  g.fillText(nice+" km", W-P-px/2, H-20);
-
-  // stations
-  const hit = [];
-  for (const s of group){
-    const x = X(s.longitude), y = Y(s.latitude);
-    const st = s.health.station;
-    const hcol = css("--" + ({HEALTHY:"ok", WATCH:"watch", DEGRADING:"degrade",
-                              SUSPECT:"suspect", FAILED:"failed"}[st]));
-    const z = mapColour === "health" ? null : divergence(s, mapColour);
-    const r = st === "HEALTHY" ? 5 : 7;
-
-    if (s.name === sel){
-      g.strokeStyle = css("--accent"); g.lineWidth = 2;
-      g.beginPath(); g.arc(x, y, r+4.5, 0, 2*Math.PI); g.stroke();
-    }
-
-    // Fill carries the LIVE divergence, the ring carries the STICKY health.
-    // They are different objects and the console must not merge them:
-    // observation flags are per timestamp and ephemeral, sensor health is per
-    // probe and slow. One bad hour must not turn a station red.
-    g.fillStyle = mapColour === "health" ? hcol : rampColour(z);
-    g.beginPath(); g.arc(x, y, r, 0, 2*Math.PI); g.fill();
-    g.strokeStyle = mapColour === "health" ? css("--surface") : hcol;
-    g.lineWidth = st === "HEALTHY" ? 1.5 : 2.5;
-    g.stroke();
-
-    g.fillStyle = css("--ink");
-    g.font = (extent ? "9px" : "10px") + " 'IBM Plex Sans'";
-    g.textAlign = "center";
-    const nm = s.name.replace(/_/g," ").replace("Mumbai ","");
-    g.fillText(nm, x, y - r - 5);
-    if (!extent && z !== null){
-      g.font = "9px 'IBM Plex Mono'"; g.fillStyle = css("--ink-2");
-      g.fillText((z >= 0 ? "+" : "") + z.toFixed(1) + "\u03c3", x, y + r + 11);
-    }
-    hit.push({name: s.name, x, y, r: r + 6});
-  }
-  return hit;
+async function probeTiles(){
+  if (!LIVE){ tilesOK = false; return false; }
+  try {
+    const r = await fetch(`${API}/api/tiles/status`, {cache:"no-store"});
+    const j = await r.json();
+    tilesOK = !!j.available;
+    return tilesOK;
+  } catch { tilesOK = false; return false; }
 }
 
 function legendHTML(){
   if (mapColour === "health")
-    return `<div class="maplegend">Dot colour: sensor health &middot;
-      thicker ring: degraded</div>`;
+    return `<div class="maplegend">Dot colour: sensor health &middot; ring: degraded</div>`;
   const u = {temp:"temperature", rh:"humidity", pres:"pressure"}[mapColour];
   return `<div class="maplegend">
     <span>&minus;3&sigma; below</span>
     <span class="rampbar" style="background:linear-gradient(90deg,
       ${rampColour(-3)}, ${rampColour(0)}, ${rampColour(3)})"></span>
     <span>+3&sigma; above</span>
-    <span style="margin-left:10px">fill = ${esc(u)} vs neighbours right now
+    <span style="margin-left:10px">fill = ${esc(u)} vs neighbours now
       &middot; ring = sticky sensor health</span>
   </div>`;
 }
+
+const HEALTH_COLOUR = {HEALTHY:"ok", WATCH:"watch", DEGRADING:"degrade",
+                       SUSPECT:"suspect", FAILED:"failed"};
 
 function renderMaps(){
   const shown = DATA.stations.filter(s =>
     (stateFilter === "all" || s.state === stateFilter) && s.latitude != null);
 
-  if (mapView === "basemap"){
-    if (tilesOK === false){
-      // Only when a basemap is genuinely impossible -- the published artifact
-      // runs under a CSP that blocks every external host, so there is no tile
-      // anywhere to draw. The coordinate plot is a last resort here, not an
-      // equal alternative, and the notice says which.
-      $("maps").innerHTML =
-        `<div class="maplegend tilewarn" style="margin:0 0 10px;flex:1 1 100%">`
-        + `Basemap unavailable &mdash; ${LIVE
-             ? "the tile proxy could not reach its upstream."
-             : "this is the published static page, which cannot load map tiles. "
-               + "Run the API to see the real map."} `
-        + `Showing a plain coordinate plot instead.</div>`
-        + `<div class="mapbox" style="flex:1 1 100%">
-             <canvas id="map-national"></canvas></div>` + legendHTML();
-      const cvp = $("map-national");
-      wireMap(cvp, drawMap(cvp, shown, current, INDIA_EXTENT));
-      return;
-    } else {
-      $("maps").innerHTML =
-        `<div class="mapbox" style="flex:1 1 100%">
-           <h4>Station network &mdash; drag to pan, scroll to zoom</h4>
-           <canvas id="map-tiles"></canvas></div>`
-        + legendHTML()
-        + (tileWarning ? `<div class="maplegend tilewarn">${esc(tileWarning)}</div>` : "");
-      tileCanvas = $("map-tiles");
-      tileGroup = shown;
-      tileHits = drawTileMap(tileCanvas, tileGroup, current);
-      wirePanZoom(tileCanvas, shown);       // owns click, hover, pan and zoom
-      tileCanvas.style.cursor = "grab";
-      tileCanvas.style.touchAction = "none";  // let the pointer events through
-      return;
-    }
-  }
-
-  if (mapView === "national"){
+  // Rebuild from scratch if the tile availability changed since last time.
+  if (map && map._skyguardTiles !== tilesOK){ map.remove(); map = null; }
+  if (!map){
     $("maps").innerHTML =
       `<div class="mapbox" style="flex:1 1 100%">
-         <h4>All India &mdash; ${shown.length} stations</h4>
-         <canvas id="map-national"></canvas></div>` + legendHTML();
-    wireMap($("map-national"), drawMap($("map-national"), shown, current,
-                                       INDIA_EXTENT));
-    return;
+         <div id="lmap"></div>
+         <div class="mapattrib" id="mapattrib"></div>
+       </div>` ;
+    map = L.map("lmap", {zoomControl:true, attributionControl:false})
+           .setView([22.6, 80.0], 4);
+    map._skyguardTiles = tilesOK;
+
+    if (tilesOK){
+      // Through our own proxy: same origin, disk-cached, so the map keeps
+      // drawing after the venue wifi dies.
+      L.tileLayer(`${API}/api/tiles/{z}/{x}/{y}.png`,
+                  {maxZoom:12, minZoom:3, crossOrigin:true}).addTo(map);
+      boundaryLayer = L.tileLayer(`${API}/api/boundary/{z}/{x}/{y}.png`,
+                  {maxZoom:12, minZoom:3, opacity:0.9}).addTo(map);
+      $("mapattrib").innerHTML =
+        "Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; "
+        + "Boundary &copy; NCMRWF, Ministry of Earth Sciences";
+    } else {
+      // No tile server reachable -- the published artifact, or no network.
+      // The embedded boundary is the same NCMRWF layer, simplified, so even
+      // offline the border shown is the official one.
+      if (typeof BOUNDARY !== "undefined" && BOUNDARY){
+        boundaryLayer = L.geoJSON(BOUNDARY, {
+          style:{color:"#243FA8", weight:1, fill:true,
+                 fillColor:"#EDF1F7", fillOpacity:1}}).addTo(map);
+      }
+      $("mapattrib").innerHTML =
+        "Boundary &copy; NCMRWF, Ministry of Earth Sciences (simplified) "
+        + "&middot; no basemap: tiles need the API running";
+    }
+    map.on("click", () => {});
   }
 
-  const byState = {};
-  for (const s of shown) (byState[s.state] ||= []).push(s);
+  if (edgeLayer) map.removeLayer(edgeLayer);
+  if (stationLayer) map.removeLayer(stationLayer);
 
-  $("maps").innerHTML = Object.keys(byState).sort().map(st =>
-    `<div class="mapbox"><h4>${esc(st)}</h4>
-       <canvas id="map-${esc(st)}"></canvas></div>`).join("") + legendHTML();
-
-  for (const st of Object.keys(byState)){
-    const cv = $("map-"+st);
-    wireMap(cv, drawMap(cv, byState[st], current, null));
+  // Neighbour edges: who each station is compared against. This is the reason
+  // the map exists -- an excursion at one dot with its neighbours calm is a
+  // fault; the whole cluster moving together is weather.
+  const drawn = new Set(), edges = [];
+  for (const s of shown){
+    for (const nb of (DATA.neighbours[s.name] || [])){
+      const o = shown.find(q => q.name === nb);
+      if (!o) continue;
+      const k = [s.name, nb].sort().join("|");
+      if (drawn.has(k)) continue;
+      drawn.add(k);
+      edges.push(L.polyline([[s.latitude, s.longitude], [o.latitude, o.longitude]],
+                            {color:"#243FA8", weight:2, opacity:0.75}));
+    }
   }
+  edgeLayer = L.layerGroup(edges).addTo(map);
+
+  const marks = shown.map(s => {
+    const st = s.health.station;
+    const hcol = css("--" + HEALTH_COLOUR[st]);
+    const z = mapColour === "health" ? null : divergence(s, mapColour);
+    const m = L.circleMarker([s.latitude, s.longitude], {
+      radius: st === "HEALTHY" ? 7 : 9,
+      // Fill is the LIVE divergence, ring is the STICKY health. They are
+      // different objects and must not be merged: one bad hour should never
+      // turn a station red.
+      fillColor: mapColour === "health" ? hcol : rampColour(z),
+      fillOpacity: 1,
+      color: s.name === current ? css("--accent")
+                                : (mapColour === "health" ? "#fff" : hcol),
+      weight: s.name === current ? 4 : (st === "HEALTHY" ? 2 : 3),
+    });
+    const nm = s.name.replace(/_/g, " ");
+    m.bindTooltip(z === null ? nm
+        : `${nm}<br>${(z>=0?"+":"")}${z.toFixed(1)}\u03c3 vs neighbours`,
+      {direction:"top", offset:[0,-8]});
+    m.on("click", () => { current = s.name; openAlert = null; render(); });
+    return m;
+  });
+  stationLayer = L.layerGroup(marks).addTo(map);
+
+  const leg = document.querySelector(".maplegend");
+  if (leg) leg.outerHTML = legendHTML(); else $("maps").insertAdjacentHTML("beforeend", legendHTML());
+  setTimeout(() => map.invalidateSize(), 40);
 }
 
-function wireMap(cv, hits){
-  {
-    cv.onclick = (ev) => {
-      const r = cv.getBoundingClientRect();
-      const px = ev.clientX - r.left, py = ev.clientY - r.top;
-      // NEAREST hit, not the first one inside its radius. Zoomed out to the
-      // national frame the Maharashtra stations sit within two degrees of a
-      // thirty-degree extent, so their hit circles overlap and `find` returned
-      // whichever happened to be earlier in the array -- clicking Ratnagiri
-      // selected Mahabaleshwar.
-      let h = null, best = Infinity;
-      for (const o of hits){
-        const d = Math.hypot(o.x-px, o.y-py);
-        if (d <= o.r && d < best){ best = d; h = o; }
-      }
-      if (h){ current = h.name; openAlert = null; render(); }
-    };
-    cv.onmousemove = (ev) => {
-      const r = cv.getBoundingClientRect();
-      const px = ev.clientX - r.left, py = ev.clientY - r.top;
-      cv.style.cursor = hits.some(o => Math.hypot(o.x-px, o.y-py) <= o.r)
-        ? "pointer" : "default";
-    };
-  }
+function fitTo(group){
+  if (!map || !group.length) return;
+  map.fitBounds(L.latLngBounds(group.map(s => [s.latitude, s.longitude])),
+                {padding:[40,40], maxZoom:8});
 }
 
 /* ------------------------------------------------------------------ render */
@@ -1231,6 +892,10 @@ async function boot(){
   try {
     const live = await load(budget);
     DATA = live; LIVE = true;
+    // Probe BEFORE the first render. renderMaps() builds its layers once,
+    // guarded by `if (!map)`, so if it runs while tilesOK is still null it
+    // commits to the offline branch and never picks up the basemap.
+    await probeTiles();
   } catch (err) {
     // Not an error worth shouting about -- the static build is a supported
     // mode, not a degraded one. It is labelled so nobody mistakes a frozen
@@ -1312,15 +977,13 @@ function tick(){
 
 function start(){
   banner();
-  probeTiles().then(() => renderMaps());
   buildStateFilter();
   wireClock();
   $("mapview").onchange = (e) => {
-    mapView = e.target.value;
-    if (mapView === "basemap")
+    if (e.target.value === "regional")
       fitTo(DATA.stations.filter(s =>
         (stateFilter === "all" || s.state === stateFilter) && s.latitude != null));
-    renderMaps();
+    else if (map) map.setView([22.6, 80.0], 4);
   };
   $("mapcolour").onchange = (e) => { mapColour = e.target.value; renderMaps(); };
   $("maptoggle").onclick = () => {

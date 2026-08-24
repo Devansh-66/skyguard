@@ -1,7 +1,8 @@
 """Scoring harness. Nothing goes in detect/ or signature/ until this can score it.
 
 Takes a per-point anomaly SCORE (higher = more anomalous, any scale) plus the
-ground truth the injector wrote, and returns the metric set CLAUDE.md mandates:
+ground truth the injector wrote, and returns the metric set that actually
+means something at sub-1% prevalence:
 
     PR-AUC                  not ROC-AUC; at ~3 % prevalence ROC flatters junk
     POD vs amplitude        the headline number is min detectable amp at 90 % POD

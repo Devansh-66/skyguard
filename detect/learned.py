@@ -281,7 +281,7 @@ class LearnedDetector:
         wearing a Mahalanobis costume, and it lost to a plain z-score on
         pressure by a factor of four.
 
-        This is the same failure as an unfloored MAD (CLAUDE.md rule 5), one
+        This is the same failure as an unfloored MAD, one
         level up: a degenerate scale estimate produces an infinite weight. The
         fix there is a floor; here it is a rank transform, which is stronger --
         it makes every axis exactly standard normal by construction, so no axis
