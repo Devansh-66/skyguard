@@ -350,11 +350,46 @@ updates, everything red from untuned thresholds, missing empty/loading/error sta
 | Alerts per station-day | Prevalence-free; precision is not |
 | **FPR split by weather activity** | 0.1/day overall but 8 during monsoon onset is unusable |
 | Event-level *and* point-level | Point-level lets one drift contribute thousands of TPs |
+| **Placebo events of matched duration** | Event-level any-overlap has the *opposite* bias — see below |
 | Time-to-detection distribution | The Real-Time evidence |
 | Calibration error (ECE, Brier) | Confidence is a scored output |
 
 **Fix the alert budget across all methods compared.** Split by **whole stations and whole
 time periods**, never random points.
+
+### Event-level recall has its own duration bias — measured
+
+Point-level scoring inflates recall on long faults, so the obvious fix is to score at the
+event level with any-overlap: the event counts as detected if the detector fires even once
+inside it. That fix has a bias of its own, in the opposite direction, and it is large.
+
+At an alert budget of one per station per week, a *clean* 640-hour window already expects
+~3.8 alerts. P(at least one) is 0.98 **whether or not a fault is there**. Any-overlap
+therefore credits long events for detection they did not earn.
+
+The control is a **placebo event**: same station, same duration, placed on a window with no
+injected fault at all. Recall on placebos is the floor the metric hands you for free.
+Report the **excess** — real minus placebo. Measured here (`evaluation/run_placebo.py`,
+1 alert/station/week, 480 placebos per variable):
+
+| Event duration | Real recall | Placebo | **Earned** |
+|---|---|---|---|
+| < 6 h (spikes) | 0.40 | 0.006 | **0.394** |
+| 6–24 h | 0.80 | 0.105 | **0.695** |
+| 1–4 d | 0.67 | 0.160 | **0.507** |
+| 4–16 d | 0.83 | 0.347 | **0.487** |
+| > 16 d | 1.00 | 0.526 | **0.474** |
+
+*(temperature; pressure at 6–24 h is the strongest cell measured — 1.000 real against 0.010
+placebo, earning 0.990.)*
+
+Short faults are earned almost entirely. Long ones are not: a headline
+`calibration_drift recall 1.00` is about half event length. And two cells are honest
+failures — **relative humidity earns 0.011 at 4–16 days and −0.053 beyond 16 days**, i.e.
+on long humidity faults this pipeline does no better than firing at random. That number is
+reported rather than dropped, because a metric that cannot fail is not measuring anything.
+
+**Rule:** never quote an event-level recall without the placebo floor beside it.
 
 ### Injection realism
 
@@ -563,6 +598,36 @@ is stronger than any architecture diagram, because it is measured rather than as
 
 ---
 
-*Blueprint only. Nothing here has been built or measured. Success criteria are targets;
-the Magnus tautology and the specific-humidity example were verified numerically;
-everything empirical must be verified independently.*
+## Measured so far
+
+The sections above are design. These are results from the built pipeline, on ERA5 degraded
+to AWS realism with injected labelled faults. They supersede any target stated above.
+
+| Result | Measured | Where |
+|---|---|---|
+| Earned event recall, by duration | 0.394 → 0.474 (see §10) | `evaluation/run_placebo.py` |
+| RH, faults longer than 16 d | **−0.053 earned — no better than random** | `evaluation/run_placebo.py` |
+| σ, daily-mean neighbour difference | 0.876 K | `evaluation/run_cadence.py` |
+| Drift latency at 0.02 K/day, 3σ | **131 days** | `evaluation/run_cadence.py` |
+| Cadence dependence, 15 min → 6 h | σ 0.875 → 0.921 K; latency 131 → 138 d | `evaluation/run_cadence.py` |
+
+**The drift latency is weeks, not real time, and that is the honest answer** — §7 predicted
+exactly this and it is confirmed rather than assumed.
+
+**Cadence-independence matters for deployment.** A 24× change in sampling rate moves σ by
+5 %, so the drift result describes a physical timescale and transfers to the 15-minute
+cadence real AWS report at. But **every window in the code is expressed in samples**: at
+15-minute data the 720-sample scale window is 7.5 days rather than 30, and the 24-sample
+Hampel window is 6 hours rather than a full diurnal cycle — it would no longer contain the
+cycle it exists to normalise against. Any redeployment must rescale windows by *time*.
+
+*Caveat on the 15-minute arm: ERA5 has no sub-hourly variability to resample, so that arm
+is explicitly synthetic. It answers "do the windows scale", not "how good are we on real
+15-minute data".*
+
+---
+
+*Design sections are a blueprint and their success criteria are targets. The "Measured so
+far" table above, and the placebo table in §10, are measured. The Magnus tautology and the
+specific-humidity example were verified numerically; everything else empirical must be
+verified independently.*

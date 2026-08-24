@@ -600,13 +600,14 @@ td s{opacity:.55}
       <figcaption><strong>That 20× gain came from a subtraction, not a model.</strong> No architecture choice on task A will buy you an improvement of this size — the residual engineering does. Spend the effort there first. <em>Caveat: in this simulation the neighbours share an identical seasonal signal by construction, so the real-world gain will be smaller. Measure your own σ — it is the number that sets your drift latency, and it belongs on a slide.</em></figcaption>
     </figure>
 
-    <h3>The five accuracy traps</h3>
+    <h3>The six accuracy traps</h3>
     <div class="tablewrap">
       <table>
         <thead><tr><th>Trap</th><th>What goes wrong</th><th>Do instead</th></tr></thead>
         <tbody>
           <tr><td class="k">ROC-AUC</td><td>At sub-1 % prevalence it looks excellent for an operationally useless detector. Evaluators check for this.</td><td><strong>PR-AUC</strong></td></tr>
           <tr><td class="k">Point-level scoring only</td><td>A 30-day drift contributes ~720 true positives and inflates recall absurdly</td><td><strong>Event-level too</strong> — the gap between them is informative</td></tr>
+          <tr><td class="k"><strong>Event-level any-overlap alone</strong></td><td><strong>Measured trap.</strong> At 1 alert/station/week a <em>clean</em> 640-hour window already expects ~3.8 alerts, so P(at least one) is 0.98 with no fault present. Long events are credited for detection they did not earn.</td><td><strong>Placebo events of matched duration</strong> — report real minus placebo</td></tr>
           <tr><td class="k">A single FPR</td><td>0.1 alarms/station/day overall but 8 during monsoon onset is unusable, and the aggregate hides it</td><td><strong>Split by weather activity</strong></td></tr>
           <tr><td class="k">Free-floating thresholds</td><td>Comparing methods at different alarm rates is meaningless</td><td><strong>Fix the alert budget</strong> — 1/station/week — then compare recall</td></tr>
           <tr><td class="k">One accuracy number</td><td>Invites injecting only large obvious faults</td><td><strong>POD vs amplitude curve</strong>; headline the minimum detectable amplitude at 90 % POD</td></tr>
@@ -1145,6 +1146,24 @@ td s{opacity:.55}
       </table>
     </div>
     <div class="note"><strong>Fix the alert budget across all compared methods.</strong> Tune every detector to, say, one alert per station per week on validation, then compare recall. Otherwise the comparison is meaningless.<br><br><strong>Split by whole stations and whole time periods</strong>, never random points — adjacent samples are near-identical and random splits leak.</div>
+
+    <h3>Event-level recall has its own duration bias — measured</h3>
+    <p class="prose">Point-level scoring inflates recall on long faults, so the obvious fix is event-level any-overlap: the event counts as detected if the detector fires even once inside it. <strong>That fix has a bias of its own, in the opposite direction, and it is large.</strong> At one alert per station per week, a <em>clean</em> 640-hour window already expects ~3.8 alerts — P(at least one) is 0.98 whether or not a fault is there.</p>
+    <p class="prose">The control is a <strong>placebo event</strong>: same station, same duration, placed on a window with no injected fault at all. Recall on placebos is the floor the metric hands you for free. Report the <strong>excess</strong> — real minus placebo.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Event duration</th><th>Real recall</th><th>Placebo</th><th>Earned</th></tr></thead>
+        <tbody>
+          <tr><td class="k">&lt; 6 h (spikes)</td><td class="m">0.40</td><td class="m">0.006</td><td class="m"><strong>0.394</strong></td></tr>
+          <tr><td class="k">6–24 h</td><td class="m">0.80</td><td class="m">0.105</td><td class="m"><strong>0.695</strong></td></tr>
+          <tr><td class="k">1–4 d</td><td class="m">0.67</td><td class="m">0.160</td><td class="m"><strong>0.507</strong></td></tr>
+          <tr><td class="k">4–16 d</td><td class="m">0.83</td><td class="m">0.347</td><td class="m"><strong>0.487</strong></td></tr>
+          <tr><td class="k">&gt; 16 d</td><td class="m">1.00</td><td class="m">0.526</td><td class="m"><strong>0.474</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footnote">Temperature, 1 alert/station/week, 480 placebo events per variable, from <code>evaluation/run_placebo.py</code>. Pressure at 6–24 h is the strongest cell measured: 1.000 real against 0.010 placebo, earning 0.990.</p>
+    <div class="warn">Short faults are earned almost entirely. Long ones are not — a headline <code>calibration_drift recall 1.00</code> is <strong>about half event length</strong>. Two cells are honest failures: <strong>relative humidity earns 0.011 at 4–16 days and −0.053 beyond 16 days</strong>, meaning that on long humidity faults this pipeline does no better than firing at random. It is reported rather than dropped, because a metric that cannot fail is not measuring anything.<br><br><strong>Rule: never quote an event-level recall without the placebo floor beside it.</strong></div>
   </section>
 
   <section>
@@ -1542,7 +1561,26 @@ td s{opacity:.55}
         </tbody>
       </table>
     </div>
-    <p class="footnote">Blueprint only — nothing here has been built or measured, unlike the PS26178 testbench where every output was captured from a running simulation. Success criteria are targets. The Magnus tautology and the specific-humidity worked example were verified numerically; every empirical claim about tide amplitudes, correlation lengths, standard QC document numbers and component prices should be verified independently before it drives a decision or appears in a submission. Quoted statement text and scoring weights are from sih.gov.in.</p>
+  </section>
+
+  <section>
+    <h2>Measured so far</h2>
+    <p class="prose">The sections above are design. These are results from the built pipeline, on ERA5 degraded to AWS realism with injected labelled faults. <strong>They supersede any target stated above.</strong></p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Result</th><th>Measured</th><th>Where</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Earned event recall, by duration</td><td class="m">0.394 → 0.474</td><td><code>evaluation/run_placebo.py</code></td></tr>
+          <tr><td class="k">RH, faults longer than 16 d</td><td class="m"><strong>−0.053 — no better than random</strong></td><td><code>evaluation/run_placebo.py</code></td></tr>
+          <tr><td class="k">σ, daily-mean neighbour difference</td><td class="m">0.876 K</td><td><code>evaluation/run_cadence.py</code></td></tr>
+          <tr><td class="k">Drift latency at 0.02 K/day, 3σ</td><td class="m"><strong>131 days</strong></td><td><code>evaluation/run_cadence.py</code></td></tr>
+          <tr><td class="k">Cadence dependence, 15 min → 6 h</td><td class="m">σ 0.875 → 0.921 K; latency 131 → 138 d</td><td><code>evaluation/run_cadence.py</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><strong>The drift latency is weeks, not real time, and that is the honest answer.</strong> The drift section predicted exactly this; it is now confirmed rather than assumed.<br><br><strong>Cadence-independence matters for deployment.</strong> A 24× change in sampling rate moves σ by 5 %, so the drift result describes a physical timescale and transfers to the 15-minute cadence real AWS report at. But <strong>every window in the code is expressed in samples</strong>: at 15-minute data the 720-sample scale window is 7.5 days rather than 30, and the 24-sample Hampel window is 6 hours rather than a full diurnal cycle — it would no longer contain the cycle it exists to normalise against. Any redeployment must rescale windows by <em>time</em>.</div>
+    <p class="footnote">Caveat on the 15-minute arm: ERA5 has no sub-hourly variability to resample, so that arm is explicitly synthetic. It answers "do the windows scale", not "how good are we on real 15-minute data".</p>
+    <p class="footnote">Design sections remain a blueprint and their success criteria are targets. The "Measured so far" table and the placebo table are measured. The Magnus tautology and the specific-humidity worked example were verified numerically; every empirical claim about tide amplitudes, correlation lengths, standard QC document numbers and component prices should be verified independently before it drives a decision or appears in a submission. Quoted statement text and scoring weights are from sih.gov.in.</p>
   </section>
 
 </div>
