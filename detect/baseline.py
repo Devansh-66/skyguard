@@ -20,7 +20,12 @@ import pandas as pd
 # floor is a fraction of the logger resolution: on quantised data the MAD
 # hits exactly zero on a calm night and the z-score goes infinite.
 MAD_FLOOR_C = 0.75
-RESOLUTION = {"temp": 0.1, "rh": 0.1, "pres": 0.1}
+# Reported resolution of each channel, used to floor the robust sigma so a
+# quantised-but-healthy sensor cannot produce a divide-by-almost-zero z-score.
+# `td` is not reported by any instrument -- it is derived from T and RH -- but
+# it is differenced like a channel, so it needs an entry. Its effective
+# quantisation follows temperature's, since dTd/dT is order 1 in humid air.
+RESOLUTION = {"temp": 0.1, "rh": 0.1, "pres": 0.1, "td": 0.1}
 
 
 def causal_scale(x, var: str, window: int = 720,

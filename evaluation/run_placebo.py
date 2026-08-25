@@ -62,6 +62,16 @@ def main() -> None:
     ap.add_argument("--graph", default="data/neighbours_realistic.json")
     ap.add_argument("--budget", type=float, default=1 / 7)
     ap.add_argument("--runs", type=int, default=4)
+    ap.add_argument("--rh-as-dewpoint", dest="rh_td", action="store_true",
+                    help="difference DEWPOINT rather than raw RH in the "
+                         "neighbour channel. RH is temperature-slaved and is "
+                         "not spatially smooth -- it is a ratio whose "
+                         "denominator swings with local T -- so a neighbour "
+                         "difference on raw RH compares two quantities that "
+                         "were never comparable. Dewpoint is conserved within "
+                         "an air mass and is the physically right thing to "
+                         "difference. Labels are unchanged: this still scores "
+                         "against is_fault_rh, so the two arms are comparable.")
     args = ap.parse_args()
 
     rng = np.random.default_rng(11)
@@ -69,8 +79,19 @@ def main() -> None:
     df = df[df.run_id < args.runs].reset_index(drop=True)
     graph = json.loads(Path(args.graph).read_text())
 
+    if args.rh_td:
+        from physics.relations import dew_point
+        df["td"] = [dew_point(t, r) for t, r in zip(df.temp, df.rh)]
+
+    fitvars = VARIABLES + (("td",) if args.rh_td else ())
     coefs = {v: B.fit_baseline(df[df.run_id == 0], v, ref_end=REF_END)
-             for v in VARIABLES}
+             for v in fitvars}
+
+    # Only the NEIGHBOUR channel switches to dewpoint. Persistence stays on raw
+    # RH, because a stuck hygrometer repeats raw RH values -- that fault lives
+    # in the reported number, not in the derived one.
+    nbr_var = {"temp": "temp", "pres": "pres",
+               "rh": "td" if args.rh_td else "rh"}
     # Full frame first, subset after -- see the long note in run_full.py. Built
     # the other way round, a holdout station loses its neighbours and 37.6 % of
     # test rows get a NaN primary channel, which the flag turns into a miss.
@@ -93,11 +114,12 @@ def main() -> None:
     for var in VARIABLES:
         miss = ~np.isfinite(test[var].to_numpy(dtype=float))
         p_learn = conformalize(dets[var].distance(F_ref), dets[var].distance(F_test))
-        p_nz = conformalize(*split_channel(B.neighbour_z, var, coefs[var],
+        nv = nbr_var[var]
+        p_nz = conformalize(*split_channel(B.neighbour_z, nv, coefs[nv],
                                            graph, True))
         p_per = conformalize(*split_channel(B.persistence, var))
-        p_ham = conformalize(*split_channel(B.local_outlier, var, coefs[var], graph))
-        p_dis = conformalize(*split_channel(B.dispersion, var, coefs[var], graph))
+        p_ham = conformalize(*split_channel(B.local_outlier, nv, coefs[nv], graph))
+        p_dis = conformalize(*split_channel(B.dispersion, nv, coefs[nv], graph))
         sc = ensemble_budgeted([p_learn, p_nz, p_per, p_ham, p_dis], args.budget,
                                weights=[3, 3, 2, 1, 1], certain=miss)
 
