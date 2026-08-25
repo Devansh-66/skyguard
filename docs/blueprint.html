@@ -262,6 +262,93 @@ td s{opacity:.55}
   </section>
 
   <section>
+    <h2>The AI architecture &mdash; a panel that must corroborate</h2>
+    <p class="prose">The problem statement asks whether AI can build a &ldquo;self-aware and self-healing weather observation network&rdquo;. That phrase has to cash out as an architecture or it is decoration. This is the architecture, and the word <em>agent</em> here means an autonomous specialist checker with its own evidence source &mdash; <strong>not</strong> a language model.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 900 360" role="img" aria-label="Five specialist agents - physics, neighbour, history, instrument and clock - each pass a verdict to an adjudicator, which requires corroboration from agents drawing on independent evidence before it will raise a work order, and returns unknown when they disagree. A verifier re-runs the station's own screen server-side and flags disagreement between the two.">
+        <defs>
+          <marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><polygon points="0,1 10,5 0,9" fill="currentColor"></polygon></marker>
+          <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,1 10,5 0,9" fill="#7A3B52"></polygon></marker>
+        </defs>
+        <text x="10" y="26" font-size="10.5" font-weight="700" fill="#7A3B52" letter-spacing="1">FIVE INDEPENDENT AGENTS</text>
+        <rect x="10" y="44" width="216" height="46" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="63" font-size="11" font-weight="700" fill="#7A3B52">PHYSICS</text><text x="22" y="80" font-size="9.5" fill="currentColor" opacity=".7">thermodynamics</text><path d="M 234 67 L 288 175" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55" marker-end="url(#aa)"></path><rect x="10" y="100" width="216" height="46" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="119" font-size="11" font-weight="700" fill="#7A3B52">NEIGHBOUR</text><text x="22" y="136" font-size="9.5" fill="currentColor" opacity=".7">surrounding stations</text><path d="M 234 123 L 288 175" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55" marker-end="url(#aa)"></path><rect x="10" y="156" width="216" height="46" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="175" font-size="11" font-weight="700" fill="#7A3B52">HISTORY</text><text x="22" y="192" font-size="9.5" fill="currentColor" opacity=".7">the station's own past</text><path d="M 234 179 L 288 175" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55" marker-end="url(#aa)"></path><rect x="10" y="212" width="216" height="46" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="231" font-size="11" font-weight="700" fill="#7A3B52">INSTRUMENT</text><text x="22" y="248" font-size="9.5" fill="currentColor" opacity=".7">fault signatures</text><path d="M 234 235 L 288 175" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55" marker-end="url(#aa)"></path><rect x="10" y="268" width="216" height="46" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="287" font-size="11" font-weight="700" fill="#7A3B52">CLOCK</text><text x="22" y="304" font-size="9.5" fill="currentColor" opacity=".7">the pressure tide</text><path d="M 234 291 L 288 175" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55" marker-end="url(#aa)"></path>
+
+        <text x="290" y="26" font-size="10.5" font-weight="700" fill="#7A3B52" letter-spacing="1">ADJUDICATOR</text>
+        <rect x="290" y="112" width="188" height="126" fill="none" stroke="#7A3B52" stroke-width="2.5"></rect>
+        <text x="304" y="136" font-size="11" fill="currentColor">no single agent</text>
+        <text x="304" y="153" font-size="11" fill="currentColor">may raise an alarm</text>
+        <line x1="304" y1="166" x2="464" y2="166" stroke="currentColor" stroke-width="1" opacity=".3"></line>
+        <text x="304" y="186" font-size="11" font-weight="600" fill="#7A3B52">requires corroboration</text>
+        <text x="304" y="203" font-size="10" fill="currentColor" opacity=".75">from INDEPENDENT evidence</text>
+        <text x="304" y="226" font-size="10" fill="currentColor" opacity=".75">disagreement &#8594; abstain</text>
+
+        <path d="M 486 152 L 546 138" fill="none" stroke="#7A3B52" stroke-width="1.8" marker-end="url(#ab)"></path>
+        <path d="M 486 200 L 546 232" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#aa)"></path>
+
+        <rect x="552" y="108" width="200" height="62" fill="none" stroke="#7A3B52" stroke-width="2.5"></rect>
+        <text x="566" y="130" font-size="11" font-weight="700" fill="#7A3B52">WORK ORDER</text>
+        <text x="566" y="148" font-size="9.5" fill="currentColor" opacity=".75">named fault &middot; signed bias</text>
+        <text x="566" y="162" font-size="9.5" fill="currentColor" opacity=".75">onset date &middot; dispatch or not</text>
+
+        <rect x="552" y="204" width="200" height="52" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 3"></rect>
+        <text x="566" y="226" font-size="11" font-weight="700" fill="currentColor">UNKNOWN</text>
+        <text x="566" y="243" font-size="9.5" fill="currentColor" opacity=".75">a designed output, not a failure</text>
+
+        <rect x="10" y="296" width="742" height="50" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 3"></rect>
+        <text x="24" y="318" font-size="11" font-weight="600" fill="currentColor">VERIFIER &mdash; the station runs its own screen; the server re-runs the same checks and flags any disagreement</text>
+        <text x="24" y="337" font-size="10" fill="currentColor" opacity=".75">a node with a corrupted screen is itself one of the faults we are supposed to catch, so the server verifies rather than believes</text>
+      </svg>
+      <figcaption><strong>The corroboration rule is the architecture.</strong> Agreement between agents only carries information <em>because</em> they do not share evidence &mdash; which is why the independence requirement is load-bearing rather than decorative. Note what falls out for free: each agent's verdict <em>is</em> a reason, so explainability is structural rather than bolted on afterwards.</figcaption>
+    </figure>
+
+    <h3>What each agent interrogates</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Agent</th><th>Its evidence</th><th>The question it answers</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Physics</td><td>thermodynamics</td><td>Can this state exist at all?</td></tr>
+          <tr><td class="k">Neighbour</td><td>surrounding stations</td><td>Did the region move, or just this one?</td></tr>
+          <tr><td class="k">History</td><td>the station's own past</td><td>Is this what this station always does?</td></tr>
+          <tr><td class="k">Instrument</td><td>fault signatures</td><td>Does this match a known failure mode?</td></tr>
+          <tr><td class="k">Clock</td><td>the pressure tide</td><td>Is this station's time even right?</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note"><strong>The line to say out loud.</strong><br><br><em>&ldquo;We don't have one model deciding. We have five specialists that must agree &mdash; and a system honest enough to say &lsquo;unknown&rsquo; when they don't.&rdquo;</em></div>
+
+    <h3>Why this is an architecture and not a buzzword</h3>
+    <ul class="plain">
+      <li><strong>Explainability is structural.</strong> Each agent's verdict is already a reason in the operator's own vocabulary &mdash; &ldquo;physics: pass; neighbour: fail at &minus;3.2&sigma;; history: fail; clock: pass&rdquo;. Nothing needs a post-hoc explainer, which matters because SHAP explains a <em>model</em> while the operator needs an explanation of the <em>world</em>.</li>
+      <li><strong>Abstention is a designed output.</strong> Disagreement produces honest uncertainty rather than a confident wrong answer, and coverage of the unknown state is a reported number rather than a hidden failure.</li>
+      <li><strong>Corroboration is a real statistical check</strong>, not a vote. It only works because the agents draw on evidence that does not overlap.</li>
+      <li><strong>The verifier closes it.</strong> The station screens its own readings and the server re-runs the identical checks; a mismatch between the two is itself a signal, because a node with a corrupted screen is one of the faults in scope.</li>
+    </ul>
+
+    <h3>Grounding: this is a recognised class of system</h3>
+    <p class="prose">Condition monitoring of a deployed fleet is an established engineering discipline with its own international standard, and the problem statement's objectives map onto it closely enough that whoever wrote them very likely knows it. Naming the standard is worth more than inventing a private architecture.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>ISO 13374 processing block</th><th>What PS26073 asks for</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Data Acquisition</td><td>&ldquo;real-time AWS data streams&rdquo;</td></tr>
+          <tr><td class="k">Data Manipulation</td><td>&ldquo;learn normal temporal and seasonal patterns&rdquo;</td></tr>
+          <tr><td class="k">State Detection</td><td>&ldquo;detect anomalies &hellip; sensor faults, spikes, frozen values, communication errors&rdquo;</td></tr>
+          <tr><td class="k">Health Assessment</td><td>&ldquo;sensor health status&rdquo;</td></tr>
+          <tr><td class="k">Prognostic Assessment</td><td>&ldquo;predict possible sensor degradation and maintenance requirements&rdquo;</td></tr>
+          <tr><td class="k">Advisory Generation</td><td>&ldquo;suggest corrective action&rdquo;, &ldquo;corrected/imputed values&rdquo;, &ldquo;visualization dashboard&rdquo;</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="warn"><strong>Cite this carefully.</strong> Verified from the standard's own cover and contents: <strong>ISO 13374-1:2003</strong>, <em>Condition monitoring and diagnostics of machines &mdash; Data processing, communication and presentation &mdash; Part 1: General guidelines</em>, first edition 2003-03-15, whose clause 2.2 is &ldquo;Data-processing blocks&rdquo; and whose Annex A is about MIMOSA. MIMOSA, the custodian of OSA&#8209;CBM, states there are <strong>six</strong> functional blocks &mdash; the &ldquo;seven layers&rdquo; commonly drawn in papers is a rendering, not the standard. The six block <em>names</em> above are taken from MIMOSA and the CBM literature; the free ISO preview is front matter only, so they have <strong>not</strong> been read from the normative clause. Say &ldquo;per MIMOSA and the condition-monitoring literature&rdquo;, never &ldquo;per ISO clause 2.2&rdquo;, unless someone buys the standard.</div>
+    <p class="prose">Two clauses in that contents page are worth more than the block list and nobody quotes them: <strong>4.2 &ldquo;Determination of work flow procedures&rdquo;</strong> and <strong>5 &ldquo;Responsible personnel&rdquo;</strong>, which names Operators, Operations engineer, Reliability analyst and Management. The standard makes <em>workflow and named human roles</em> part of what a condition-monitoring system is. That is institutional backing for delivering a work order rather than a flag &mdash; it is not our preference, it is what the standard says the system is for.</p>
+
+    <div class="fix"><strong>The refusal, stated on the slide rather than discovered in questioning.</strong> No language model sits anywhere in the decision path. Confidence here comes from the detectors' own calibration, not from a model's phrasing, and an LLM between the sensor and the meteorologist is a hallucination surface on live operational data. If one appears at all it renders an already-computed verdict into a sentence &mdash; it never decides, scores, or explains.</div>
+  </section>
+
+
+  <section>
     <h2>What four rounds of research changed</h2>
     <p class="prose">This blueprint was reviewed against the meteorological QC literature and pressure-tested on method selection, explainability and operator workflow. Three findings changed the design materially, and one of them was a factual error. They are stated here rather than quietly fixed, because the corrections are more instructive than the original plan.</p>
 
