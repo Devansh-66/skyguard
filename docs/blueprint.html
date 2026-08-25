@@ -121,61 +121,7 @@ td s{opacity:.55}
     <p class="standfirst">Real-time anomaly detection for Automatic Weather Stations from temperature, pressure and humidity alone. A build plan for a system that does not just flag a bad value — it names which sensor failed, why, how sure it is, and when it will need servicing.</p>
   </header>
 
-  <section>
-    <h2>MVP &mdash; what actually makes this different</h2>
-    <p class="prose">Everything in this section is a <em>reframe a judge has not heard</em>, not a number. The measured work is at the end of this document; this is the pitch surface.</p>
-
-    <div class="note"><strong>The position, in one line.</strong><br><br>Everyone else builds a better buddy check. We measure ours against IMD's <strong>own</strong> 2015 spatial regression test &mdash; then solve the station it structurally cannot reach, using a reference clock the station already carries in its own barometer.</div>
-
-    <div class="note"><strong>The ML spine.</strong><br><br>Everyone puts the ML in the anomaly scorer. <strong>We put it in the reference.</strong> The model's job is to predict what this station <em>should</em> have read; the anomaly is the subtraction. This is the defensible framing because a better reference improves every fault class at once while a fancier scorer improves none &mdash; and it follows from the arithmetic, since drift latency is governed by the noise of the reference, not by the cleverness of the detector.</div>
-
-    <h3>The differentiators</h3>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>#</th><th>Idea</th><th>The line to say</th><th>Why nobody else has it</th></tr></thead>
-        <tbody>
-          <tr><td class="m">1</td><td class="k">Trust map</td><td><em>&ldquo;Every other map tells you which station is broken. Ours tells you which stations you have no way of knowing about.&rdquo;</em></td><td>Requires admitting a structural limit. The output is a prioritised list of where to send a reference instrument.</td></tr>
-          <tr><td class="m">2</td><td class="k">Fleet, not station</td><td><em>&ldquo;We don't diagnose stations. We diagnose fleets.&rdquo;</em></td><td>IMD buys by tender lot, so failures cluster by vendor, firmware and install year &mdash; and a whole lot drifting together is invisible to every neighbour method, IMD's included.</td></tr>
-          <tr><td class="m">3</td><td class="k">The barometer is a clock</td><td><em>&ldquo;We didn't add a clock to the station. We found the one already there.&rdquo;</em></td><td>The semidiurnal pressure tide gives a per-station phase reference. Clock drift is otherwise undetectable: the series stays internally perfect while every downstream time-matched comparison rots.</td></tr>
-          <tr><td class="m">4</td><td class="k">One fault, one work order</td><td><em>&ldquo;A broken thermometer makes the hygrometer look broken too. We tell you which one to actually replace.&rdquo;</em></td><td>T, P and RH are one thermodynamic state, not three signals. A naive pipeline raises two tickets for one broken sensor.</td></tr>
-          <tr><td class="m">5</td><td class="k">Detection that reaches backwards</td><td><em>&ldquo;We tell you which records in your archive are now suspect, and since when.&rdquo;</em></td><td>Onset dating with an interval, emitted as a re-flag manifest. This matters most to the custodian of a climate record.</td></tr>
-          <tr><td class="m">6</td><td class="k">The do-not-dispatch call</td><td><em>&ldquo;The most valuable thing this system does is tell you when NOT to send the van.&rdquo;</em></td><td>Splits every work order into truck-roll versus a central coefficient fix.</td></tr>
-          <tr><td class="m">7</td><td class="k">The station's digital twin</td><td><em>&ldquo;We don't ask a model whether a reading looks weird. We ask what it should have been.&rdquo;</em></td><td>A conditional generative model of the station given its neighbours, hour and season. Its own uncertainty sets the threshold.</td></tr>
-          <tr><td class="m">8</td><td class="k">Learned station graph</td><td><em>&ldquo;We let the data decide who counts as a neighbour.&rdquo;</em></td><td>A graph network learns edge weights, so a station 40 km away across the Ghats is correctly down-weighted against one 200 km away on the same plain.</td></tr>
-          <tr><td class="m">9</td><td class="k">Physics-informed</td><td><em>&ldquo;Our model cannot predict something the atmosphere cannot do.&rdquo;</em></td><td>Magnus, the dew-point bound and humidity conservation enter as hard constraints, not as hopeful learning.</td></tr>
-          <tr><td class="m">10</td><td class="k">Station fingerprints</td><td><em>&ldquo;Every station has a signature. We watch it change.&rdquo;</em></td><td>A learned embedding per station; degradation shows as migration through embedding space, and the direction indicates which fault.</td></tr>
-          <tr><td class="m">11</td><td class="k">Generate the missing corpus</td><td><em>&ldquo;There is no labelled Indian AWS fault dataset. So we made one, and we're releasing it.&rdquo;</em></td><td>The only deliverable here with a life after the hackathon.</td></tr>
-          <tr><td class="m">12</td><td class="k">It asks for its own labels</td><td><em>&ldquo;Day one it has no labels. Month six it has thousands, and it asked for the ones that mattered.&rdquo;</em></td><td>Every operator Confirm/Reject is a label; active learning chooses which alerts to adjudicate first.</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="footnote">Recommended spine for a six-slide deck: 1, 2 and 3 make a judge reconsider the <em>problem</em> rather than admire the solution, and they reinforce each other &mdash; all three concern the limits of neighbour-based QC, which is exactly what IMD already runs. Then 4 and 5 as the operator payoff, with the ML spine carrying 7&ndash;10 underneath.</p>
-
-    <h3>What we refuse to build, and the line for each</h3>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Refused</th><th>The justification</th></tr></thead>
-        <tbody>
-          <tr><td class="k">LLM narration of alerts</td><td>&ldquo;Our confidence comes from the detector's calibration, not a language model's phrasing. We did not want a hallucination between the sensor and the meteorologist.&rdquo; If an LLM is used at all it renders already-computed fields into a sentence, and never decides, scores or explains.</td></tr>
-          <tr><td class="k">Auto-correcting the archive</td><td>&ldquo;The observation record is the archive. We flag and suggest; we never silently rewrite what the instrument reported.&rdquo;</td></tr>
-          <tr><td class="k">A new flag taxonomy</td><td>Adoption cost. IMD grades flags 0&ndash;5; anything else is a migration project rather than a tool.</td></tr>
-          <tr><td class="k">Remaining-useful-life prediction</td><td>Requires years of labelled failure history nobody has. We report drift magnitude and rate; the instrument engineer decides.</td></tr>
-          <tr><td class="k">A hardware AWS as the product</td><td>IMD's stations are already in the ground and WMO-calibrated. The product must work on the data they already send.</td></tr>
-          <tr><td class="k">Kafka / Spark / a cluster</td><td>A national network at 15-minute cadence is a couple of records per second. Proposing a cluster proves the arithmetic was never done.</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3>The limits we state before being asked</h3>
-    <ul class="plain">
-      <li>A neighbourless station reading a <strong>uniform</strong> offset with correct diurnal shape is undetectable from its own data. No method fixes this; the honest response is the trust map of item 1.</li>
-      <li>A drift affecting the <strong>entire</strong> network is unidentifiable without an absolute reference, by construction.</li>
-      <li>The pressure tide buys the <strong>clock and nothing else</strong> &mdash; a pressure span error moves it far too little to see, and an additive offset leaves it untouched entirely.</li>
-      <li><strong>IMD operates 1,000+ AWS</strong>, plus ARGs and manual observatories. Do not inflate this figure; a MoES judge knows it.</li>
-    </ul>
-
-    <div class="warn"><strong>Status.</strong> Items 1&ndash;6 are design positions, some resting on parts already built; 7&ndash;12 are proposed and unbuilt. Nothing in this section is measured &mdash; the measured work is in &ldquo;Measured so far&rdquo; at the end.</div>
-  </section>
+  
 
   <section>
     <h2>The problem statement</h2>
@@ -257,6 +203,62 @@ td s{opacity:.55}
         <p><strong>Fully executable code with example usage and a document explaining various use cases.</strong></p>
       </div>
     </div>
+  </section>
+
+  <section>
+    <h2>MVP &mdash; what actually makes this different</h2>
+    <p class="prose">Everything in this section is a <em>reframe a judge has not heard</em>, not a number. The measured work is at the end of this document; this is the pitch surface.</p>
+
+    <div class="note"><strong>The position, in one line.</strong><br><br>Everyone else builds a better buddy check. We measure ours against IMD's <strong>own</strong> 2015 spatial regression test &mdash; then solve the station it structurally cannot reach, using a reference clock the station already carries in its own barometer.</div>
+
+    <div class="note"><strong>The ML spine.</strong><br><br>Everyone puts the ML in the anomaly scorer. <strong>We put it in the reference.</strong> The model's job is to predict what this station <em>should</em> have read; the anomaly is the subtraction. This is the defensible framing because a better reference improves every fault class at once while a fancier scorer improves none &mdash; and it follows from the arithmetic, since drift latency is governed by the noise of the reference, not by the cleverness of the detector.</div>
+
+    <h3>The differentiators</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>#</th><th>Idea</th><th>The line to say</th><th>Why nobody else has it</th></tr></thead>
+        <tbody>
+          <tr><td class="m">1</td><td class="k">Trust map</td><td><em>&ldquo;Every other map tells you which station is broken. Ours tells you which stations you have no way of knowing about.&rdquo;</em></td><td>Requires admitting a structural limit. The output is a prioritised list of where to send a reference instrument.</td></tr>
+          <tr><td class="m">2</td><td class="k">Fleet, not station</td><td><em>&ldquo;We don't diagnose stations. We diagnose fleets.&rdquo;</em></td><td>IMD buys by tender lot, so failures cluster by vendor, firmware and install year &mdash; and a whole lot drifting together is invisible to every neighbour method, IMD's included.</td></tr>
+          <tr><td class="m">3</td><td class="k">The barometer is a clock</td><td><em>&ldquo;We didn't add a clock to the station. We found the one already there.&rdquo;</em></td><td>The semidiurnal pressure tide gives a per-station phase reference. Clock drift is otherwise undetectable: the series stays internally perfect while every downstream time-matched comparison rots.</td></tr>
+          <tr><td class="m">4</td><td class="k">One fault, one work order</td><td><em>&ldquo;A broken thermometer makes the hygrometer look broken too. We tell you which one to actually replace.&rdquo;</em></td><td>T, P and RH are one thermodynamic state, not three signals. A naive pipeline raises two tickets for one broken sensor.</td></tr>
+          <tr><td class="m">5</td><td class="k">Detection that reaches backwards</td><td><em>&ldquo;We tell you which records in your archive are now suspect, and since when.&rdquo;</em></td><td>Onset dating with an interval, emitted as a re-flag manifest. This matters most to the custodian of a climate record.</td></tr>
+          <tr><td class="m">6</td><td class="k">The do-not-dispatch call</td><td><em>&ldquo;The most valuable thing this system does is tell you when NOT to send the van.&rdquo;</em></td><td>Splits every work order into truck-roll versus a central coefficient fix.</td></tr>
+          <tr><td class="m">7</td><td class="k">The station's digital twin</td><td><em>&ldquo;We don't ask a model whether a reading looks weird. We ask what it should have been.&rdquo;</em></td><td>A conditional generative model of the station given its neighbours, hour and season. Its own uncertainty sets the threshold.</td></tr>
+          <tr><td class="m">8</td><td class="k">Learned station graph</td><td><em>&ldquo;We let the data decide who counts as a neighbour.&rdquo;</em></td><td>A graph network learns edge weights, so a station 40 km away across the Ghats is correctly down-weighted against one 200 km away on the same plain.</td></tr>
+          <tr><td class="m">9</td><td class="k">Physics-informed</td><td><em>&ldquo;Our model cannot predict something the atmosphere cannot do.&rdquo;</em></td><td>Magnus, the dew-point bound and humidity conservation enter as hard constraints, not as hopeful learning.</td></tr>
+          <tr><td class="m">10</td><td class="k">Station fingerprints</td><td><em>&ldquo;Every station has a signature. We watch it change.&rdquo;</em></td><td>A learned embedding per station; degradation shows as migration through embedding space, and the direction indicates which fault.</td></tr>
+          <tr><td class="m">11</td><td class="k">Generate the missing corpus</td><td><em>&ldquo;There is no labelled Indian AWS fault dataset. So we made one, and we're releasing it.&rdquo;</em></td><td>The only deliverable here with a life after the hackathon.</td></tr>
+          <tr><td class="m">12</td><td class="k">It asks for its own labels</td><td><em>&ldquo;Day one it has no labels. Month six it has thousands, and it asked for the ones that mattered.&rdquo;</em></td><td>Every operator Confirm/Reject is a label; active learning chooses which alerts to adjudicate first.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footnote">Recommended spine for a six-slide deck: 1, 2 and 3 make a judge reconsider the <em>problem</em> rather than admire the solution, and they reinforce each other &mdash; all three concern the limits of neighbour-based QC, which is exactly what IMD already runs. Then 4 and 5 as the operator payoff, with the ML spine carrying 7&ndash;10 underneath.</p>
+
+    <h3>What we refuse to build, and the line for each</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Refused</th><th>The justification</th></tr></thead>
+        <tbody>
+          <tr><td class="k">LLM narration of alerts</td><td>&ldquo;Our confidence comes from the detector's calibration, not a language model's phrasing. We did not want a hallucination between the sensor and the meteorologist.&rdquo; If an LLM is used at all it renders already-computed fields into a sentence, and never decides, scores or explains.</td></tr>
+          <tr><td class="k">Auto-correcting the archive</td><td>&ldquo;The observation record is the archive. We flag and suggest; we never silently rewrite what the instrument reported.&rdquo;</td></tr>
+          <tr><td class="k">A new flag taxonomy</td><td>Adoption cost. IMD grades flags 0&ndash;5; anything else is a migration project rather than a tool.</td></tr>
+          <tr><td class="k">Remaining-useful-life prediction</td><td>Requires years of labelled failure history nobody has. We report drift magnitude and rate; the instrument engineer decides.</td></tr>
+          <tr><td class="k">A hardware AWS as the product</td><td>IMD's stations are already in the ground and WMO-calibrated. The product must work on the data they already send.</td></tr>
+          <tr><td class="k">Kafka / Spark / a cluster</td><td>A national network at 15-minute cadence is a couple of records per second. Proposing a cluster proves the arithmetic was never done.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The limits we state before being asked</h3>
+    <ul class="plain">
+      <li>A neighbourless station reading a <strong>uniform</strong> offset with correct diurnal shape is undetectable from its own data. No method fixes this; the honest response is the trust map of item 1.</li>
+      <li>A drift affecting the <strong>entire</strong> network is unidentifiable without an absolute reference, by construction.</li>
+      <li>The pressure tide buys the <strong>clock and nothing else</strong> &mdash; a pressure span error moves it far too little to see, and an additive offset leaves it untouched entirely.</li>
+      <li><strong>IMD operates 1,000+ AWS</strong>, plus ARGs and manual observatories. Do not inflate this figure; a MoES judge knows it.</li>
+    </ul>
+
+    <div class="warn"><strong>Status.</strong> Items 1&ndash;6 are design positions, some resting on parts already built; 7&ndash;12 are proposed and unbuilt. Nothing in this section is measured &mdash; the measured work is in &ldquo;Measured so far&rdquo; at the end.</div>
   </section>
 
   <section>
