@@ -10,6 +10,77 @@
 
 ---
 
+## 0. MVP — what actually makes this different
+
+Everything in this section is a *reframe a judge has not heard*, not a number. The
+measured work lives at the end of the document; this is the pitch surface.
+
+### The position, in one line
+
+> Everyone else builds a better buddy check. We measure ours against IMD's **own** 2015
+> spatial regression test — then solve the station it structurally cannot reach, using a
+> reference clock the station already carries in its own barometer.
+
+### The ML spine
+
+> **Everyone puts the ML in the anomaly scorer. We put it in the reference.** The model's
+> job is to predict what this station *should* have read; the anomaly is the subtraction.
+
+This is the defensible framing because a better reference improves every fault class at
+once, while a fancier scorer improves none. It also follows from the arithmetic: drift
+latency is governed by the noise of the reference, not by the cleverness of the detector.
+
+### The differentiators
+
+| # | Idea | The line to say | Why nobody else has it |
+|---|---|---|---|
+| 1 | **Trust map** | *"Every other map tells you which station is broken. Ours tells you which stations you have no way of knowing about."* | Requires admitting a structural limit. Output is a prioritised list of where to send a reference instrument |
+| 2 | **Fleet, not station** | *"We don't diagnose stations. We diagnose fleets."* | IMD buys by tender lot, so failures cluster by vendor/firmware/install year — and a whole lot drifting together is invisible to every neighbour method, IMD's included |
+| 3 | **The barometer is a clock** | *"We didn't add a clock to the station. We found the one already there."* | The semidiurnal pressure tide gives a per-station phase reference. Clock drift is otherwise undetectable — the series stays internally perfect while every downstream time-matched comparison rots |
+| 4 | **One fault, one work order** | *"A broken thermometer makes the hygrometer look broken too. We tell you which one to actually replace."* | T/P/RH are one thermodynamic state, not three signals. Naive pipelines raise two tickets for one broken sensor |
+| 5 | **Detection that reaches backwards** | *"We tell you which records in your archive are now suspect, and since when."* | Onset dating with an interval, emitted as a re-flag manifest. Matters most to the custodian of a climate record |
+| 6 | **The do-not-dispatch call** | *"The most valuable thing this system does is tell you when NOT to send the van."* | Splits every work order into truck-roll vs central coefficient fix |
+| 7 | **The station's digital twin** | *"We don't ask a model whether a reading looks weird. We ask what it should have been."* | A conditional generative model of the station given its neighbours, hour and season. Its own uncertainty sets the threshold |
+| 8 | **Learned station graph** | *"We let the data decide who counts as a neighbour."* | A GNN learns edge weights, so a station 40 km away across the Ghats is correctly down-weighted against one 200 km away on the same plain |
+| 9 | **Physics-informed** | *"Our model cannot predict something the atmosphere cannot do."* | Magnus, dew-point bound and humidity conservation enter as hard constraints, not as hopeful learning |
+| 10 | **Station fingerprints** | *"Every station has a signature. We watch it change."* | A learned embedding per station; degradation shows as migration through embedding space, and the *direction* indicates the fault |
+| 11 | **Generate the missing corpus** | *"There is no labelled Indian AWS fault dataset. So we made one, and we're releasing it."* | The only deliverable here with a life after the hackathon |
+| 12 | **It asks for its own labels** | *"Day one it has no labels. Month six it has thousands, and it asked for the ones that mattered."* | Operator Confirm/Reject is a label; active learning chooses which alerts to adjudicate first |
+
+**Recommended spine for a 6-slide deck:** 1, 2 and 3 make a judge reconsider the *problem*
+rather than admire the solution, and they reinforce each other — all three are about the
+limits of neighbour-based QC, which is exactly what IMD already runs. Then 4 and 5 as the
+operator payoff, with the ML spine carrying 7–10 underneath.
+
+### What we refuse to build, and the line for each
+
+| Refused | The justification |
+|---|---|
+| LLM narration of alerts | *"Our confidence comes from the detector's calibration, not a language model's phrasing. We did not want a hallucination between the sensor and the meteorologist."* If an LLM is used at all it renders already-computed fields into a sentence, and never decides, scores or explains |
+| Auto-correcting the archive | *"The observation record is the archive. We flag and suggest; we never silently rewrite what the instrument reported."* |
+| A new flag taxonomy | Adoption cost. IMD grades flags 0–5; anything else is a migration project rather than a tool |
+| Remaining-useful-life prediction | Requires years of labelled failure history nobody has. We report drift magnitude and rate; the instrument engineer decides |
+| A hardware AWS as the product | IMD's stations are already in the ground and WMO-calibrated. The product must work on the data they already send |
+| Kafka / Spark / a cluster | A national network at 15-minute cadence is a couple of records per second. Proposing a cluster proves the arithmetic was never done |
+
+### The limits we state before being asked
+
+- A neighbourless station reading a **uniform** offset with correct diurnal shape is
+  undetectable from its own data. No method fixes this; the honest response is the trust
+  map of item 1.
+- A drift affecting the **entire** network is unidentifiable without an absolute
+  reference, by construction.
+- The pressure tide buys the **clock and nothing else** — a pressure span error moves it
+  far too little to see, and an additive offset leaves it untouched entirely.
+- **IMD operates 1,000+ AWS**, plus ARGs and manual observatories. Do not inflate this
+  figure; a MoES judge knows it.
+
+*Status: items 1–6 are design positions, some resting on parts already built; 7–12 are
+proposed and unbuilt. Nothing in this section should be presented as measured — the
+measured work is in "Measured so far" at the end of this document.*
+
+---
+
 ## 1. The problem statement
 
 Detect abnormal, inconsistent or faulty observations from Automatic Weather Stations in
@@ -436,7 +507,9 @@ multi-fault combinations, and matched clean negative controls.
 | 8 | Dashboard and scale test |
 | 9 | Hardware stations (optional, ≈₹1,120 each) |
 
-### MVP — a walking skeleton
+### The first working slice
+
+*(The differentiators are in §0; this is the build milestone that proves the pipeline runs.)*
 
 **One demo, working:** replay a real cold front → *nothing flags*. Inject a fault of the
 same magnitude → *flags instantly, names it, says why it is not weather*.
