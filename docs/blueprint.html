@@ -1620,6 +1620,476 @@ td s{opacity:.55}
   </section>
 
   <section>
+    <h2>Build log &mdash; what exists, what was measured, what failed</h2>
+
+    <div class="fix"><strong>Superseded in part.</strong> The drift headline below &mdash; <em>&ldquo;recall 1.00 at 0.01 K/day&rdquo;</em> &mdash; was measured with any-overlap event scoring, which credits long events for detection they did not earn: at one alert per station-week a <em>clean</em> 640-hour window already expects ~3.8 alerts. Against a matched-duration placebo control the drift class earns roughly a third of that, not 1.00. The naming figure of 0.706 was also measured before a split bug that left 37.6 % of test rows with a NaN primary channel; it is 0.611 once fixed. Read <strong>Measured so far</strong> below for the corrected figures &mdash; where the two disagree, that section wins.</div>
+    <p class="prose">Everything above this line is design. Everything below it is
+    <strong>measured on real ERA5 data for ten stations across Assam and
+    Maharashtra</strong>, degraded to AWS realism, with faults injected and
+    ground truth attached. Numbers are event recall at <strong>one alert per
+    station per week</strong> on held-out stations and held-out months, unless
+    stated otherwise. Where a number moved because a bug was fixed rather than
+    because the system improved, it says so.</p>
+
+    <h3>Built and running</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Stage</th><th>What it does</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Data</td><td>ERA5 audit, AWS-realism degradation, data-derived neighbour graph</td><td>Zero missing values found; two of nine columns were exactly derived and dropped</td></tr>
+          <tr><td class="k">Harness</td><td>Seven fault types injected with point- and event-level truth; PR-AUC, POD-vs-amplitude, FA split by weather activity, time-to-detection</td><td>458 events, ~3 % prevalence, ten independent replicates</td></tr>
+          <tr><td class="k">1 &middot; Residualise</td><td>Magnus relations, local solar time, MSL reduction, harmonic baselines by Huber IRLS</td><td>30 baselines, 270 coefficients, fitted on a frozen window with no labels</td></tr>
+          <tr><td class="k">2 &middot; Physics</td><td>Neighbour-difference z, run-length persistence, dropout assertion</td><td>Causal &mdash; trailing window only</td></tr>
+          <tr><td class="k">3 &middot; Learned</td><td>Robust covariance (MCD concentration), normal-score marginals, split-conformal p-values</td><td>One detector per variable, six axes each</td></tr>
+          <tr><td class="k">4 &middot; Signature</td><td>Nine templates over eight scale-free descriptors, names the fault or abstains</td><td><strong>0.706</strong> naming accuracy, 19 % honest <code>unknown</code></td></tr>
+          <tr><td class="k">Health</td><td>Sticky per-probe state with hysteresis, worst-channel roll-up</td><td>Separate from per-timestamp flags, by design</td></tr>
+          <tr><td class="k">Service</td><td>FastAPI, replay clock, tile proxy with disk cache, OpenAPI docs</td><td>Whole pipeline fitted in ~10 s at startup; budget is a live dial</td></tr>
+          <tr><td class="k">Console</td><td>Live map, neighbour edges, residual colouring, replay, alert inspector</td><td>Falls back to a static build with no server</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The headline result</h3>
+    <div class="fix"><strong>Calibration drift is detected at 0.01 K/day with
+    recall 1.00, at one alert per station per week.</strong> That is about a
+    third of a degree per month &mdash; a drift no operator can see by eye, that
+    silently corrupts a climate record, and that a single-station detector
+    cannot find at all. Pressure and humidity reach recall 1.00 at 3.5 alerts
+    per station-week. This is what the neighbour-difference channel was built
+    for and it is the number the submission should lead with, ahead of any
+    accuracy percentage.</div>
+
+    <h3>What is amplitude-limited, and what is budget-limited</h3>
+    <p class="prose">Spike recall came out identical to two decimal places for
+    five different detectors &mdash; a plain z-score, a Mahalanobis distance, a
+    Hampel filter written specifically for spikes, and two ensembles. When
+    methods that share no mathematics agree exactly, the number is not
+    describing any of them. It describes the injected amplitude against the
+    noise floor.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Fault class</th><th>Limit</th><th>Evidence</th></tr></thead>
+        <tbody>
+          <tr><td class="k">calibration_drift</td><td>Solved</td><td>recall 1.00 at 0.01 K/day, temperature</td></tr>
+          <tr><td class="k">frozen, dropout, saturation</td><td>Solved</td><td>recall 1.00 &mdash; structural, not statistical</td></tr>
+          <tr><td class="k">step_offset</td><td>Budget-limited</td><td>humidity 0.42 &rarr; 1.00 as budget goes 1 &rarr; 21 alerts/week</td></tr>
+          <tr><td class="k">noise_burst</td><td>Budget-limited</td><td>humidity 0.29 &rarr; 0.86; pressure 0.50 &rarr; 1.00</td></tr>
+          <tr><td class="k">spike</td><td><strong>Amplitude-limited</strong></td><td>POD 0.00 below 1.65&sigma;; more budget moves 0.24 &rarr; 0.48 and stops</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">The honest figure for spikes is therefore a
+    <strong>minimum detectable amplitude</strong>, not a recall percentage.
+    &ldquo;We detect a 3 K spike; a 1 K spike is below the noise floor at this
+    alert budget&rdquo; is a claim an evaluator can check. A recall number here
+    would be a statement about our own injector.</p>
+
+    <h3>Tried, measured, rejected</h3>
+    <p class="prose">These are kept in the repository with their numbers
+    attached. Three negative results with measurements behind them are a
+    stronger position than three untested ideas &mdash; they are the difference
+    between &ldquo;we did not try that&rdquo; and &ldquo;we tried it, here is
+    what it cost&rdquo;.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Idea</th><th>Result</th><th>Why it failed</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Supervised detection (GBT)</td><td>No consistent win; hurt pressure as a fourth channel</td><td>Leave-one-fault-type-out gap <strong>+0.161</strong>. Withhold <code>calibration_drift</code> and pressure recall goes 1.00 &rarr; <strong>0.00</strong> &mdash; it was recognising the injector's linear ramp, not drift</td></tr>
+          <tr><td class="k">Supervised naming</td><td><strong>0.500</strong> vs templates' <strong>0.710</strong></td><td>Never abstains. Withhold a class and it is confidently wrong on 100 % of <code>calibration_drift</code>, <code>dropout</code> and <code>frozen</code> windows &mdash; a softmax has no way to say &ldquo;I have not seen this&rdquo;</td></tr>
+          <tr><td class="k">Hampel + dispersion channels</td><td>No change at all</td><td>Spike recall identical across all five detectors &mdash; the limit is amplitude, not method</td></tr>
+          <tr><td class="k">Per-fault-type budgets</td><td>Equal spend, recall slightly worse</td><td>Of 8,102 candidate windows the classifier labelled 4,717 <code>genuine_weather</code>, 1,960 <code>unknown</code>, <strong>5</strong> <code>calibration_drift</code> and <strong>0</strong> <code>noise_burst</code>. You cannot budget by class when class membership is wrong</td></tr>
+          <tr><td class="k">Simes / Fisher combination</td><td>0.436 / 0.270 vs 0.450 for minimum-p</td><td>Fisher lets a channel that is structurally blind to a fault vote on it</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Bugs found by measuring, not by reading</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Bug</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Lookahead in every detector</td><td>Scale statistics were computed over the whole test series, so October was normalised using December. Pressure PR-AUC fell <strong>0.529 &rarr; 0.232</strong> once fixed &mdash; the earlier numbers were inflated, and the code could not have served a live request at all</td></tr>
+          <tr><td class="k">Injector labelled untouched points</td><td>A spike displaces half the samples in its window; all of them were labelled faulted. Naming accuracy rose <strong>0.587 &rarr; 0.706</strong> on the fix alone</td></tr>
+          <tr><td class="k">Degenerate Mahalanobis axis (&times;3)</td><td><code>flat</code> is zero for ~97 % of a healthy window, so its variance is ~0 and a distance weighted by 1/variance gave it <strong>99.9 %</strong> of the score. The learned layer was a flatness detector in disguise</td></tr>
+          <tr><td class="k">Fog is indistinguishable from a stuck probe</td><td>RH pinned at 100 % for hours is flat and at the rail either way. No shape descriptor separates them; the resolver is physical &mdash; fog wets the whole valley. 175 false <code>saturation</code> calls removed</td></tr>
+          <tr><td class="k">20.5&times; neighbour gain</td><td>Came from a simulation whose neighbours shared a seasonal signal by construction. Measured on real data it is <strong>1.4&ndash;2.3&times;</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Current accuracy, stated plainly</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Variable</th><th>PR-AUC</th><th>Event recall</th><th>False alarms / station-day (quiet)</th></tr></thead>
+        <tbody>
+          <tr><td class="k">pressure</td><td>0.184</td><td>0.638</td><td>0.019</td></tr>
+          <tr><td class="k">temperature</td><td>0.179</td><td>0.651</td><td>0.110</td></tr>
+          <tr><td class="k">humidity</td><td>0.071</td><td>0.517</td><td>0.073</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">These are weak and they are not dressed up. What makes them
+    defensible is that they are measured causally, on held-out stations and
+    held-out months, at a fixed alert budget, with every regression traceable to
+    a commit. False alarms in quiet weather and in active weather are within
+    ~20 % of each other &mdash; which is the evidence that the system is
+    separating faults from weather rather than hiding the problem.</p>
+
+    <h3>Next, in order</h3>
+    <ol class="prose">
+      <li><strong>Replace the basemap.</strong> OpenStreetMap's depiction of the
+      boundaries of Jammu &amp; Kashmir and Aksai Chin is not the official
+      Government of India depiction. Register for Bhuvan (ISRO) or Survey of
+      India and set <code>SKYGUARD_TILE_URL</code>. Registration takes time
+      &mdash; start it first.</li>
+      <li><strong>Verify station coordinates.</strong> Latitudes and longitudes
+      are approximate. Longitude drives every diurnal baseline.</li>
+      <li><strong>Improve per-class precision in the signature stage.</strong>
+      It is the blocker for per-fault-type budgets and it is where the
+      explainability marks live.</li>
+      <li><strong>Get real IMD data.</strong> Everything rests on reanalysis,
+      which is spatially smooth by construction. Station density and usable
+      correlation radius remain the project's largest unanswered risk.</li>
+      <li><strong>Edge tier.</strong> <code>firmware/</code> is empty; stages 1
+      and 2 are written to transliterate to C++ but have not been.</li>
+    </ol>
+  </section>
+
+
+  <section>
+    <h2>Prior art, and what IMD has already asked for</h2>
+
+    <div class="fix"><strong>Correction 4 &mdash; the central novelty claim was
+    wrong.</strong> This page previously led with &ldquo;a signature classifier
+    that names WHICH fault&rdquo; as the innovation, and asserted that nothing in
+    standard QC does this. That is false. Naming sensor fault types is a
+    fifteen-year-old research programme with its own benchmark datasets &mdash;
+    Sharma, Golubchik &amp; Govindan (<em>ACM TOSN</em> 6(3), 2010) define a fault
+    taxonomy and detect by type on real environmental deployments; CAFD
+    (<em>Sensors</em> 21(2):617, 2021) performs context-aware fault
+    <em>diagnosis</em> on a wireless sensor network of temperature and humidity.
+    The vocabulary we use &mdash; drift, bias, spike, erratic, stuck, data-loss
+    &mdash; is the field-standard set. Cite this prior art first, before a judge
+    does.</div>
+
+    <div class="fix"><strong>Correction 5 &mdash; and the gap framing was wrong
+    too.</strong> A later draft of this section claimed we had found a gap IMD had
+    not noticed. Reading IMD's own <strong>Vision 2047</strong> (Ministry of Earth
+    Sciences, January 2025, 284 pp.) shows they have noticed, specified it, and
+    budgeted for it. That is not bad news. It replaces a claim we could not defend
+    with one we can.</div>
+
+    <h3>What IMD has already written down</h3>
+    <p class="prose">Under <em>Calibration of Instruments &amp; Sensors</em>,
+    Vision 2047 lists as its own short-, medium- and long-term objectives:</p>
+    <ul class="plain">
+      <li>&ldquo;Integration of <strong>automated calibration systems to ensure
+      the accuracy of measurements over time</strong>&rdquo;</li>
+      <li>&ldquo;<strong>Self-monitoring and diagnostic capabilities</strong> to
+      identify and address malfunction&rdquo;</li>
+      <li>&ldquo;<strong>Automated calibration planner</strong>&rdquo;</li>
+      <li>&ldquo;Calibration details as part of the <strong>metadata of the
+      sensor</strong>&rdquo;</li>
+    </ul>
+    <p class="prose">Under <em>Surface Observational Network</em>:</p>
+    <ul class="plain">
+      <li>&ldquo;<strong>Smart Weather Stations: An intelligent, autonomous AWS
+      with advanced sensors integrated with AI algorithms for real-time Quality
+      Control (150)</strong>&rdquo;</li>
+      <li>&ldquo;Implementation of a <strong>primary level data screening</strong>
+      and feedback to the operator about the quality of the data&rdquo;</li>
+    </ul>
+    <p class="prose">Under <em>Data-driven Modeling</em>:</p>
+    <ul class="plain">
+      <li>&ldquo;It is also contemplated to use <strong>AI in remote calibration
+      and data quality assessment for sensors &amp; systems and apply correction
+      factors</strong> before ingesting the data in models&rdquo;</li>
+    </ul>
+    <p class="prose">And listed among the gaps: &ldquo;<strong>Frequent validation
+    and calibration of technical tools</strong> &mdash; There must be frequent
+    validation and calibration of sensors, AWS, ARGS and other technical
+    tools.&rdquo;</p>
+
+    <div class="note"><strong>So the pitch is not &ldquo;we found a gap&rdquo;. It
+    is: IMD has specified what they want; nobody has specified how, or what it
+    costs; we built it and measured it.</strong> That is a smaller claim and a far
+    harder one to knock down. It also positions the work as alignment with their
+    roadmap rather than a critique of their system &mdash; which is the correct
+    posture in front of the people who run it.</div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Vision 2047 objective</th><th>What we built</th><th>Measured</th></tr></thead>
+        <tbody>
+          <tr><td class="k">&ldquo;automated calibration systems &hellip; accuracy of measurements over time&rdquo;</td><td>Frozen-reference neighbour-difference detector at a conformal alert budget</td><td>0.01 K/day at recall 1.00, one alert per station-week &mdash; <em>on synthetic data; see the caveat below</em></td></tr>
+          <tr><td class="k">&ldquo;self-monitoring and diagnostic capabilities&rdquo;</td><td>Sticky per-probe health state with hysteresis, worst-channel station roll-up, kept separate from per-timestamp flags</td><td>Built and running in the console</td></tr>
+          <tr><td class="k">&ldquo;automated calibration planner&rdquo;</td><td><strong>Not yet built.</strong> Theil&ndash;Sen slope extrapolated to tolerance, ranked by days-to-out-of-spec</td><td>The slope is already computed; only the projection is missing</td></tr>
+          <tr><td class="k">&ldquo;Smart Weather Stations &hellip; AI algorithms for real-time Quality Control (150)&rdquo;</td><td><strong>Not yet built.</strong> Level-0 tier on ESP32-class hardware</td><td>Fitted model is ~6.5 kB and ~80 float operations per sample; streaming approximations validated against the batch versions</td></tr>
+          <tr><td class="k">&ldquo;primary level data screening&rdquo;</td><td>The physics screen, written dependency-free so it transliterates to C++</td><td>Runs; not yet on a device</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The one mechanism nobody has written down</h3>
+    <div class="note"><strong>A baseline refitted on data containing a slow
+    degradation absorbs about 93 % of it and goes blind.</strong>
+    <br><br>This is ours, it is measured, and it is the reason the objectives
+    above are harder than they look. IMD's documented spatial check &mdash; the
+    Spatial Regression Test of You, Hubbard &amp; Goddard (2008) &mdash; refits its
+    regression on a <strong>25-hour window centred on the datum being tested</strong>.
+    A degradation that develops over months is inside that window by construction,
+    so the reference bends to follow it. The check is not badly built; it is built
+    for a different question.
+    <br><br>We measured this three ways and were wrong twice before getting it
+    right. It is not robustness &mdash; Huber absorbed <em>more</em> of the ramp
+    than ordinary least squares (0.8 % versus 3.5 % surviving). It is not the
+    neighbour difference &mdash; that recovered 2.4 %, worse than the raw residual.
+    It is the freezing, and only the freezing: a baseline fitted on a clean
+    reference period and never refitted on scored data leaves the degradation
+    fully visible.
+    <br><br>The adaptive anomaly-detection literature is built on the premise that
+    adapting is good. When the thing being detected is degradation of the sensor
+    itself, adaptation is self-masking. That is a rule with an ablation behind it.
+    <br><br><strong>And the same structure appears in NCMRWF's background
+    check.</strong> Observations are tested against the previous cycle's model
+    forecast &mdash; but that forecast assimilated the same station six hours
+    earlier, and the one before that, and so on. The reference is not independent
+    of the station's own history. A degradation of 0.01 K/day moves the
+    observation and the background together, so the departure stays small and the
+    probability of gross error never rises. Their specified SYNOP temperature
+    error is 1.4 K; a drift takes almost five months to reach it, and by then the
+    background has followed. This is not a flaw in their system &mdash; a
+    background check exists to catch gross errors in a single cycle, and it does
+    that well, rejecting under 1 % of temperature reports. It is simply the wrong
+    instrument for a fault that develops slower than the assimilation window, and
+    nothing in their documented pipeline is the right one.</div>
+
+    <h3>What IMD's published system already does</h3>
+    <p class="prose">One substantive public description exists: <strong>Ranalkar,
+    Anjan, Mishra, Mali &amp; Krishnaiah, MAUSAM 66(1), January 2015,
+    93&ndash;106</strong>, by IMD Pune, describing what was operational at the
+    Central Data Receiving Earth Station. Read it before presenting anything. It
+    runs range checks against sensor and monthly climatological limits; step
+    checks at 1 and 3 hours with per-station monthly thresholds; internal
+    consistency including <code>T &lt; Td &minus; &gamma;</code>; and the Spatial
+    Regression Test described above. It defines a flag vocabulary, and it monitors
+    the network for non-functional and intermittently transmitting stations,
+    battery voltage and GPS lock, emailed to the RIMCs.</p>
+
+    <div class="warn"><strong>That paper is from 2015 and we do not know what runs
+    in 2026.</strong> No successor description of the core AWS QC algorithm was
+    found. Vision 2047 sets short-term objectives for AWS-level quality
+    intelligence (below), and sister organisations run their own quality control, and it is
+    substantial. Read directly: <strong>Desamsetti, Sharma, Rani &amp; Das Gupta,
+    &ldquo;Monitoring and quality control of surface meteorological observations
+    at NCMRWF&rdquo;, NMRF/TR/02/2022</strong>. Their Observation Processing
+    System applies a <strong>Bayesian gross-error framework</strong>: an initial
+    probability of gross error is updated by a consistency check (PGE1), a
+    <strong>background check against the previous cycle's model forecast</strong>
+    (PGE2), and a <strong>buddy check against nearby observations of the same
+    type</strong> (PGE3), after which anything at PGE3 &ge; 0.5 is not
+    assimilated. For SYNOP the specified errors are 70 Pa, 1.4 m/s, 1.4 K and 7 %
+    RH. Measured rejection over June&ndash;July 2021: under 1 % for temperature,
+    wind and pressure in the background check and under 1.5 % in the buddy check,
+    with humidity around 4 %.
+    <br><br><strong>Two claims relayed to this project from a secondary summary do
+    not survive contact with the primary documents and have been removed:</strong>
+    NCObsProM contains no &ldquo;dynamic blacklisting&rdquo; and no
+    Pass/Valid/Conditional/Reject flag scheme &mdash; the words
+    &ldquo;blacklist&rdquo; and &ldquo;flag&rdquo; do not occur in it at all. Its
+    actual rule for Indian surface observations is a <em>volume</em> monitor:
+    &ldquo;if the total number of Indian surface observations received during each
+    assimilation cycle is less than 20 % of the mean of the previous 45 days
+    count, then action will be taken by informing the concerned agencies&rdquo;.
+    That counts arrivals; it does not examine values. And every occurrence of
+    &ldquo;drift&rdquo; in the surface QC report refers to <em>drifting buoys</em>,
+    not calibration drift.
+    <br><br><strong>Mission Mausam is largely orthogonal to this work, and an
+    earlier draft of this page said otherwise.</strong> Its published deliverables
+    (MoES, &#8377;2,000 crore, Phase-I 2024&ndash;26) are new instruments and cloud
+    physics &mdash; 50 DWRs, 60 RS/RW, 100 disdrometers, wind profilers,
+    radiometers, testbeds, 10 Marine AWS &mdash; plus a substantial weather
+    modification programme. There is no AWS network expansion in the deliverables
+    and exactly one quality-control line: <em>&ldquo;Evaluating the existing
+    observing network and preparing quality-controlled datasets for model
+    verification.&rdquo;</em> Its AI/ML objectives are about forecasts and earth
+    system models, not observation QC. A secondary research summary attributes a
+    four-stage QC pipeline with ML fault-versus-cloudburst classification to
+    Mission Mausam; that is <strong>not in the primary document</strong> and
+    should not be repeated. Treat every statement
+    about what IMD does <em>not</em> do as &ldquo;not present in the last public
+    description&rdquo;, and in the room <strong>ask rather than assert</strong>.</div>
+
+    <div class="warn"><strong>The honest form of our headline number.</strong> We
+    detect degradation at 0.01 K/day with recall 1.00 at one alert per station per
+    week &mdash; <em>on ERA5 reanalysis, degraded to AWS realism using noise
+    parameters we chose ourselves</em>. The detectable slope scales directly with
+    the neighbour-difference sigma, and we synthesised that sigma. On real station
+    pairs it will be larger and we do not know by how much. Quote the number with
+    its conditions attached every time, and present the latency-versus-slope curve
+    rather than the single figure &mdash; a curve carries its own conditions, a
+    number does not.</div>
+
+    <h3>Stop claiming these</h3>
+    <p class="prose">Each is operational in IMD's published system. Presenting any
+    as an innovation is the fastest way to lose the room.</p>
+    <ul class="plain">
+      <li>Spatial or buddy checks between neighbouring stations &mdash; they run the SRT</li>
+      <li>Range, gross-error or climatological limit checks</li>
+      <li>Step or rate-of-change checks</li>
+      <li>Internal consistency between temperature and humidity</li>
+      <li>QC flags exposed to users &mdash; a vocabulary was defined in 2015</li>
+      <li>Automated network and station health monitoring</li>
+      <li>Interpolation of erroneous values</li>
+      <li>And never that IMD has no quality control</li>
+    </ul>
+
+    <h3>Speak their vocabulary, not ours</h3>
+    <p class="prose"><strong>Vision 2047 never uses the word &ldquo;drift&rdquo;</strong>
+    in the sensor sense &mdash; not once in 284 pages. Their terms are
+    <em>accuracy of measurements over time</em>, <em>correction factors</em>,
+    <em>self-monitoring and diagnostic capabilities</em>, <em>automated
+    calibration planner</em>. Use those. Elsewhere: <strong>Level-0</strong> and
+    <strong>Level-1 QC</strong>, <strong>SRT</strong>, <strong>ES</strong> (Central
+    Data Receiving Earth Station, Pune), <strong>RIMC</strong>, <strong>NDC</strong>,
+    <strong>SLP</strong> for station level pressure and <strong>MSLP</strong> for
+    the reduced value &mdash; IMD derives MSLP at the Earth Station, which answers
+    a question this page previously listed as needing human verification. Their
+    paper also notes that <strong>10 m of elevation error produces about 1 hPa of
+    error in MSLP</strong>.</p>
+
+    <h3>Where these sit in Vision 2047, and what the numbers actually say</h3>
+    <p class="prose">The timeframe matters and it is favourable. Every objective
+    this project maps onto is in <strong>&sect;1.1.3, Short-term Vision &mdash; next
+    two years</strong>, not a distant 2047 aspiration:</p>
+    <ul class="plain">
+      <li>&ldquo;<strong>Smart Weather Stations</strong>: An intelligent, autonomous AWS with advanced sensors integrated with AI algorithms for real-time Quality Control (150)&rdquo;</li>
+      <li>&ldquo;Integration of <strong>automated calibration systems to ensure the accuracy of measurements over time</strong>&rdquo;</li>
+      <li>&ldquo;<strong>Self-monitoring and diagnostic capabilities</strong> to identify and address malfunction&rdquo;</li>
+      <li>&ldquo;Implementation of a <strong>primary level data screening</strong> and feedback to the operator about the quality of the data&rdquo;</li>
+      <li>&ldquo;Development of <strong>Low-power weather stations</strong> for deployment in remote, inhospitable or off-grid areas (300)&rdquo; &mdash; a second, independent justification for the edge tier</li>
+      <li>&ldquo;Application of <strong>AI/ML to pre-process the archived data and fill the gaps</strong> in climate observation&rdquo; &mdash; the problem statement's imputation objective, in IMD's own plan</li>
+    </ul>
+    <p class="prose">The <em>&ldquo;automated calibration planner&rdquo;</em> is
+    long-term; <em>&ldquo;AI/ML-based primary-level data screening&rdquo;</em> is
+    medium-term.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Figure</th><th>What Vision 2047 says</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Current network</td><td>Table 1: <strong>1008 AWS</strong>, 200 Agro-AWS, 1382 ARG, 547 surface manual observatories, 6095 district rainfall stations</td></tr>
+          <tr><td class="k">Reception</td><td>&ldquo;Minimum data reception frequency is once every 15 mins for AWS and ARG with <strong>latency 10 mins</strong>&rdquo;. The GPRS server established 2018 supports 15-minute <em>or even 1-minute</em> intervals. State our per-record latency against that budget, not in the abstract</td></tr>
+          <tr><td class="k">Scale, short-term</td><td>&ldquo;district (800) &amp; <strong>block level (1,50,000)</strong>&rdquo;</td></tr>
+          <tr><td class="k">Scale, medium-term</td><td>&ldquo;Automated Observational network at <strong>Panchayat level (2,50,000)</strong>&rdquo;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="warn"><strong>Their numbers are not internally consistent, so quote
+    them carefully.</strong> &sect;1.1.2 Gap Areas asks for &ldquo;AWS at block
+    level (6,612)&rdquo; and &ldquo;ARG at panchayat level (2,50,000)&rdquo;, while
+    &sect;1.1.3 asks for an automated network at &ldquo;block level
+    (1,50,000)&rdquo; and &sect;1.1.4 for &ldquo;Automated Observational network at
+    Panchayat level (2,50,000)&rdquo;. Whether the panchayat figure means rain
+    gauges or full stations is ambiguous in the document itself. Quote the phrase
+    verbatim with its section number rather than paraphrasing a count.</div>
+
+    <h3>Open questions we have not resolved</h3>
+    <ul class="plain">
+      <li><strong>Does the 2015 system include a persistence / flat-line check?</strong>
+      A direct read of the paper found four checks and no persistence test; a
+      secondary research summary states persistence checks were present. The two
+      conflict, and it matters because a flat-line detector is one of the things we
+      would otherwise claim. Resolve from the primary paper before saying anything.</li>
+      <li><strong>Which flag vocabulary is IMD's?</strong> A direct read gives
+      0 QC Not Done &middot; 1 Good &middot; 2 Doubtful &middot; 3 Erroneous &middot;
+      4 Changed/Interpolated &middot; 5 Missing. A secondary summary gives an
+      incompatible set. Using the wrong one in front of IMD would be a poor way to
+      show we did the reading.</li>
+      <li><strong>Data from the Data Supply Portal is post-processed.</strong>
+      Erroneous values appear to be filtered or replaced with missing markers and
+      flag columns stripped from public CSV exports. If so, DSP data cannot be used
+      to demonstrate anomaly detection &mdash; the anomalies have already been
+      removed. Verify before paying for a dataset.</li>
+      <li><strong>Inter-station spacing and usable correlation radius for the real
+      network.</strong> Still unanswered, still the project's largest risk. The
+      SRT's 2&deg;&times;2&deg; search box is the only IMD-sourced hint.</li>
+    </ul>
+  </section>
+
+
+  <section>
+    <h2>References</h2>
+    <p class="prose">Everything cited in this document, sorted by how safely it
+    can go on a slide in front of MoES / IMD. Verification status is marked
+    because it matters: <strong>read</strong> means the full text was opened and
+    read during this work; <strong>cited</strong> means it is referenced but was
+    not opened.</p>
+
+    <h3>Primary &mdash; India Meteorological Department and MoES</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Source</th><th>Link</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="k"><strong>IMD Vision 2047</strong> (January 2025, 284 pp.) &mdash; the roadmap this project aligns to</td><td><a href="https://internal.imd.gov.in/press_release/20250114_pr_3552.pdf">internal.imd.gov.in/press_release/20250114_pr_3552.pdf</a></td><td><span class="chip ok">read</span></td></tr>
+          <tr><td class="k"><strong>Ranalkar, Anjan, Mishra, Mali &amp; Krishnaiah</strong>, &ldquo;Development of operational near real-time network monitoring and quality control system for implementation at AWS data receiving earth station&rdquo;, <em>MAUSAM</em> 66(1), Jan 2015, 93&ndash;106 &mdash; <strong>IMD's own operational QC</strong></td><td><a href="https://mausamjournal.imd.gov.in/index.php/MAUSAM/article/view/370">mausamjournal.imd.gov.in/&hellip;/article/view/370</a></td><td><span class="chip ok">read</span></td></tr>
+          <tr><td class="k">Vision 2047 for Cyclone Warning Services and Action Plan (Feb 2024, IMD / MoES / WMO)</td><td>IMD, February 2024</td><td><span class="chip ok">read</span></td></tr>
+          <tr><td class="k">IMD Annual Report 2022</td><td><a href="https://mausam.imd.gov.in/imd_latest/contents/ar2022.pdf">mausam.imd.gov.in/imd_latest/contents/ar2022.pdf</a></td><td><span class="chip ok">read</span></td></tr>
+          <tr><td class="k">Notes on AWS and ARG &mdash; IMD Pune training material (calibration practice)</td><td><a href="https://imdpune.gov.in/training/icitc/LN_11_57_Notes%20on%20AWS%20and%20ARG.pdf">imdpune.gov.in/training/icitc/</a></td><td><span class="chip ok">read</span></td></tr>
+          <tr><td class="k">Network of Automatic Weather Stations: TDMA type &mdash; <em>MAUSAM</em></td><td><a href="https://mausamjournal.imd.gov.in/index.php/MAUSAM/article/view/1048">.../article/view/1048</a></td><td><span class="chip sus">cited</span></td></tr>
+          <tr><td class="k">Network of Automatic Weather Stations: PRBS type &mdash; <em>MAUSAM</em></td><td><a href="https://mausamjournal.imd.gov.in/index.php/MAUSAM/article/download/412/327/1310">.../article/download/412/327/1310</a></td><td><span class="chip sus">cited</span></td></tr>
+          <tr><td class="k">Digital Automatic Recording System (DARS) &mdash; <em>MAUSAM</em></td><td><a href="https://mausamjournal.imd.gov.in/index.php/MAUSAM/article/view/411">.../article/view/411</a></td><td><span class="chip sus">cited</span></td></tr>
+          <tr><td class="k">Climate Services in India: An Overview &mdash; IMD Pune (NDC / DSP)</td><td><a href="https://imdpune.gov.in/NFCS/NFCS_presentations/Day1/Session1/Climate_Services_in_India_NFCS_Final.pdf">imdpune.gov.in/NFCS/&hellip;</a></td><td><span class="chip sus">cited</span></td></tr>
+          <tr><td class="k">IMD Data Supply Portal &mdash; user categories and tariffs</td><td><a href="https://dsp.imdpune.gov.in/home_categories.php">dsp.imdpune.gov.in/home_categories.php</a></td><td><span class="chip sus">cited</span></td></tr>
+          <tr><td class="k">Procedure for Data Procurement &mdash; IMD</td><td><a href="https://mausam.imd.gov.in/shimla/docs/data-procedure.pdf">mausam.imd.gov.in/shimla/docs/data-procedure.pdf</a></td><td><span class="chip sus">cited</span></td></tr>
+          <tr><td class="k">METNET newsletter (AWS deployment plans)</td><td><a href="https://metnet.imd.gov.in/docs/imdnews/19Jan-March20261English.pdf">metnet.imd.gov.in/docs/imdnews/&hellip;</a></td><td><span class="chip sus">cited</span></td></tr>
+          <tr><td class="k">PIB &mdash; IMD 150th Foundation Day, Mission Mausam</td><td><a href="https://www.pib.gov.in/PressReleasePage.aspx?PRID=2092861">pib.gov.in/&hellip;PRID=2092861</a></td><td><span class="chip sus">cited</span></td></tr>
+          <tr><td class="k">PIB &mdash; 50 AWS each in Delhi, Mumbai, Chennai, Pune (2026)</td><td><a href="https://www.pib.gov.in/PressReleasePage.aspx?PRID=2214967">pib.gov.in/&hellip;PRID=2214967</a></td><td><span class="chip sus">cited</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Prior art &mdash; cite these before a judge does</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>What it establishes</th><th>Citation</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Naming sensor fault types is not new</td><td>Sharma, Golubchik &amp; Govindan, &ldquo;Sensor Faults: Detection Methods and Prevalence in Real-World Datasets&rdquo;, <em>ACM TOSN</em> 6(3), 2010. <a href="https://qed.usc.edu/papers/SharmaGG10.pdf">qed.usc.edu/papers/SharmaGG10.pdf</a></td></tr>
+          <tr><td class="k">Fault <em>diagnosis</em> on a temperature + humidity sensor network</td><td>Saeed et al., &ldquo;CAFD: Context-Aware Fault Diagnostic Scheme&rdquo;, <em>Sensors</em> 21(2):617, 2021. <a href="https://doi.org/10.3390/s21020617">doi.org/10.3390/s21020617</a></td></tr>
+          <tr><td class="k">Relative homogenization &mdash; the offline ancestor of our drift channel</td><td>Menne &amp; Williams, &ldquo;Homogenization of Temperature Series via Pairwise Comparisons&rdquo;, <em>J. Climate</em> 22(7), 2009. <a href="https://journals.ametsoc.org/view/journals/clim/22/7/2008jcli2263.1.xml">journals.ametsoc.org/&hellip;</a></td></tr>
+          <tr><td class="k"><strong>The Spatial Regression Test &mdash; the method IMD actually runs</strong></td><td>You, Hubbard &amp; Goddard, 2008 (as cited by Ranalkar et al. 2015)</td></tr>
+          <tr><td class="k">A fielded operational spatial QC system</td><td>TITAN, <em>Adv. Sci. Res.</em> 17:153, 2020. <a href="https://asr.copernicus.org/articles/17/153/2020/">asr.copernicus.org/articles/17/153/2020/</a></td></tr>
+          <tr><td class="k">Continental-scale automated QA</td><td>Durre, Menne et al., NOAA/NCEI, 2010. <a href="https://www.ncei.noaa.gov/pub/data/ghcn/daily/papers/durre-menne-etal2010.pdf">ncei.noaa.gov/&hellip;/durre-menne-etal2010.pdf</a></td></tr>
+          <tr><td class="k">Conformal prediction, for the alert-budget layer</td><td>Angelopoulos &amp; Bates, &ldquo;A Gentle Introduction to Conformal Prediction&rdquo;. <a href="https://arxiv.org/abs/2107.07511">arxiv.org/abs/2107.07511</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Indian operational practice beyond IMD</h3>
+    <ul class="plain">
+      <li><strong>NCMRWF NMRF/RR/01/2021</strong> &mdash; Saha, Das Gupta &amp; Mitra, <em>Monitoring the Quality of AWS/ARG Rainfall Observations over India during Monsoon Season</em>. <a href="https://www.researchgate.net/publication/361760829">researchgate.net/publication/361760829</a></li>
+      <li><strong>NCObsProM</strong> &mdash; NCMRWF Observation Reception, Processing and Monitoring System. <a href="https://www.researchgate.net/publication/387834527">researchgate.net/publication/387834527</a></li>
+      <li><strong>Telangana</strong> &mdash; Real-time Rainfall Quality Monitoring for a Highly-Dense AWS Network. <a href="https://www.researchgate.net/publication/374761338">researchgate.net/publication/374761338</a></li>
+      <li><strong>APSDPS (Andhra Pradesh)</strong> &mdash; Ahmed Shoaib &amp; Rasool, &ldquo;Correcting Real Time AWS Data Through Quality Checks and Analysis&rdquo;, <em>Vayu Mandal</em> 41, 2015. <a href="https://imetsociety.org/wp-content/pdf/vayumandal/2015/2015_9.pdf">imetsociety.org/&hellip;/2015_9.pdf</a> <span class="chip ok">read</span></li>
+    </ul>
+
+    <h3>Context for the motivation slide</h3>
+    <ul class="plain">
+      <li><strong>Mungeshpur, 52.9 &deg;C, May 2024</strong> &mdash; IMD confirmed a sensor reading about 3 &deg;C high; caught by human comparison against neighbours after national publication. <a href="https://www.tribuneindia.com/news/delhi/malfunctioning-sensor-behind-mungeshpur-temperature-reading-626996">tribuneindia.com/&hellip;</a></li>
+      <li><strong>IMD restricted public AWS/ARG portal access, May 2025</strong> &mdash; affects any demo assuming a live public feed. <a href="https://www.downtoearth.org.in/climate-change/imd-locking-up-its-awsarg-data-portal-hampers-public-weather-alerts-experts">downtoearth.org.in/&hellip;</a></li>
+    </ul>
+
+    <div class="warn"><strong>Do not put these on a slide.</strong> Several
+    secondary compilations of Vision 2047 circulate on UPSC coaching sites
+    &mdash; understandupsc.com, gktoday.in, theiashub.com, pw.live. They are not
+    sources, their numbers are second-hand, and citing them to IMD undercuts
+    everything else on the page. The Vision 2047 PDF linked above is the primary
+    document; use it. For the same reason, prefer DOI and journal links over
+    ResearchGate mirrors wherever both exist.</div>
+  </section>
+
+  <section>
     <h2>Measured so far</h2>
     <p class="prose">The sections above are design. These are results from the built pipeline, on ERA5 degraded to AWS realism with injected labelled faults. <strong>They supersede any target stated above.</strong></p>
     <div class="tablewrap">
