@@ -23,6 +23,7 @@ from api.engine import Engine, DEFAULT_DATA, DEFAULT_GRAPH
 from api.tiles import router as tiles_router
 from api.ingest import router as ingest_router
 from api.ai import router as ai_router
+from api.queue import router as queue_router
 
 ENGINE: Engine | None = None
 READY = False
@@ -122,6 +123,7 @@ app.add_middleware(
 app.include_router(tiles_router)
 app.include_router(ingest_router)
 app.include_router(ai_router)
+app.include_router(queue_router)
 
 # Serve the console from the API itself. Same origin, so the browser's fetch
 # needs no CORS grant at all -- and a demo is one command and one URL instead

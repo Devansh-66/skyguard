@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SkyGuard — Work Queue</title>
+<style>
+:root{
+  --paper:#FFFFFF; --surface:#F8F7F7; --surface-2:#FCFBFB;
+  --ink:#1E1A1C; --ink-2:#4E4549; --ink-3:#8A7F83;
+  --rule:#E1DBDD; --rule-soft:#F0ECEE;
+  --accent:#7A3B52; --accent-bg:#F6EBEF;
+  --ok:#1D6A46; --ok-bg:#E7F2EC;
+  --sus:#8A5E11; --sus-bg:#FAF1DC;
+  --bad:#AF382F; --bad-bg:#FBE9E6;
+  --mono:ui-monospace,"Roboto Mono",Consolas,monospace;
+  --sans:"Karla","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans);
+     -webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:0 1.1rem 3rem}
+
+header{padding:1.3rem 0 1rem;border-bottom:2px solid var(--accent);
+       display:flex;flex-wrap:wrap;gap:1rem 2rem;align-items:flex-end}
+h1{margin:0;font-size:1.35rem;letter-spacing:-.01em}
+h1 small{display:block;font:400 .66rem/1.4 var(--mono);letter-spacing:.13em;
+         text-transform:uppercase;color:var(--accent)}
+.stats{display:flex;gap:1.6rem;margin-left:auto;flex-wrap:wrap}
+.stat{text-align:right}
+.stat b{display:block;font:700 1.35rem/1.1 var(--mono)}
+.stat span{font:.68rem/1.3 var(--mono);letter-spacing:.09em;text-transform:uppercase;
+           color:var(--ink-3)}
+
+.score{margin-top:1rem;border:1px solid var(--rule);background:var(--surface)}
+.score .row{display:flex;flex-wrap:wrap;gap:1.4rem;padding:.75rem .9rem;align-items:center}
+.score .k{font:.7rem/1.3 var(--mono);letter-spacing:.09em;text-transform:uppercase;
+          color:var(--ink-3)}
+.score .v{font:700 1.05rem/1.2 var(--mono)}
+.score .note{padding:.65rem .9rem;border-top:1px solid var(--rule);
+             font-size:.83rem;color:var(--ink-2);background:var(--sus-bg)}
+
+.qhead{display:flex;align-items:baseline;gap:.7rem;margin:1.6rem 0 .5rem}
+.qhead h2{margin:0;font-size:1rem}
+.qhead .sub{font-size:.82rem;color:var(--ink-3)}
+
+.item{border:1px solid var(--rule);border-left:4px solid var(--bad);
+      background:var(--surface-2);margin-bottom:.5rem}
+.item.hk{border-left-color:var(--accent)}
+.top{display:grid;grid-template-columns:auto 1fr auto auto;gap:.7rem 1rem;
+     padding:.7rem .85rem;cursor:pointer;align-items:center}
+.top:hover{background:var(--surface)}
+.sev{font:700 1.1rem/1 var(--mono);min-width:52px;text-align:center}
+.sev small{display:block;font:.58rem/1.4 var(--mono);letter-spacing:.08em;
+           color:var(--ink-3);text-transform:uppercase}
+.who b{font-size:.95rem}
+.who .meta{font-size:.8rem;color:var(--ink-2);margin-top:.1rem}
+.badge{display:inline-block;font:700 .58rem/1.6 var(--mono);letter-spacing:.07em;
+       padding:.05rem .35rem;border-radius:2px;text-transform:uppercase;
+       vertical-align:middle;margin-left:.35rem}
+.badge.hw{background:var(--accent-bg);color:var(--accent)}
+.badge.conf{background:var(--ok-bg);color:var(--ok)}
+.act{font:700 .68rem/1.5 var(--mono);letter-spacing:.06em;padding:.25rem .5rem;
+     border-radius:2px;white-space:nowrap}
+.act.DISPATCH{background:var(--bad-bg);color:var(--bad)}
+.act.CORRECT{background:var(--sus-bg);color:var(--sus)}
+.caret{color:var(--ink-3);font-family:var(--mono)}
+
+.detail{display:none;padding:.2rem .85rem .9rem;border-top:1px solid var(--rule-soft)}
+.item.open .detail{display:block}
+.why{background:var(--paper);border:1px solid var(--rule-soft);padding:.6rem .75rem;
+     font-size:.87rem;color:var(--ink-2);margin:.6rem 0}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem}
+@media(max-width:820px){.cols{grid-template-columns:1fr}}
+.kv{display:flex;justify-content:space-between;font-size:.82rem;padding:.16rem 0;
+    border-bottom:1px solid var(--rule-soft)}
+.kv b{font-family:var(--mono);font-weight:400}
+h4{margin:.6rem 0 .3rem;font:600 .7rem/1.4 var(--mono);letter-spacing:.1em;
+   text-transform:uppercase;color:var(--ink-3)}
+.chk{display:flex;gap:.5rem;font-size:.83rem;padding:.25rem 0;align-items:baseline}
+.chk .d{width:9px;height:9px;border-radius:50%;flex:none;position:relative;top:4px}
+.chk .d.on{background:var(--bad)} .chk .d.off{background:var(--ok);opacity:.35}
+.chk .n{font-family:var(--mono);min-width:82px}
+.chk .s{font-family:var(--mono);min-width:46px;text-align:right}
+.chk .r{color:var(--ink-2);flex:1}
+.analyst{border-left:3px solid var(--ok);background:var(--ok-bg);padding:.55rem .75rem;
+         font-size:.84rem;margin-top:.5rem}
+.refwarn{border-left:3px solid var(--sus);background:var(--sus-bg);padding:.55rem .75rem;
+         font-size:.82rem;color:var(--ink-2);margin-top:.5rem}
+svg.spark{width:100%;height:96px;display:block;background:var(--paper);
+          border:1px solid var(--rule-soft)}
+.legend{font-size:.74rem;color:var(--ink-3);margin-top:.25rem}
+footer{margin-top:2rem;padding-top:1rem;border-top:1px solid var(--rule);
+       font-size:.83rem;color:var(--ink-3);max-width:78ch}
+.loading{padding:3rem 0;color:var(--ink-3)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><p class="loading">Scanning every station held…</p></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const f = (v,d=2) => (v===null||v===undefined||Number.isNaN(v)) ? "—" : Number(v).toFixed(d);
+const day = s => s ? s.slice(0,10) : "—";
+
+function spark(sr){
+  const n = sr.bias.length, W = 900, H = 96, P = 6;
+  const vals = sr.bias.filter(v => v !== null);
+  if (!vals.length) return "";
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (hi - lo < 1e-9){ hi += .5; lo -= .5; }
+  const pad = (hi-lo)*.15; lo -= pad; hi += pad;
+  const X = i => P + i/(n-1)*(W-2*P), Y = v => P + (H-2*P)*(1-(v-lo)/(hi-lo));
+  let bands = "", s = null;
+  sr.faulty.forEach((fl,i) => {
+    if (fl && s===null) s = i;
+    if ((!fl || i===n-1) && s!==null){
+      bands += `<rect x="${X(s).toFixed(1)}" y="0" width="${Math.max(X(i)-X(s),1).toFixed(1)}" height="${H}" fill="var(--bad-bg)"/>`;
+      s = null; }
+  });
+  let d = "", pen = false;
+  sr.bias.forEach((v,i) => { if (v===null){ pen=false; return; }
+    d += `${pen?"L":"M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`; pen = true; });
+  const z = (lo<=0 && hi>=0) ? `<line x1="${P}" y1="${Y(0).toFixed(1)}" x2="${W-P}" y2="${Y(0).toFixed(1)}" stroke="var(--rule)"/>` : "";
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bands}${z}
+    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.8" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+async function detail(it, el){
+  el.innerHTML = `<p class="loading" style="padding:1rem 0">loading evidence…</p>`;
+  const d = await (await fetch(`/api/queue/${encodeURIComponent(it.id)}`)).json();
+  const chks = d.verdicts.map(v => `<div class="chk">
+      <span class="d ${v.fired?"on":"off"}"></span>
+      <span class="n">${esc(v.checker)}</span>
+      <span class="s">${v.score>=0?"+":""}${f(v.score)}</span>
+      <span class="r">${esc(v.reason)}</span></div>`).join("");
+  el.innerHTML = `
+    <div class="why"><b>Recommended action — ${esc(it.action)}.</b> ${esc(it.why)}</div>
+    <div class="cols">
+      <div>
+        <h4>What the system believes</h4>
+        <div class="kv"><span>offset from expected</span><b>${f(it.bias)}</b></div>
+        <div class="kv"><span>its own noise scale</span><b>${f(it.noise)}</b></div>
+        <div class="kv"><span>severity = offset / noise</span><b>${f(it.severity)}</b></div>
+        <div class="kv"><span>drift per day</span><b>${f(it.drift_per_day,4)}</b></div>
+        <div class="kv"><span>onset estimate</span><b>${day(it.onset)}${it.days_since_onset!==null?` <span style="color:var(--ink-3)">(${f(it.days_since_onset,0)} d ago)</span>`:""}</b></div>
+        <div class="kv"><span>trust</span><b>${f(it.trust)}</b></div>
+        <div class="kv"><span>evidence behind it</span><b>${esc(it.checks)}</b></div>
+        <h4>Belief over time</h4>
+        ${spark(d.series)}
+        <div class="legend">shaded = the interval an analyst independently recorded as faulty</div>
+      </div>
+      <div>
+        <h4>Why — every checker, at the strongest hour</h4>
+        <div class="legend" style="margin:-.15rem 0 .35rem">${esc(d.panel_note||"")}</div>
+        ${chks}
+        <div class="why" style="margin-top:.55rem"><b>${esc(d.decision.toUpperCase())}</b> — ${esc(d.note || "")}
+        <br><br>Each line above <em>is</em> the explanation. The checkers already speak in the operator's vocabulary, so nothing needs a separate explainer.</div>
+        ${it.confirmed_by_analyst ? `<div class="analyst"><b>Independently confirmed.</b> An ARM analyst wrote this up as
+          “${esc(it.analyst_subject)}”. ${esc(d.analyst_note || "")}</div>` : ""}
+        ${it.reference.compromised ? `<div class="refwarn"><b>Estimate weakened here.</b> ${esc(it.reference.warning)}</div>` : ""}
+      </div>
+    </div>`;
+}
+
+function render(q){
+  const sc = q.scorecard;
+  const rows = q.items.map((it,i) => `
+    <div class="item ${it.housekeeping?"hk":""}" id="it${i}">
+      <div class="top" onclick="toggle(${i})">
+        <div class="sev">${f(it.severity,1)}<small>severity</small></div>
+        <div class="who">
+          <b>${esc(it.station)} — ${esc(it.label)}</b>
+          ${it.housekeeping?'<span class="badge hw">hardware</span>':""}
+          ${it.confirmed_by_analyst?'<span class="badge conf">confirmed</span>':""}
+          <div class="meta">offset ${f(it.bias)} · drifting ${f(it.drift_per_day,3)}/day ·
+            since ${day(it.onset)} · trust ${f(it.trust)}</div>
+        </div>
+        <div class="act ${it.action.startsWith("DISPATCH")?"DISPATCH":"CORRECT"}">${esc(it.action)}</div>
+        <div class="caret">▾</div>
+      </div>
+      <div class="detail" id="d${i}"></div>
+    </div>`).join("");
+
+  document.getElementById("app").innerHTML = `
+    <header>
+      <h1><small>SkyGuard · network operations</small>Work queue</h1>
+      <div class="stats">
+        <div class="stat"><b>${q.stations_scanned}</b><span>stations scanned</span></div>
+        <div class="stat"><b>${q.items.length}</b><span>need attention</span></div>
+        <div class="stat"><b>${q.actions?.DISPATCH ?? 0}</b><span>need a visit</span></div>
+      </div>
+    </header>
+
+    <div class="score">
+      <div class="row">
+        <div><div class="k">recall against analysts</div><div class="v">${sc.recall===null?"—":(sc.recall*100).toFixed(0)+"%"}</div></div>
+        <div><div class="k">of ${sc.analyst_named} sensors a person flagged</div><div class="v">we found ${sc.we_raised_of_those}</div></div>
+        <div><div class="k">of our ${sc.items_raised} items</div><div class="v">${sc.raised_and_confirmed} confirmed</div></div>
+      </div>
+      <div class="note"><b>Read the two numbers differently.</b> ${esc(sc.caveat)}</div>
+      ${q.action_note ? `<div class="note">${esc(q.action_note)}</div>` : ""}
+    </div>
+
+    <div class="qhead"><h2>Ranked by how far the sensor has moved, weighted by evidence</h2>
+      <span class="sub">severity is the offset divided by that sensor's own noise, so a quiet instrument needs a smaller absolute shift to rank ·</span>
+      <span class="sub">click any row for the evidence</span></div>
+    ${rows || '<p class="loading">Nothing above threshold.</p>'}
+
+    <footer>Every row is computed from real one-minute observations by real instruments.
+      The fault reports are not used to choose what appears here — the system scans everything
+      held and ranks it, and the reports are used only afterwards, to score it. That is why the
+      recall figure above can be poor: it is measuring us, not selecting for us.</footer>`;
+  window.QUEUE = q;
+}
+
+window.toggle = async i => {
+  const el = document.getElementById("it"+i), d = document.getElementById("d"+i);
+  const open = el.classList.toggle("open");
+  el.querySelector(".caret").textContent = open ? "▴" : "▾";
+  if (open && !d.dataset.loaded){ d.dataset.loaded = "1"; await detail(window.QUEUE.items[i], d); }
+};
+
+fetch("/api/queue").then(r => r.json()).then(render).catch(e => {
+  document.getElementById("app").innerHTML =
+    `<p class="loading">Could not load the queue: ${esc(e)}</p>`; });
+</script>
+</body>
+</html>
