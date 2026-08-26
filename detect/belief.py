@@ -69,15 +69,45 @@ Q_DRIFT = 0.0008
 # reading exactly where a detector would start flagging it.
 HUBER_C = 3.0
 
-# Trust decay per update. Slow to trust, faster to distrust -- an asymmetry that
-# is deliberate: a station that misbehaved should have to earn its way back.
-TRUST_UP = 0.002
-TRUST_DOWN = 0.02
+# Trust is a Beta reputation, not a hand-rolled ratchet.
+#
+# The first version moved trust up or down by a fixed step per update. Measured
+# on real ARM instruments it was LOWER inside a human-confirmed fault in only
+# 12 % of cases -- worse than chance -- because a single quiet sample ratcheted
+# it straight back up. Beta reputation is the established form (Ganeriwal &
+# Srivastava, RFSN): every check is a Bernoulli trial, Beta is its conjugate, so
+# the posterior is two counters and a forgetting factor.
+#
+# It also gives something the ratchet could not: CONFIDENCE. alpha+beta is the
+# weight of evidence behind the trust value, so a station with 4 observations
+# and a station with 4,000 are no longer indistinguishable.
+TRUST_LAMBDA = 0.999          # forgetting; half-life ~29 days at hourly cadence
+TRUST_PRIOR_A = 2.0           # mild optimism, so a new station is usable
+TRUST_PRIOR_B = 1.0
 TRUST_FLOOR = 0.05
 
 # Noise-scale smoothing. Degradation shows in the second moment before the
 # first, so this is tracked separately rather than inferred from the bias.
 NOISE_ALPHA = 0.02
+
+# The noise update sees the residual clipped at this many robust sigmas, and the
+# scale is additionally not allowed to grow faster than NOISE_MAX_GROWTH per
+# update. Clipping alone was not enough: the clip is relative to the current
+# scale, so the scale ratchets up geometrically and still swallows the fault.
+NOISE_CLIP = 3.0
+NOISE_MAX_GROWTH = 1.01
+
+# |bias| beyond this many robust sigmas counts as a FAILED check, independently
+# of whether the innovation is currently small.
+#
+# THIS IS THE CORRECTION THAT MATTERS, and the first two attempts missed it. A
+# bias estimator is SUPPOSED to absorb a sustained step -- that is its job -- so
+# once the filter has adapted, the reading matches the model, the innovation
+# collapses, and any trust defined on the innovation alone climbs back to full
+# confidence while the sensor sits 5 sigma off. Trust was asking "does this
+# reading match my model" when the operational question is "is this sensor
+# sound". Those are different, and only the second one belongs in a work order.
+BIAS_TOLERANCE = 2.0
 
 
 @dataclass
@@ -91,7 +121,8 @@ class Belief:
     var_bias: float = 1.0            # filter uncertainty on bias
     var_drift: float = 0.01          # filter uncertainty on drift
     noise: float = 1.0               # robust scale of the innovation
-    trust: float = 1.0               # how much the network believes it
+    alpha: float = TRUST_PRIOR_A     # Beta reputation: weight of checks passed
+    beta: float = TRUST_PRIOR_B      # weight of checks failed
     n: int = 0                       # updates seen
     last_update: str | None = None
     last_service: str | None = None
@@ -133,22 +164,50 @@ class Belief:
         vb_new = (1.0 - k_b) * vb
         vd_new = max(vd - k_d * k_d * (vb + r), 1e-9)
 
-        # noise scale tracks the second moment independently
-        noise_new = (1.0 - NOISE_ALPHA) * self.noise + NOISE_ALPHA * abs(resid)
+        # Noise scale, from the clipped residual and additionally rate-limited,
+        # so a sustained fault cannot walk the scale up until it looks normal.
+        capped = min(abs(resid), NOISE_CLIP * scale)
+        noise_new = (1.0 - NOISE_ALPHA) * self.noise + NOISE_ALPHA * capped
+        noise_new = min(noise_new, scale * NOISE_MAX_GROWTH)
 
-        # trust: agreement earns a little, disagreement costs more
-        if z <= HUBER_C:
-            trust_new = min(1.0, self.trust + TRUST_UP)
-        else:
-            trust_new = max(TRUST_FLOOR, self.trust - TRUST_DOWN * min(z / HUBER_C, 4.0))
+        # Beta reputation. Each update is one Bernoulli trial, and the trial has
+        # TWO conditions: the reading behaved, AND the sensor is not sitting on a
+        # large accumulated offset. The second is what makes trust survive the
+        # filter adapting to a fault -- see BIAS_TOLERANCE.
+        in_spec = abs(b_new) <= BIAS_TOLERANCE * max(noise_new, 1e-6)
+        passed = 1.0 if (z <= HUBER_C and in_spec) else 0.0
+        a_new = TRUST_LAMBDA * self.alpha + passed
+        b_beta = TRUST_LAMBDA * self.beta + (1.0 - passed)
 
         return Belief(
             station=self.station, sensor=self.sensor,
             bias=b_new, drift=d_new, var_bias=vb_new, var_drift=vd_new,
-            noise=max(noise_new, 1e-6), trust=trust_new, n=self.n + 1,
+            noise=max(noise_new, 1e-6), alpha=a_new, beta=b_beta, n=self.n + 1,
             last_update=(when or datetime.utcnow()).isoformat(timespec="seconds"),
             last_service=self.last_service,
         )
+
+    # ------------------------------------------------------------ reputation
+    @property
+    def trust(self) -> float:
+        """Posterior mean of the Beta reputation."""
+        return max(TRUST_FLOOR, self.alpha / max(self.alpha + self.beta, 1e-9))
+
+    @property
+    def trust_confidence(self) -> float:
+        """Weight of evidence behind that trust value.
+
+        A station seen four times and one seen four thousand times can both read
+        0.9; this is what tells them apart, and it is what the previous
+        hand-rolled ratchet could not express at all.
+        """
+        return self.alpha + self.beta
+
+    @property
+    def checks_passed(self) -> str:
+        """The trust value in words an operator can act on."""
+        total = self.alpha + self.beta
+        return f"{self.alpha:.0f} of {total:.0f} recent checks passed"
 
     # ------------------------------------------------------------- readouts
     @property
@@ -183,7 +242,8 @@ class Belief:
         """
         return Belief(station=self.station, sensor=self.sensor,
                       bias=0.0, drift=0.0, var_bias=1.0, var_drift=0.01,
-                      noise=self.noise, trust=0.8, n=0,
+                      noise=self.noise,
+                      alpha=TRUST_PRIOR_A, beta=TRUST_PRIOR_B, n=0,
                       last_update=self.last_update,
                       last_service=(when.isoformat() if hasattr(when, "isoformat")
                                     else str(when)))
@@ -249,6 +309,8 @@ class BeliefStore:
                          "bias_lo": round(lo, 4), "bias_hi": round(hi, 4),
                          "drift_per_day": round(b.drift, 5),
                          "noise": round(b.noise, 4),
-                         "trust": round(b.trust, 3), "n": b.n,
+                         "trust": round(b.trust, 3),
+                         "trust_evidence": round(b.trust_confidence, 1),
+                         "n": b.n,
                          "last_service": b.last_service})
         return pd.DataFrame(rows)
