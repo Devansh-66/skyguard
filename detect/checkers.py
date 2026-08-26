@@ -112,17 +112,32 @@ def check_physics(ctx: dict) -> Verdict:
     that does real work.
     """
     t, p, rh = ctx["temp"], ctx["pres"], ctx["rh"]
-    bad = []
-    if not (-40 <= t <= 60):
-        bad.append(f"temperature {t:.1f} °C outside instrument range")
-    if not (500 <= p <= 1100):
-        bad.append(f"pressure {p:.1f} hPa outside instrument range")
-    if not (0 <= rh <= 105):
-        bad.append(f"humidity {rh:.1f} % outside instrument range")
-    elif rh > 100:
-        bad.append(f"supersaturated at {rh:.1f} %")
+    bad, missing = [], []
+
+    # A missing reading is NOT an out-of-range reading, and conflating them
+    # produces "temperature nan °C outside instrument range", which is both
+    # wrong and unreadable. Found when a real ARM lightning strike killed a
+    # station: every channel went NaN and the panel reported nonsense.
+    # Absence is its own fault class -- it means the link or the logger, not the
+    # sensor -- and it points at a different repair.
+    for name, val, unit, lo, hi in (("temperature", t, "°C", -40, 60),
+                                    ("pressure", p, "hPa", 500, 1100),
+                                    ("humidity", rh, "%", 0, 105)):
+        if val is None or not math.isfinite(val):
+            missing.append(name)
+        elif not (lo <= val <= hi):
+            bad.append(f"{name} {val:.1f} {unit} outside instrument range")
+        elif name == "humidity" and val > 100:
+            bad.append(f"supersaturated at {val:.1f} %")
+
+    if missing:
+        return Verdict("physics", True, 9.9,
+                       "no reading for " + ", ".join(missing)
+                       + " — the station or its link, not the sensor",
+                       {"missing": missing, "mode": "dropout"})
     return Verdict("physics", bool(bad), 9.9 if bad else 0.0,
-                   "; ".join(bad) or "within physical bounds", {"n_violations": len(bad)})
+                   "; ".join(bad) or "within physical bounds",
+                   {"n_violations": len(bad), "mode": "range" if bad else "ok"})
 
 
 def check_neighbour(ctx: dict) -> Verdict:
