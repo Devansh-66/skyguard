@@ -61,6 +61,8 @@ except Exception:
 
 from detect.belief import BeliefStore
 from detect.checkers import FIRE_AT
+from evaluation.arm_reference import (SGP, neighbour_innovation,
+                                      trailing_innovation)
 
 warnings.filterwarnings("ignore")
 
@@ -142,6 +144,14 @@ def main() -> None:
     ap.add_argument("--dqr", default="data/arm/dqr_tprh.csv")
     ap.add_argument("--max-files", type=int, default=500)
     ap.add_argument("--out", default="models/double_fault.json")
+    ap.add_argument("--reference", choices=("neighbour", "trailing"),
+                    default="neighbour",
+                    help="where the station's expected value comes from. "
+                         "trailing is the station's own recent history and "
+                         "self-masks on any fault longer than its window, "
+                         "which is most real faults; neighbour uses the "
+                         "co-located SGP stations, which one station's "
+                         "fault cannot reach.")
     args = ap.parse_args()
 
     dqr = pd.read_csv(args.dqr, parse_dates=["start", "end"])
@@ -158,6 +168,17 @@ def main() -> None:
     print("Bias and trust are driven by the station's departure from its own")
     print("trailing normal. Compared inside against outside DQR windows.\n")
 
+    if args.reference == "neighbour":
+        n_sgp = df.station.isin(SGP).sum()
+        print(f"reference: co-located SGP neighbours ({n_sgp:,} of {len(df):,} "
+              f"station-hours are at SGP and can use it)")
+        print("Stations outside SGP have no neighbours here and are skipped "
+              "rather than judged against themselves.\n")
+        innov = {v: neighbour_innovation(df, v) for v in MET + HK if v in df}
+    else:
+        print("reference: the station's own 168-hour trailing window\n")
+        innov = {v: trailing_innovation(df, v) for v in MET + HK if v in df}
+
     store = BeliefStore()
     rows = []
     for st, g in df.groupby("station"):
@@ -165,7 +186,9 @@ def main() -> None:
         for short in MET + HK:
             if short not in g or g[short].notna().sum() < 200:
                 continue
-            z = robust_z(g[short].to_numpy())
+            z = innov[short].reindex(g.index).to_numpy()
+            if not np.isfinite(z).any():
+                continue
             prev = None
             recs = []
             for i, ts in enumerate(g.timestamp):
@@ -208,14 +231,10 @@ def main() -> None:
     for short in MET + HK:
         if short not in df:
             continue
-        e = []
-        for st, g in df.groupby("station"):
-            g = g.sort_values("timestamp")
-            z = robust_z(g[short].to_numpy())
-            fires = np.abs(z) > FIRE_AT
-            e.append(pd.DataFrame({"wrong": fires != g.faulty.to_numpy(),
-                                   "ok": np.isfinite(z)}))
-        e = pd.concat(e, ignore_index=True)
+        z_all = innov[short]
+        fires = (z_all.abs() > FIRE_AT).to_numpy()
+        e = pd.DataFrame({"wrong": fires != df.faulty.to_numpy(),
+                          "ok": np.isfinite(z_all.to_numpy())})
         err[short] = e.wrong.where(e.ok).to_numpy()
 
     keys = [k for k in MET + HK if k in err]
@@ -284,7 +303,7 @@ def main() -> None:
         for short in MET + HK:
             if short not in g:
                 continue
-            z = robust_z(g[short].to_numpy())
+            z = innov[short].reindex(g.index).to_numpy()
             hit = np.where(np.abs(z) > FIRE_AT)[0]
             if len(hit) == 0:
                 row[short] = np.nan
