@@ -53,3 +53,4 @@ dashboard/console.html
 
 # Basemap tile cache — regenerable, sometimes large
 data/tilecache/
+docs/SkyGuard-Blueprint.pdf
