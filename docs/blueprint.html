@@ -266,43 +266,88 @@ td s{opacity:.55}
     <p class="prose">The problem statement asks whether AI can build a &ldquo;self-aware and self-healing weather observation network&rdquo;. That phrase has to cash out as an architecture or it is decoration. This is the architecture, and the word <em>agent</em> here means an autonomous specialist checker with its own evidence source &mdash; <strong>not</strong> a language model.</p>
 
     <figure class="diagram">
-      <svg viewBox="0 0 900 360" role="img" aria-label="Five specialist agents - physics, neighbour, history, instrument and clock - each pass a verdict to an adjudicator, which requires corroboration from agents drawing on independent evidence before it will raise a work order, and returns unknown when they disagree. A verifier re-runs the station's own screen server-side and flags disagreement between the two.">
+      <svg viewBox="0 0 900 375" role="img" aria-label="Five specialist checkers - physics, neighbour, history, instrument and clock - each pass a verdict to an adjudicator, which requires a measured low double-fault rate between checkers before it will raise a work order, and returns unknown when they conflict. A verifier re-runs the station's own screen server-side and flags disagreement between the two.">
         <defs>
           <marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><polygon points="0,1 10,5 0,9" fill="currentColor"></polygon></marker>
           <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><polygon points="0,1 10,5 0,9" fill="#7A3B52"></polygon></marker>
         </defs>
-        <text x="10" y="26" font-size="10.5" font-weight="700" fill="#7A3B52" letter-spacing="1">FIVE INDEPENDENT AGENTS</text>
-        <rect x="10" y="44" width="216" height="46" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="63" font-size="11" font-weight="700" fill="#7A3B52">PHYSICS</text><text x="22" y="80" font-size="9.5" fill="currentColor" opacity=".7">thermodynamics</text><path d="M 234 67 L 288 175" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55" marker-end="url(#aa)"></path><rect x="10" y="100" width="216" height="46" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="119" font-size="11" font-weight="700" fill="#7A3B52">NEIGHBOUR</text><text x="22" y="136" font-size="9.5" fill="currentColor" opacity=".7">surrounding stations</text><path d="M 234 123 L 288 175" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55" marker-end="url(#aa)"></path><rect x="10" y="156" width="216" height="46" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="175" font-size="11" font-weight="700" fill="#7A3B52">HISTORY</text><text x="22" y="192" font-size="9.5" fill="currentColor" opacity=".7">the station's own past</text><path d="M 234 179 L 288 175" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55" marker-end="url(#aa)"></path><rect x="10" y="212" width="216" height="46" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="231" font-size="11" font-weight="700" fill="#7A3B52">INSTRUMENT</text><text x="22" y="248" font-size="9.5" fill="currentColor" opacity=".7">fault signatures</text><path d="M 234 235 L 288 175" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55" marker-end="url(#aa)"></path><rect x="10" y="268" width="216" height="46" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="287" font-size="11" font-weight="700" fill="#7A3B52">CLOCK</text><text x="22" y="304" font-size="9.5" fill="currentColor" opacity=".7">the pressure tide</text><path d="M 234 291 L 288 175" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55" marker-end="url(#aa)"></path>
+        <text x="10" y="24" font-size="10.5" font-weight="700" fill="#7A3B52" letter-spacing="1">FIVE CHECKERS</text>
+        <rect x="10" y="40" width="216" height="44" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="58" font-size="11" font-weight="700" fill="#7A3B52">PHYSICS</text><text x="22" y="74" font-size="9.5" fill="currentColor" opacity=".7">thermodynamics</text><path d="M 234 62 L 288 172" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".5" marker-end="url(#aa)"></path><rect x="10" y="92" width="216" height="44" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="110" font-size="11" font-weight="700" fill="#7A3B52">NEIGHBOUR</text><text x="22" y="126" font-size="9.5" fill="currentColor" opacity=".7">surrounding stations</text><path d="M 234 114 L 288 172" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".5" marker-end="url(#aa)"></path><rect x="10" y="144" width="216" height="44" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="162" font-size="11" font-weight="700" fill="#7A3B52">HISTORY</text><text x="22" y="178" font-size="9.5" fill="currentColor" opacity=".7">the station's own past</text><path d="M 234 166 L 288 172" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".5" marker-end="url(#aa)"></path><rect x="10" y="196" width="216" height="44" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="214" font-size="11" font-weight="700" fill="#7A3B52">INSTRUMENT</text><text x="22" y="230" font-size="9.5" fill="currentColor" opacity=".7">fault signatures</text><path d="M 234 218 L 288 172" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".5" marker-end="url(#aa)"></path><rect x="10" y="248" width="216" height="44" fill="none" stroke="currentColor" stroke-width="1.5"></rect><text x="22" y="266" font-size="11" font-weight="700" fill="#7A3B52">CLOCK</text><text x="22" y="282" font-size="9.5" fill="currentColor" opacity=".7">the pressure tide</text><path d="M 234 270 L 288 172" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".5" marker-end="url(#aa)"></path>
 
-        <text x="290" y="26" font-size="10.5" font-weight="700" fill="#7A3B52" letter-spacing="1">ADJUDICATOR</text>
-        <rect x="290" y="112" width="188" height="126" fill="none" stroke="#7A3B52" stroke-width="2.5"></rect>
-        <text x="304" y="136" font-size="11" fill="currentColor">no single agent</text>
-        <text x="304" y="153" font-size="11" fill="currentColor">may raise an alarm</text>
-        <line x1="304" y1="166" x2="464" y2="166" stroke="currentColor" stroke-width="1" opacity=".3"></line>
-        <text x="304" y="186" font-size="11" font-weight="600" fill="#7A3B52">requires corroboration</text>
-        <text x="304" y="203" font-size="10" fill="currentColor" opacity=".75">from INDEPENDENT evidence</text>
-        <text x="304" y="226" font-size="10" fill="currentColor" opacity=".75">disagreement &#8594; abstain</text>
+        <text x="290" y="24" font-size="10.5" font-weight="700" fill="#7A3B52" letter-spacing="1">ADJUDICATOR</text>
+        <rect x="290" y="108" width="188" height="128" fill="none" stroke="#7A3B52" stroke-width="2.5"></rect>
+        <text x="304" y="132" font-size="11" fill="currentColor">no single checker</text>
+        <text x="304" y="149" font-size="11" fill="currentColor">may raise an alarm</text>
+        <line x1="304" y1="161" x2="464" y2="161" stroke="currentColor" stroke-width="1" opacity=".3"></line>
+        <text x="304" y="181" font-size="10.5" font-weight="600" fill="#7A3B52">measured double-fault</text>
+        <text x="304" y="197" font-size="10.5" font-weight="600" fill="#7A3B52">rate below threshold</text>
+        <text x="304" y="221" font-size="10" fill="currentColor" opacity=".75">conflict &#8594; abstain</text>
 
-        <path d="M 486 152 L 546 138" fill="none" stroke="#7A3B52" stroke-width="1.8" marker-end="url(#ab)"></path>
-        <path d="M 486 200 L 546 232" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#aa)"></path>
+        <path d="M 486 148 L 546 136" fill="none" stroke="#7A3B52" stroke-width="1.8" marker-end="url(#ab)"></path>
+        <path d="M 486 198 L 546 228" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#aa)"></path>
 
-        <rect x="552" y="108" width="200" height="62" fill="none" stroke="#7A3B52" stroke-width="2.5"></rect>
-        <text x="566" y="130" font-size="11" font-weight="700" fill="#7A3B52">WORK ORDER</text>
-        <text x="566" y="148" font-size="9.5" fill="currentColor" opacity=".75">named fault &middot; signed bias</text>
-        <text x="566" y="162" font-size="9.5" fill="currentColor" opacity=".75">onset date &middot; dispatch or not</text>
+        <rect x="552" y="106" width="204" height="62" fill="none" stroke="#7A3B52" stroke-width="2.5"></rect>
+        <text x="566" y="128" font-size="11" font-weight="700" fill="#7A3B52">WORK ORDER</text>
+        <text x="566" y="145" font-size="9.5" fill="currentColor" opacity=".75">named fault &middot; signed bias</text>
+        <text x="566" y="159" font-size="9.5" fill="currentColor" opacity=".75">onset date &middot; dispatch or not</text>
 
-        <rect x="552" y="204" width="200" height="52" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 3"></rect>
-        <text x="566" y="226" font-size="11" font-weight="700" fill="currentColor">UNKNOWN</text>
-        <text x="566" y="243" font-size="9.5" fill="currentColor" opacity=".75">a designed output, not a failure</text>
+        <rect x="552" y="202" width="204" height="52" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 3"></rect>
+        <text x="566" y="223" font-size="11" font-weight="700" fill="currentColor">UNKNOWN</text>
+        <text x="566" y="240" font-size="9.5" fill="currentColor" opacity=".75">reported with its coverage</text>
 
-        <rect x="10" y="296" width="742" height="50" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 3"></rect>
-        <text x="24" y="318" font-size="11" font-weight="600" fill="currentColor">VERIFIER &mdash; the station runs its own screen; the server re-runs the same checks and flags any disagreement</text>
-        <text x="24" y="337" font-size="10" fill="currentColor" opacity=".75">a node with a corrupted screen is itself one of the faults we are supposed to catch, so the server verifies rather than believes</text>
+        <rect x="10" y="310" width="746" height="50" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 3"></rect>
+        <text x="24" y="331" font-size="10.5" font-weight="600" fill="currentColor">VERIFIER &mdash; the station screens its own readings; the server re-runs the identical checks and flags any disagreement</text>
+        <text x="24" y="349" font-size="9.5" fill="currentColor" opacity=".75">a node with a corrupted screen is itself one of the faults in scope, so the server verifies rather than believes</text>
       </svg>
       <figcaption><strong>The corroboration rule is the architecture.</strong> Agreement between agents only carries information <em>because</em> they do not share evidence &mdash; which is why the independence requirement is load-bearing rather than decorative. Note what falls out for free: each agent's verdict <em>is</em> a reason, so explainability is structural rather than bolted on afterwards.</figcaption>
     </figure>
 
-    <h3>What each agent interrogates</h3>
+    <h3>The belief state &mdash; what the system actually remembers</h3>
+    <p class="prose">A pipeline judges each reading from nothing and forgets it. The architectural change is that <strong>every sensor carries a file that persists and updates</strong>. Roughly 1,000 stations &times; 3 sensors is ~3,000 of these, each a few dozen bytes.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>What it holds</th><th>What it means</th><th>What it answers in the problem statement</th></tr></thead>
+        <tbody>
+          <tr><td class="k">bias</td><td>how far off this sensor currently reads</td><td>&ldquo;corrected/imputed values&rdquo;</td></tr>
+          <tr><td class="k">drift rate</td><td>how fast that offset is growing</td><td>&ldquo;predict possible sensor degradation&rdquo;</td></tr>
+          <tr><td class="k">noise scale</td><td>how jittery it has become</td><td>degradation shows in the second moment before the first</td></tr>
+          <tr><td class="k">trust</td><td>how much the network currently believes it</td><td>&ldquo;sensor health status&rdquo;</td></tr>
+          <tr><td class="k">last service</td><td>when it was touched, and by whom</td><td>stops a repaired station staying condemned by its own history</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><strong>The anomaly becomes a by-product of the update, not the goal of the computation.</strong> That single inversion is what makes the separate objectives in the statement one mechanism instead of seven features: degradation prediction is reading the drift rate off the file, the confidence score is the state's own uncertainty, and the root cause is whichever part of the file moved.<br><br>The nearest operational precedent is <strong>variational bias correction</strong>, which ECMWF has run since 2006: each instrument's bias coefficients sit inside the analysis control vector and are estimated jointly with the atmospheric state, every cycle, rather than computed offline. The architecture is twenty years proven &mdash; what is unclaimed is turning it toward <em>diagnosing the instrument</em> rather than <em>correcting the forecast</em>.</div>
+
+    <h3>Which tier may reason about what</h3>
+    <p class="prose">The split is forced by information, not convenience. A station has no neighbours; it has a radio. The rule that makes it principled: <strong>a tier may only run inference over information it actually possesses.</strong></p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Tier</th><th>Information available</th><th>Therefore it can decide</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Station node<br><span style="font-size:.85em;color:var(--ink-3)">ESP32-class</span></td><td>its own three sensors, its own recent history, right now</td><td>Range, rate, stuck values, supply health. <strong>Not</strong> whether its temperature is right in an absolute sense &mdash; it has no way to know, so no model there should pretend otherwise</td></tr>
+          <tr><td class="k">Server, streaming</td><td>every station, this cycle</td><td>Everything needing a neighbour: the checkers, the adjudicator, trust, alerting</td></tr>
+          <tr><td class="k">Offline, batch</td><td>years of history plus external fields</td><td>Baseline and tide re-fits, the neighbour graph, lot-level comparisons, threshold re-calibration</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The healing loops, and the brakes on each</h3>
+    <p class="prose">&ldquo;Self-healing&rdquo; means the system takes actions on itself with no human in the loop. That is only safe if every loop has a governor, because <strong>a system that heals wrongly is worse than one that does nothing</strong>. Each loop below is a controller with a trigger, an action, and something that stops it running away.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Loop</th><th>Action taken</th><th>How it could go wrong</th><th>The brake</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Reference exclusion</td><td>A distrusted station stops being used as a yardstick for its neighbours</td><td>A real regional event makes everyone disagree, so everyone excludes everyone &mdash; during exactly the weather the data matters most</td><td>Subtract the neighbourhood's common-mode movement first; only the residual counts against trust. Never drop below a minimum number of references &mdash; below it, the station is <em>unjudgeable</em>, not condemned</td></tr>
+          <tr><td class="k">Trust update</td><td>Belief in a station moves with its recent agreement</td><td>Trust collapses to an absorbing state and a station that had one bad week is never used again</td><td>A floor, so nothing is excommunicated, and asymmetric recovery &mdash; fast to distrust, slow to re-trust, but never permanent</td></tr>
+          <tr><td class="k">Correction and imputation</td><td>Publishes an estimate alongside a suspect reading</td><td><strong>The killer.</strong> Corrects away a genuine heat wave or pressure crash, and the event is lost</td><td>Corrections are additive and reported beside the raw value, which is <strong>never overwritten</strong>; magnitude is rate-limited; beyond the cap the system escalates instead of correcting. <em>When unsure, degrade to flagging, not to fixing</em></td></tr>
+          <tr><td class="k">Post-service reset</td><td>A serviced station's baseline is re-fitted and its history set aside</td><td>A fault that mimics a repair launders itself back into trust</td><td>Only a confirmed work order triggers a full reset; a merely detected one widens uncertainty and asks for confirmation</td></tr>
+          <tr><td class="k">Budget control</td><td>The alert threshold tracks a set volume the operations desk can action</td><td>Suppresses alarms during a genuine severe-weather outbreak, to stay within budget</td><td>The controller is disabled whenever the network-wide common-mode signal is large. Severe weather puts the system into report-everything mode</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><strong>Four of those five brakes are the same instruction: fall back to honest uncertainty.</strong> That is the thesis in operational form, and it is what makes an autonomous system safe enough to put on a national network.</div>
+
+    <h3>What each checker interrogates</h3>
     <div class="tablewrap">
       <table>
         <thead><tr><th>Agent</th><th>Its evidence</th><th>The question it answers</th></tr></thead>
