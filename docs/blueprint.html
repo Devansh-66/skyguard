@@ -2278,6 +2278,56 @@ td s{opacity:.55}
   </section>
 
   <section>
+    <h2>What this is built on &mdash; and what is real</h2>
+    <p class="prose">Every review of this project raised the same objection: there is no labelled corpus of real AWS sensor faults, so any recall figure is measured against faults we injected ourselves, which is circular. That is true for India. It is not true everywhere, and three real sources now sit underneath the work.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Source</th><th>What it gives</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr class="big"><td class="k"><strong>DOE ARM</strong><br><span style="font-size:.85em;color:var(--ink-3)">surface meteorology</span></td><td><strong>Temperature, pressure and humidity together at 1-minute</strong>, plus <code>logger_volt</code> and <code>logger_temp</code> each with their own QC flag &mdash; and <strong>Data Quality Reports</strong>, human-written fault intervals with a stated cause and exact start and end times, graded Incorrect or Suspect</td><td>Downloaded. 542 daily files, 139&nbsp;MB, stations at Eastern North Atlantic, North Slope Alaska and Southern Great Plains. <strong>The DQR labels need no account</strong>; only the measurements do</td></tr>
+          <tr><td class="k"><strong>WMO WDQMS</strong></td><td>Per-station observation-minus-background departures for <em>exactly</em> our three variables, from four independent NWP centres, <strong>including Indian stations</strong></td><td>Public REST endpoint, no authentication. 349 Indian stations harvested</td></tr>
+          <tr><td class="k"><strong>NOAA USCRN</strong><br><span style="font-size:.85em;color:var(--ink-3)">raw transmitted stream</span></td><td>The <strong>three independent thermometers</strong> each station really carries, the <strong>fan-speed pulse rate per aspirated shield</strong>, battery channels, and minutes the datalogger door was open &mdash; none of which survive into the published product</td><td>Being mirrored nightly, because NCEI keeps only ~16 days and the rest is discarded continuously</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What the real data changed</h3>
+    <p class="prose">An earlier version of this analysis measured which thermodynamic quantities the atmosphere holds still &mdash; the measurement that decides which coordinate the whole system works in. It ran on reanalysis degraded by <em>our own</em> noise assumptions, so its magnitudes were partly a measurement of our own dictionary. Rerun on real 1-minute observations, filtered to quality-flag-clean rows outside any human-written fault interval:</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Quantity</th><th>Synthetic ratio</th><th>Real ratio</th></tr></thead>
+        <tbody>
+          <tr><td class="k">q&nbsp; specific humidity</td><td class="m">0.91</td><td class="m"><strong>0.45</strong></td></tr>
+          <tr><td class="k">&theta;<sub>e</sub> equivalent potential temp</td><td class="m">1.07</td><td class="m"><strong>0.45</strong></td></tr>
+          <tr><td class="k">Td&nbsp; dew point</td><td class="m">0.87</td><td class="m">0.60</td></tr>
+          <tr><td class="k">T&nbsp; temperature</td><td class="m">2.76</td><td class="m">0.62</td></tr>
+          <tr class="big"><td class="k">RH&nbsp; relative humidity</td><td class="m">3.26</td><td class="m"><strong>1.39</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footnote">Ratio is the diurnal range within a day against the spread of daily means between days. A small ratio means the sun barely moves it, so a fault that does has nowhere to hide.</p>
+    <div class="fix"><strong>The synthetic figure overstated the advantage by about 60 %</strong> &mdash; it claimed working in dew point was 3.7&times; quieter than relative humidity; on real air it is 2.3&times;. The direction held, the magnitude did not, and that number would otherwise have gone on a slide.<br><br>It also changed the answer: on real observations the most conserved coordinates are <strong>specific humidity and equivalent potential temperature</strong>, both at 0.45, ahead of dew point. The synthetic run had put dew point first. <strong>The coordinate to difference is q, not T<sub>d</sub>.</strong></div>
+
+    <h3>What the real fault reports settle</h3>
+    <p class="prose">48 human-adjudicated fault windows touching our variables or the logger housekeeping, each with a cause and exact times. Four things that had been assumption are now observation:</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>We had assumed</th><th>The real reports say</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Fault durations, guessed by our injector</td><td>Median <strong>96&nbsp;h</strong>, quartiles 20&ndash;196&nbsp;h, longest <strong>614 days</strong>. Ours: median 40&nbsp;h. Same order, but reality's tail is far heavier than we generate</td></tr>
+          <tr><td class="k">Clock drift is a clever hypothesis</td><td><em>&ldquo;Incorrect data logger clock&rdquo;</em> is a written report. It is a documented fault class, which is what the pressure-tide work rests on</td></tr>
+          <tr><td class="k">Housekeeping <em>might</em> carry fault signal</td><td><code>logger_volt</code> and <code>logger_temp</code> each appear in <strong>11 reports</strong></td></tr>
+          <tr class="big"><td class="k">Correlated fleet failure is a theoretical blind spot</td><td><em>&ldquo;Temperature measurement error&rdquo;</em> recurs as the same subject at <strong>five different stations</strong>. The failure mode we argued is invisible to every neighbour-based method, IMD's included, is observable in someone else's real network</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">The real cause vocabulary also contains things our injector has never heard of: <strong>ice storms, lightning strikes, system power issues, connection errors</strong>.</p>
+
+    <div class="warn"><strong>Three caveats that travel with all of the above.</strong> ARM sites are research-grade and better maintained than a national operational network, so these fault <em>rates</em> are a lower bound on IMD's, not an estimate of them. The stations are North Atlantic, Alaskan and Great Plains &mdash; climatically nothing like India, so the conservation ratios will differ there and must be re-measured. And observation-minus-background departures are computed against a model that has already assimilated the station being judged, so they go blinder the slower the fault; our neighbour difference has the opposite bias, which is why the two are complementary rather than competing.</div>
+  </section>
+
+  <section>
     <h2>Measured so far</h2>
     <p class="prose">The sections above are design. These are results from the built pipeline, on ERA5 degraded to AWS realism with injected labelled faults. <strong>They supersede any target stated above.</strong></p>
     <div class="tablewrap">
