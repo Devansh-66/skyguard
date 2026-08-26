@@ -318,13 +318,51 @@ td s{opacity:.55}
 
     <div class="note"><strong>The line to say out loud.</strong><br><br><em>&ldquo;We don't have one model deciding. We have five specialists that must agree &mdash; and a system honest enough to say &lsquo;unknown&rsquo; when they don't.&rdquo;</em></div>
 
-    <h3>Why this is an architecture and not a buzzword</h3>
+    <h3>What is borrowed, what is ours, and how it gets tested</h3>
+    <p class="prose">This design is a <strong>rediscovery, three times over</strong>, and saying so is stronger than claiming invention &mdash; it means the pattern can be cited rather than defended from scratch.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>What we are doing</th><th>What it is already called</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Independent checkers, a shared record, a control component that decides</td><td class="k">Blackboard architecture</td><td>Hearsay-II (Erman, Hayes-Roth, Lesser &amp; Reddy, 1980); Nii, <em>AI Magazine</em> 1986. Presented as a paradigm for <em>&ldquo;errorful knowledge-intensive problems requiring multiple, cooperating knowledge sources&rdquo;</em></td></tr>
+          <tr class="big"><td class="k">Combining several residual checks on weather observations into one decision</td><td class="k"><strong>Complex Quality Control (CQC)</strong></td><td><strong>Gandin, <em>Monthly Weather Review</em> 116(5), 1988.</strong> Operational at the Moscow Hydrometeorological Centre and in NCEP practice</td></tr>
+          <tr><td class="k">Each check sensitive to some faults and blind to others, read as a pattern</td><td class="k">Structured residuals / fault signature matrix</td><td>Gertler, analytical redundancy in fault detection and isolation</td></tr>
+          <tr><td class="k">Returning &ldquo;unknown&rdquo; instead of a verdict</td><td class="k">Selective prediction / reject option; the <em>suspect</em> flag</td><td>WMO <em>Guidelines on QC Procedures for Data from AWS</em>; Geifman &amp; El-Yaniv, ICML 2019</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="fix"><strong>Gandin 1988 is the one that matters.</strong> Combining a complex of residuals rather than thresholding one is the founding idea of meteorological QC, and it is nearly forty years old. <strong>Presenting the five-checker layout as novel to a meteorologically literate panel would be a credibility problem, not an innovation score.</strong> The correct framing is: we apply the established CQC pattern, and here is specifically what we add to it.</div>
+
+    <h3>The rule as first written was not falsifiable. This is the fix.</h3>
+    <p class="prose">The original wording &mdash; <em>&ldquo;corroboration must come from agents whose evidence does not overlap&rdquo;</em> &mdash; asserts independence rather than measuring it, and the ensemble literature is emphatic that assumed diversity does not deliver.</p>
     <ul class="plain">
-      <li><strong>Explainability is structural.</strong> Each agent's verdict is already a reason in the operator's own vocabulary &mdash; &ldquo;physics: pass; neighbour: fail at &minus;3.2&sigma;; history: fail; clock: pass&rdquo;. Nothing needs a post-hoc explainer, which matters because SHAP explains a <em>model</em> while the operator needs an explanation of the <em>world</em>.</li>
-      <li><strong>Abstention is a designed output.</strong> Disagreement produces honest uncertainty rather than a confident wrong answer, and coverage of the unknown state is a reported number rather than a hidden failure.</li>
-      <li><strong>Corroboration is a real statistical check</strong>, not a vote. It only works because the agents draw on evidence that does not overlap.</li>
-      <li><strong>The verifier closes it.</strong> The station screens its own readings and the server re-runs the identical checks; a mismatch between the two is itself a signal, because a node with a corrupted screen is one of the faults in scope.</li>
+      <li><strong>Kuncheva &amp; Whitaker (2003)</strong> tested ten diversity measures and found the relationship between diversity and ensemble accuracy <em>&ldquo;weak and inconsistent on real problems&rdquo;</em>. Accuracy does not rise monotonically with diversity under any of them.</li>
+      <li><strong>Knight &amp; Leveson (1986)</strong> had 27 programs written independently from one specification and ran a million test cases. Versions failed <em>together</em> far more often than independence predicts, correlated through shared interpretation of an ambiguous spec. The result has survived forty years of attack.</li>
+      <li><strong>Common-cause failure has a floor.</strong> In reliability engineering the beta-factor model puts deliberately diverse redundant subsystems at roughly 10<sup>&minus;3</sup>. Diversity buys about one order of magnitude and cannot be driven to zero.</li>
     </ul>
+    <div class="note"><strong>The rule, restated so it can be checked:</strong> corroboration must come from checkers whose <strong>measured double-fault rate under the prevailing weather regime</strong> is below a stated threshold &mdash; not from checkers we believe to be independent.<br><br>The deliverable is a 6&times;6 error-correlation and double-fault matrix computed on labelled data and <strong>published</strong>, reported separately for calm and for extreme conditions. Independence that holds on average and collapses in the tail is exactly the failure that matters, and a single aggregate number hides it.</div>
+    <p class="prose">Our own concrete common causes, written down rather than discovered later: physics, spatial and temporal checks may all reduce to a departure from the same background field; severe weather breaks the spatial <em>and</em> temporal smoothness assumptions at the same moment; one wrong station elevation poisons the physics, spatial and pressure-tide checks together; and one person writing all six checkers to one internal specification correlates their blind spots by construction.</p>
+
+    <h3>How it must be evaluated</h3>
+    <p class="prose">There is <strong>no benchmark discipline for multi-agent systems</strong> &mdash; current surveys say evaluations are run in narrow bespoke scenarios and are not comparable. So a reviewer cannot ask for a standard MAS benchmark. They <em>can</em> ask why we ignored the three established methodologies that do apply.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Question</th><th>Established method</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Does the panel beat its best single member?</td><td>Ablation table: every checker alone, best single, simple OR, majority vote, and the oracle upper bound. Then leave-one-checker-out &mdash; a checker whose removal costs nothing is not earning its place</td></tr>
+          <tr><td class="k">Is the difference real?</td><td>Wilcoxon signed-rank for two systems, Friedman with post-hoc and critical-difference diagrams across many, treating stations and seasons as the datasets (Dem&scaron;ar, <em>JMLR</em> 2006)</td></tr>
+          <tr><td class="k">Is the abstention honest?</td><td>Risk&ndash;coverage curve, with <strong>coverage reported in every result</strong> and baselines compared at matched coverage</td></tr>
+          <tr><td class="k">Are the checkers actually independent?</td><td>Double-fault and Q-statistic matrix, stratified by regime (Kuncheva &amp; Whitaker, 2003)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="warn"><strong>An untethered UNKNOWN makes any system look perfect.</strong> A panel that abstains on 95 % of readings will show a beautiful selective risk. Coverage travels with every number or the number means nothing &mdash; this is the most likely line of attack on the whole design.<br><br>And the outcome to be ready for: <strong>if the panel does not beat its best single checker on that ablation table, the correct action is to ship the best single checker.</strong> The ensemble literature says that is a live possibility, not a remote one.</div>
+
+    <h3>On combining the verdicts</h3>
+    <div class="warn">Dempster&ndash;Shafer theory is the obvious formalism, because mass on the whole frame represents ignorance explicitly &mdash; which is what UNKNOWN needs. <strong>But Dempster's rule breaks precisely on our conflict path.</strong> Zadeh's counterexample: two sources that almost entirely reject a hypothesis, disagreeing sharply on everything else, combine to give that rejected hypothesis belief 1.0 &mdash; because the normalisation divides out the conflict and amplifies whatever rounding error survived. High conflict is exactly when we want <em>more</em> ignorance, and the rule delivers false certainty instead.<br><br>Use <strong>Yager's rule</strong>, which reassigns conflict mass to ignorance, or reliability-weighted averaging before combination &mdash; or keep a transparent signature-matrix rule an operational meteorologist can read, and borrow only the belief/plausibility vocabulary.</div>
+
+    <h3>So what is actually ours</h3>
+    <p class="prose">Stripping out everything that is CQC, blackboard or FDI under another name, what remains is specific and defensible: <strong>the semidiurnal pressure tide used as a per-station reference clock</strong>, which detects timing faults with no neighbour involved and is measured viable on our data; the <strong>Level-0 screen on the station itself</strong>, which IMD's own 2015 paper records as not implemented; and the <strong>work order with a dated onset</strong> rather than a flag. Those are worth more than an architecture claim, and they were being buried under one.</p>
 
     <h3>Grounding: this is a recognised class of system</h3>
     <p class="prose">Condition monitoring of a deployed fleet is an established engineering discipline with its own international standard, and the problem statement's objectives map onto it closely enough that whoever wrote them very likely knows it. Naming the standard is worth more than inventing a private architecture.</p>
