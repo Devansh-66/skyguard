@@ -44,12 +44,27 @@ export default function App() {
   )
 }
 
-/** A pen trace crossing a ruled sheet: the product in four strokes. */
+/** The station plot.
+ *
+ * This is the symbol a meteorologist already reads: the WMO station model that
+ * has been drawn on synoptic charts since the 1930s. The circle is the station
+ * and its fill is sky cover; the shaft is wind direction and each feather is a
+ * speed increment. It is the one mark in this field that means something before
+ * anyone is told what it means, and no software uses it.
+ *
+ * Monochrome on purpose. Oxide red is reserved for "this instrument has left
+ * tolerance", and spending it on a logo would blunt the one place it has to
+ * carry weight. Everything here inherits currentColor, so the mark works on the
+ * bar, inverted on a dark button, or at 16px in a tab.
+ */
 function Glyph() {
   return (
-    <svg width="24" height="18" viewBox="0 0 24 18" aria-hidden="true" className="glyph">
-      <path d="M0 4.5H24M0 13.5H24" className="glyph-rule" />
-      <path d="M1 11 L6 6 L10 12 L14 4 L18 9 L23 6" className="glyph-pen" />
+    <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true" className="glyph">
+      {/* sky cover: the half fill that gives the mark weight at small sizes */}
+      <path d="M13 10.2a6.8 6.8 0 0 0 0 13.6z" className="glyph-cover" />
+      <circle cx="13" cy="17" r="6.8" className="glyph-ring" />
+      <path d="M17.9 12.2 L27 3.2" className="glyph-shaft" />
+      <path d="M27 3.2 L23.6 1.9 M24.2 6 L20.8 4.7" className="glyph-barb" />
     </svg>
   )
 }

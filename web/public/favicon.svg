@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The WMO station plot: circle = station, fill = sky cover, shaft and
+       feathers = wind. Same mark as the in-app glyph, sized so the ring still
+       reads as a ring at 16px. -->
+  <rect width="32" height="32" fill="#F7F2E7"/>
+  <g fill="none" stroke="#171A1E" stroke-width="2.4" stroke-linecap="round">
+    <path d="M13 10.6a6.4 6.4 0 0 0 0 12.8z" fill="#171A1E" stroke="none"/>
+    <circle cx="13" cy="17" r="6.4"/>
+    <path d="M17.6 12.4 L26.4 3.6"/>
+    <path d="M26.4 3.6 L23.2 2.4 M23.8 6.2 L20.6 5"/>
+  </g>
+</svg>
