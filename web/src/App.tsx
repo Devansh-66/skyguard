@@ -5,14 +5,21 @@
  * from edge to edge now, so the bar is simply a ruled header that sits on it.
  * A state that no longer changes anything is a state worth deleting.
  *
- * Only routes that exist appear here. The map console is a link OUT to the
- * older static page rather than a stub route -- a nav item leading to "coming
- * soon" is worse than one leading somewhere real, and the map is real, it just
- * has not been ported yet.
+ * The map now lives at /network inside the app. It used to be a link out to
+ * /console/console.html, which left the shell entirely: the top bar vanished
+ * and there was no way back except the browser's back button.
  */
+import { Suspense, lazy } from 'react'
 import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { BoardRoute } from './routes/BoardRoute'
 import { HomeRoute } from './routes/HomeRoute'
+
+/* Leaflet is ~160 kB and is needed by exactly one route. Bundled with the rest
+ * it would make an operator opening the maintenance board wait for a mapping
+ * library they are not going to use. */
+const NetworkRoute = lazy(() =>
+  import('./routes/NetworkRoute').then((m) => ({ default: m.NetworkRoute })),
+)
 
 export default function App() {
   return (
@@ -24,7 +31,7 @@ export default function App() {
         </Link>
         <nav className="links">
           <NavLink to="/board">Maintenance</NavLink>
-          <a href="/console/console.html">Network map</a>
+          <NavLink to="/network">Network</NavLink>
         </nav>
       </header>
 
@@ -33,6 +40,14 @@ export default function App() {
           <Route path="/" element={<HomeRoute />} />
           <Route path="/board" element={<BoardRoute />} />
           <Route path="/board/*" element={<BoardRoute />} />
+          <Route
+            path="/network"
+            element={
+              <Suspense fallback={<p className="notfound muted">Loading the map…</p>}>
+                <NetworkRoute />
+              </Suspense>
+            }
+          />
           {/* The board used to live at /queue. Anyone holding an old link is
               sent on rather than shown a dead end. */}
           <Route path="/queue" element={<Navigate to="/board" replace />} />

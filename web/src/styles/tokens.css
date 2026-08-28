@@ -88,8 +88,13 @@ button { font: inherit; color: inherit; }
 .small { font-size: 12px; }
 .r { text-align: right; }
 
-/* An engraved label: the small caps stamped on an instrument's front plate. */
-.plate {
+/* An engraved label: the small caps stamped on an instrument's front plate.
+ *
+ * NOT called .plate. It was, and `section className="plate"` then inherited
+ * mono, 10px, uppercase and letter-spacing into every section on the page --
+ * body copy rendered as "TEN STATIONS ACROSS ASSAM AND MAHARASHTRA". A utility
+ * class and a layout class must never share a name. */
+.engraved {
   font-family: var(--mono); font-size: 10px; font-weight: 500;
   letter-spacing: .17em; text-transform: uppercase; color: var(--ink-3);
 }

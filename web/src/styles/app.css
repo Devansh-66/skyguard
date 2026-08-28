@@ -34,7 +34,7 @@ main { min-height: 100%; }
 
 /* ---------------- the front sheet ---------------- */
 
-.sheet { max-width: 1180px; margin: 0 auto; padding: calc(var(--topbar-h) + 54px) 27px 90px; }
+.sheet { max-width: 1180px; margin: 0 auto; padding: calc(var(--topbar-h) + 22px) 27px 90px; }
 
 .masthead {
   display: flex; justify-content: space-between; align-items: flex-end;
@@ -64,9 +64,6 @@ main { min-height: 100%; }
 
 /* ---------------- plates ---------------- */
 
-.plate {
-  /* also the .plate utility class in tokens.css: engraved small caps */
-}
 section.plate { margin-top: 45px; }
 
 .plate-head { max-width: 62ch; }
@@ -114,7 +111,7 @@ section.plate { margin-top: 45px; }
 /* ---------------- the three notes ---------------- */
 
 .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 36px; }
-.note > .plate { color: var(--oxide); }
+.note > .engraved { color: var(--oxide); }
 .note h3 { font-family: var(--serif); font-size: 19px; font-weight: 600; margin: 7px 0 7px; }
 .note p { font-size: 13.5px; color: var(--ink-2); margin: 0; }
 
@@ -258,3 +255,40 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
   .sheet { padding-left: 18px; padding-right: 18px; }
   .topbar { padding: 0 16px; }
 }
+
+/* ---------------- network ---------------- */
+
+.map-wrap { margin: 27px 0 18px; }
+.map {
+  height: 460px; width: 100%;
+  border: 1px solid var(--rule-edge); background: var(--paper-2);
+}
+/* Leaflet ships its own chrome. Bring it onto the chart paper rather than
+ * leaving two visual systems fighting in the same rectangle. */
+.leaflet-container { font-family: var(--sans); background: var(--paper-2); }
+.leaflet-control-attribution {
+  background: rgba(252, 249, 242, .88) !important;
+  font-family: var(--mono); font-size: 9px; color: var(--ink-3);
+}
+.leaflet-control-attribution a { color: var(--ink-2); }
+.leaflet-bar a {
+  background: var(--paper-2); color: var(--ink); border-bottom-color: var(--rule-edge);
+}
+.leaflet-bar a:hover { background: var(--paper); }
+.leaflet-tooltip {
+  background: var(--paper-2); border: 1px solid var(--rule-edge); border-radius: 0;
+  box-shadow: var(--shadow-sheet); color: var(--ink); font-size: 12px;
+}
+.leaflet-tooltip-top::before { border-top-color: var(--rule-edge); }
+
+table.stations { background: var(--paper-2); border: 1px solid var(--rule-edge); }
+table.stations td { font-size: 12.5px; }
+.dot {
+  display: inline-block; width: 7px; height: 7px; margin-right: 6px;
+  border-radius: 50%; vertical-align: middle;
+}
+.dot.ok { background: var(--verdigris); }
+.dot.sus { background: var(--amber); }
+.dot.bad { background: var(--oxide); }
+
+.network section.plate > .engraved { color: var(--oxide); }

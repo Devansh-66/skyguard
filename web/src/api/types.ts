@@ -147,3 +147,43 @@ export interface CatalogWindow {
   days_held: number
   housekeeping_named: boolean
 }
+
+/** One simulated Indian station. GET /api/stations
+ *
+ * These are the DEPLOYMENT network: the stations SkyGuard is built to watch.
+ * They are simulated from ERA5 reanalysis, because IMD does not publish a
+ * per-instrument fault archive. The instruments the detector is VALIDATED on
+ * are the real ARM sites in api/sites.ts, and the two are never mixed. */
+export interface Station {
+  name: string
+  state: string
+  cluster: string
+  elevation: number
+  longitude: number
+  latitude: number
+  neighbours: string[]
+  sigma: Record<string, number>
+  health: {
+    station: string
+    by_variable: Record<string, string>
+    health_version: string
+  }
+  alert_count?: number
+}
+
+/** GET /api/tiles/status -- the map's own account of whether it can draw.
+ *
+ * The templates carry a version hash, so they are read from here rather than
+ * hardcoded: a cache rebuild changes the hash and hardcoded URLs would quietly
+ * start serving stale tiles. */
+export interface TileStatus {
+  available: boolean
+  upstream_reachable: { basemap: boolean; boundary: boolean }
+  cached_tiles: number
+  attribution: string
+  version: string
+  tile_template: string
+  boundary_template: string
+  official_indian_boundary_source: boolean
+  max_zoom: number
+}

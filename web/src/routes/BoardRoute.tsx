@@ -18,6 +18,7 @@
 import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQueue } from '../api/queries'
+import { siteInfo } from '../api/sites'
 import { Async } from '../components/Async'
 import { Badge, severityTone } from '../components/Badge'
 import { Callout } from '../components/Callout'
@@ -78,7 +79,11 @@ export function BoardRoute() {
                         <span className={'spine ' + severityTone(it.severity)} aria-hidden="true" />
                         <span className="card-main">
                           <span className="card-top">
-                            <span className="card-station">{it.station}</span>
+                            {/* The place, not the datastream code. Nobody can be
+                                dispatched to "sgpmetE37". */}
+                            <span className="card-station">
+                              {siteInfo(it.station)?.place ?? it.station}
+                            </span>
                             <span className="card-sev num">{it.severity.toFixed(1)}σ</span>
                           </span>
                           <span className="card-sensor">
@@ -87,7 +92,7 @@ export function BoardRoute() {
                             {it.confirmed_by_analyst && <Badge tone="ok">confirmed</Badge>}
                           </span>
                           <span className="card-meta num">
-                            drift {it.drift_per_day.toFixed(3)}/d · trust{' '}
+                            {it.station} · drift {it.drift_per_day.toFixed(3)}/d · trust{' '}
                             {it.trust.toFixed(2)} · open {it.days_since_onset.toFixed(1)}d
                           </span>
                           <span className={'card-action ' + (it.action === 'DISPATCH' ? 'bad' : 'sus')}>

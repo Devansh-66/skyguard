@@ -46,6 +46,7 @@ web/
     App.tsx             top bar + routes (no sidebar)
     api/
       types.ts          TypeScript mirrors of real API responses
+      sites.ts          what the ARM station codes mean, read from the files
       client.ts         the only place fetch() is called
       queries.ts        one TanStack Query hook per endpoint
     components/
@@ -57,6 +58,7 @@ web/
     routes/
       HomeRoute.tsx     landing page
       BoardRoute.tsx    maintenance board (list + detail)
+      NetworkRoute.tsx  map + validation sites (code-split: Leaflet)
     styles/
       tokens.css        paper, ink, and the four marks; no hex codes elsewhere
       app.css           layout and component styles
@@ -160,11 +162,45 @@ and a MIME error instead of an honest 404.
 
 ## Not built yet
 
-- The **network map** is still the static page at `/console/console.html`, which
-  plots the simulated Indian network. It is linked from the top bar rather than
-  stubbed as a route. When it is ported, note that the map is Indian and the AI
-  results are validated on real foreign ARM instruments — those two datasets
-  must not be plotted on one map.
+- The old static console at `/console/console.html` still exists and still
+  works. Nothing links to it any more.
 - **Live ingest.** When readings arrive over MQTT, that path needs its own hook
   with its own staleness. The archive and the live network are different data
   with different clocks; one refresh policy would be wrong for both.
+
+## Two networks, one map, and why they are never mixed
+
+`sgpmetE37` decodes as **site · platform · facility**: `sgp` is ARM's Southern
+Great Plains observatory, `met` the surface meteorology system carrying
+temperature/pressure/humidity, `E37` Extended Facility 37 — a mast at
+**Waukomis, Oklahoma**. `api/sites.ts` holds the decoding for all nine, with
+place names and coordinates read out of the `.cdf` files' own global attributes
+(`location_description`, `lat`, `lon`) rather than looked up.
+
+The UI leads with the place, not the code. Nobody can be dispatched to
+"sgpmetE37".
+
+`/network` shows **one map and two tables**, deliberately:
+
+- **The map is the deployment network** — ten simulated Indian stations. That is
+  what SkyGuard is built to watch.
+- **The table below is the validation set** — nine real ARM instruments in
+  Oklahoma, Alaska and the Azores. They are used because ARM publishes fault
+  reports written by engineers who physically inspected the hardware, and no
+  Indian network publishes an equivalent answer key.
+
+Plotting the ARM masts on the India map would claim this network monitors
+Oklahoma, which it does not. Omitting them entirely leaves the board's station
+names unexplained. So both appear, fully named, and clearly separated.
+
+## A class-name collision worth not repeating
+
+`.plate` was both the engraved-label utility *and* the section wrapper class, so
+`<section className="plate">` inherited mono, 10px, uppercase and letter-spacing
+into everything below it — body copy rendered as `TEN STATIONS ACROSS ASSAM AND
+MAHARASHTRA`. The utility is now `.engraved`; `.plate` is layout only. A utility
+class and a layout class must never share a name.
+
+It is worth noting how this was caught: `textContent` returns the raw string and
+hid it completely. Only `innerText`, which reflects `text-transform`, showed it.
+Verify rendered text with `innerText`.

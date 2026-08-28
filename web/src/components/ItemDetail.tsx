@@ -7,6 +7,7 @@
  * this panel into confirmation of a label already seen.
  */
 import { useQueueItem } from '../api/queries'
+import { siteInfo } from '../api/sites'
 import { Async } from './Async'
 import { Badge, severityTone } from './Badge'
 import { BeliefChart } from './BeliefChart'
@@ -17,13 +18,20 @@ export function ItemDetail({ id }: { id: string }) {
   const q = useQueueItem(id)
   return (
     <Async query={q}>
-      {(it) => (
+      {(it) => {
+        const site = siteInfo(it.station)
+        return (
         <article className="detail">
           <header className="detail-head">
             <div>
               <h2>
-                {it.station} <span className="sep">·</span> {it.label}
+                {siteInfo(it.station)?.place ?? it.station}{' '}
+                <span className="sep">·</span> {it.label}
               </h2>
+              <p className="muted small">
+                {site ? site.region + ' · ' + site.observatory + ' ' + site.facility + ' · ' : ''}
+                {it.station}
+              </p>
               <p className="muted small">
                 Report {it.window.dqr} · {it.window.start.slice(0, 10)} to{' '}
                 {it.window.end.slice(0, 10)}
@@ -116,7 +124,8 @@ export function ItemDetail({ id }: { id: string }) {
             <p>{it.analyst_note}</p>
           </blockquote>
         </article>
-      )}
+        )
+      }}
     </Async>
   )
 }

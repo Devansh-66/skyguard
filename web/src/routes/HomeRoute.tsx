@@ -20,6 +20,7 @@
  */
 import { Link } from 'react-router-dom'
 import { useQueue, useQueueItem } from '../api/queries'
+import { siteName } from '../api/sites'
 import { Barograph } from '../components/Barograph'
 import { extent, inSigma, include, stamp } from '../components/chart'
 
@@ -44,17 +45,15 @@ export function HomeRoute() {
           </p>
         </div>
         <dl className="nameplate">
-          <NameplateRow k="Instrument" v="AWS network monitor" />
           <NameplateRow k="Stations" v={d ? String(d.stations_scanned) : '—'} />
           <NameplateRow k="Records replayed" v={d ? String(d.windows_scanned) : '—'} />
-          <NameplateRow k="Problem" v="SIH 2026 · PS26073" />
         </dl>
       </header>
 
       {/* ---------- the hero plate: one real fault ---------- */}
       <section className="plate hero-plate">
         <div className="plate-head">
-          <span className="plate">Recorder trace · live from the board</span>
+          <span className="engraved">Recorder trace · live from the board</span>
           <h2 className="plate-title">
             A broken sensor does not stop. <em>It keeps reporting.</em>
           </h2>
@@ -81,16 +80,18 @@ export function HomeRoute() {
                 threshold={BIAS_TOLERANCE}
                 height={168}
                 animate
-                label={s.station + ' · ' + s.label + ' · estimated bias (σ)'}
+                label={siteName(s.station) + ' · ' + s.label + ' · bias (σ)'}
                 from={stamp(s.series.t[0])}
                 to={stamp(s.series.t[s.series.t.length - 1])}
               />
               <aside className="margin-note">
-                <span className="plate">Observer's note</span>
+                <span className="engraved">Observer's note</span>
                 <p className="note-subject">{s.analyst_subject}</p>
                 <p className="note-body">{s.analyst_note}</p>
                 <p className="note-sig">
-                  {s.window.dqr} · {stamp(s.window.start)} — {stamp(s.window.end)}
+                  {s.station} · {s.window.dqr}
+                  <br />
+                  {stamp(s.window.start)} — {stamp(s.window.end)}
                 </p>
               </aside>
             </>
@@ -140,7 +141,7 @@ export function HomeRoute() {
       {/* ---------- how ---------- */}
       <section className="plate notes">
         <div className="note">
-          <span className="plate">I</span>
+          <span className="engraved">I</span>
           <h3>It watches the instrument, not the weather</h3>
           <p>
             An unusual reading is usually just unusual weather. A sensor that has
@@ -149,7 +150,7 @@ export function HomeRoute() {
           </p>
         </div>
         <div className="note">
-          <span className="plate">II</span>
+          <span className="engraved">II</span>
           <h3>Six checks, and a rule about agreeing</h3>
           <p>
             Physics, neighbours, history, instrument signature, clock and
@@ -159,7 +160,7 @@ export function HomeRoute() {
           </p>
         </div>
         <div className="note">
-          <span className="plate">III</span>
+          <span className="engraved">III</span>
           <h3>It says what to do, and why</h3>
           <p>
             A slow steady offset is corrected in software. A sensor whose logger
@@ -171,7 +172,7 @@ export function HomeRoute() {
 
       <section className="closing">
         <Link to="/board" className="btn">Open the maintenance board</Link>
-        <a href="/console/console.html" className="btn ghost">Network map</a>
+        <Link to="/network" className="btn ghost">Network</Link>
         <p className="small muted colophon">
           Detections run against real ARM one-minute observations. Fault labels
           are written by human analysts and are never shown to the estimator.
