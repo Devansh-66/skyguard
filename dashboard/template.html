@@ -1,36 +1,37 @@
 <title>SkyGuard Station Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap">
 
 <style>
 /*__LEAFLET_CSS__*/
 :root{
-  /* Single committed light theme -- no dark variant, by request. The page
-     therefore paints every colour explicitly rather than inheriting anything
-     from the host, so it holds whatever ground it is dropped onto.
+  /* Aligned to the React app's chart-paper palette (web/src/styles/tokens.css).
+     The VARIABLE NAMES are unchanged on purpose: every rule below keeps working
+     and not one layout declaration is touched -- only the values move, so this
+     page matches the rest of the product without being redesigned.
 
-     White recorder stock: a near-white cool paper, ruled, with deep indigo pen
-     ink for the traces and recorder orange reserved for flagged windows. */
-  --ground:#F3F6FA; --surface:#FFFFFF; --surface-2:#EDF1F7; --line:#D9E0EA;
-  --rule:#E7ECF3;
-  --ink:#161C33; --ink-2:#4A5470; --ink-3:#828CA3;
-  --accent:#243FA8; --accent-soft:#E1E6F7;
-  --ok:#12694F; --watch:#A96C0B; --degrade:#C2501C; --suspect:#A32626; --failed:#6E1616;
-  --trace:#243FA8; --trace-2:#B9C2D2; --band:rgba(194,80,28,.15);
-  --shadow:0 1px 2px rgba(22,28,51,.06),0 10px 26px -18px rgba(22,28,51,.30);
+     Warm recorder stock, ink pen, oxide reserved for out-of-tolerance. */
+  --ground:#F7F2E7; --surface:#FCF9F2; --surface-2:#F1EADB; --line:#DDD3C0;
+  --rule:#EDE4D2;
+  --ink:#171A1E; --ink-2:#4A4038; --ink-3:#877B6C;
+  --accent:#2C5D4F; --accent-soft:#E6EEE9;
+  --ok:#2C5D4F; --watch:#8A6212; --degrade:#A2361F; --suspect:#8E2A17; --failed:#6E1B10;
+  --trace:#171A1E; --trace-2:#BFB4A0; --band:rgba(162,54,31,.14);
+  --shadow:0 1px 2px rgba(60,44,34,.06),0 10px 26px -18px rgba(60,44,34,.30);
 }
+
 
 *{box-sizing:border-box}
 body{
   margin:0; background:var(--ground); color:var(--ink);
-  font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-family:"Archivo","Segoe UI",system-ui,sans-serif;
   font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
 }
-h1,h2,h3{font-family:Chivo,"IBM Plex Sans",sans-serif; margin:0; text-wrap:balance}
-.mono{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+h1,h2,h3{font-family:"Archivo","Segoe UI",system-ui,sans-serif; margin:0; text-wrap:balance}
+.mono{font-family:"Roboto Mono",ui-monospace,Consolas,monospace; font-variant-numeric:tabular-nums}
 .lbl{
-  font-family:Chivo,sans-serif; font-size:10.5px; font-weight:600;
+  font-family:"Archivo","Segoe UI",system-ui,sans-serif; font-size:10.5px; font-weight:600;
   letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3);
 }
 
@@ -58,7 +59,7 @@ header .spacer{flex:1}
   gap:1px; background:var(--line); border-bottom:1px solid var(--line);
 }
 .stat{background:var(--surface); padding:12px 22px}
-.stat .n{font-family:Chivo,sans-serif; font-size:24px; font-weight:600; line-height:1.1}
+.stat .n{font-family:"Archivo","Segoe UI",system-ui,sans-serif; font-size:24px; font-weight:600; line-height:1.1}
 .stat .n small{font-size:13px; color:var(--ink-3); font-weight:500}
 
 /* ------------------------------------------------------------------ layout */
@@ -89,7 +90,7 @@ main{
 .stn .nm{font-weight:500; font-size:13px}
 .stn .meta{font-size:11px; color:var(--ink-3)}
 .chip{
-  font-family:"IBM Plex Mono",monospace; font-size:9.5px; font-weight:600;
+  font-family:"Roboto Mono",ui-monospace,Consolas,monospace; font-size:9.5px; font-weight:600;
   letter-spacing:.04em; padding:2px 5px; border-radius:3px; white-space:nowrap;
   border:1px solid currentColor;
 }
@@ -110,7 +111,7 @@ main{
 .maphead .ctl{padding:3px 11px; font-size:11px}
 .maplegend{
   display:flex; align-items:center; gap:7px; margin-top:7px;
-  font-size:10.5px; color:var(--ink-3); font-family:"IBM Plex Mono",monospace;
+  font-size:10.5px; color:var(--ink-3); font-family:"Roboto Mono",ui-monospace,Consolas,monospace;
 }
 .tilewarn{
   color:var(--degrade); border-left:3px solid var(--degrade);
@@ -124,14 +125,14 @@ main{
 #maps{display:flex; gap:22px; flex-wrap:wrap}
 .mapbox{flex:1 1 300px; min-width:270px}
 .mapbox h4{
-  font-family:Chivo,sans-serif; font-size:11px; font-weight:700; margin:0 0 4px;
+  font-family:"Archivo","Segoe UI",system-ui,sans-serif; font-size:11px; font-weight:700; margin:0 0 4px;
   letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2);
 }
 .mapbox canvas{border:1px solid var(--line); border-radius:5px; cursor:pointer}
 #lmap{height:420px; border:1px solid var(--line); border-radius:5px; background:var(--surface-2)}
 .mapattrib{font-size:10px; color:var(--ink-3); margin-top:4px; text-align:right}
 .leaflet-container{font:inherit; background:var(--surface-2)}
-.leaflet-tooltip{font-family:"IBM Plex Sans",sans-serif; font-size:11.5px}
+.leaflet-tooltip{font-family:"Archivo","Segoe UI",system-ui,sans-serif; font-size:11.5px}
 .clockbar{
   display:flex; align-items:center; gap:14px; flex-wrap:wrap;
   padding:9px 22px; background:var(--surface);
@@ -141,7 +142,7 @@ main{
 .clockbar #vnow{font-size:13px; font-weight:600}
 #scrub{flex:1; min-width:160px; accent-color:var(--accent); cursor:pointer}
 .ctl{
-  font:inherit; font-family:Chivo,sans-serif; font-size:12px; font-weight:600;
+  font:inherit; font-family:"Archivo","Segoe UI",system-ui,sans-serif; font-size:12px; font-weight:600;
   padding:5px 14px; border-radius:5px; cursor:pointer;
   border:1px solid var(--accent); background:var(--accent); color:#fff;
 }
@@ -165,7 +166,7 @@ main{
 .state-head{
   display:flex; align-items:baseline; gap:8px; margin:12px 0 5px;
   padding-bottom:4px; border-bottom:1px solid var(--line);
-  font-family:Chivo,sans-serif; font-size:11px; font-weight:700;
+  font-family:"Archivo","Segoe UI",system-ui,sans-serif; font-size:11px; font-weight:700;
   letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2);
 }
 .state-head:first-child{margin-top:0}
@@ -182,7 +183,7 @@ canvas{width:100%; display:block; touch-action:none}
 .tip{
   position:absolute; top:4px; pointer-events:none; z-index:5;
   background:var(--surface); border:1px solid var(--line); border-radius:4px;
-  padding:5px 7px; font-family:"IBM Plex Mono",monospace; font-size:10.5px;
+  padding:5px 7px; font-family:"Roboto Mono",ui-monospace,Consolas,monospace; font-size:10.5px;
   line-height:1.45; color:var(--ink); box-shadow:var(--shadow); white-space:nowrap;
 }
 .tip span{color:var(--ink-3)}
@@ -199,11 +200,11 @@ canvas{width:100%; display:block; touch-action:none}
 .alert:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
 .alert[aria-current="true"]{background:var(--accent-soft); border-color:var(--accent)}
 .alert .top{display:flex; gap:8px; align-items:baseline; margin-bottom:3px}
-.alert .lab{font-family:Chivo,sans-serif; font-weight:600; font-size:12.5px}
+.alert .lab{font-family:"Archivo","Segoe UI",system-ui,sans-serif; font-weight:600; font-size:12.5px}
 .alert .when{margin-left:auto; font-size:10.5px; color:var(--ink-3)}
 .alert p{margin:3px 0 0; font-size:12px; color:var(--ink-2); line-height:1.45}
 .verdict{font-size:10px; padding:1px 5px; border-radius:3px; font-weight:600;
-  font-family:"IBM Plex Mono",monospace}
+  font-family:"Roboto Mono",ui-monospace,Consolas,monospace}
 .v-hit{background:var(--accent-soft); color:var(--accent)}
 .v-miss{background:transparent; color:var(--suspect); border:1px solid currentColor}
 
@@ -219,8 +220,56 @@ canvas{width:100%; display:block; touch-action:none}
 .empty{color:var(--ink-3); font-size:12.5px; padding:20px 0; text-align:center}
 footer{padding:14px 22px; border-top:1px solid var(--line); background:var(--surface);
   color:var(--ink-3); font-size:11.5px}
+
+/* The application top bar, duplicated as markup rather than shared as a
+   component. This page is static HTML built by dashboard/build.py and served
+   outside the React bundle, so there is no component boundary to cross -- and
+   twelve lines of duplication buy a way back to the rest of the product, which
+   this page did not have. Fixed like the app's, with body padding-top set to
+   exactly its height so nothing below it shifts. */
+.appbar{
+  position:fixed; inset:0 0 auto 0; z-index:1200; height:58px;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 27px; gap:24px;
+  background:var(--surface); border-bottom:1px solid var(--line);
+}
+.appbar .mark{
+  display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--ink);
+  font-family:"Archivo","Segoe UI",system-ui,sans-serif;
+  font-weight:700; font-size:18px; letter-spacing:-.02em;
+}
+.appbar .mark svg{display:block; flex:none}
+.appbar nav{display:flex; align-items:center; gap:2px}
+.appbar nav a{
+  text-decoration:none; padding:6px 12px; font-size:13px; font-weight:500;
+  color:var(--ink-2); border-bottom:2px solid transparent;
+}
+.appbar nav a:hover{color:var(--ink)}
+.appbar nav a.active{color:var(--ink); border-bottom-color:#A2361F; font-weight:600}
+body{padding-top:58px}
+
+/* Leaflet ships its own Helvetica stack for its controls; bring them onto the
+   same type as the rest of the page. Cosmetic only -- no geometry touched. */
+.leaflet-container,
+.leaflet-control-attribution,
+.leaflet-bar a{font-family:"Archivo","Segoe UI",system-ui,sans-serif}
 </style>
 
+<div class="appbar">
+  <a class="mark" href="/app/">
+    <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M13 10.2a6.8 6.8 0 0 0 0 13.6z" fill="currentColor"/>
+      <circle cx="13" cy="17" r="6.8" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M17.9 12.2 L27 3.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M27 3.2 L23.6 1.9 M24.2 6 L20.8 4.7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <span>SkyGuard</span>
+  </a>
+  <nav>
+    <a href="/app/board">Maintenance</a>
+    <a href="/console/console.html" class="active">Network map</a>
+  </nav>
+</div>
 <header>
   <div>
     <h1>SkyGuard Station Console</h1>
@@ -902,7 +951,7 @@ function render(){
         const max = Math.max(...c.map(([,v]) => Math.abs(v))) || 1;
         const tpl = Object.entries(a.template_scores).sort((x,y) => y[1]-x[1]).slice(0,3);
         return `
-        <div style="font-family:Chivo;font-weight:600;font-size:14px">
+        <div style="font-family:"Archivo","Segoe UI",system-ui,sans-serif;font-weight:600;font-size:14px">
           ${esc(a.label.replace(/_/g," "))}
           <span class="mono" style="font-size:11px;color:var(--ink-3)">
             confidence ${a.confidence.toFixed(2)}</span>
