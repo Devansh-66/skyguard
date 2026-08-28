@@ -1,0 +1,85 @@
+/* Design tokens. No hex code should appear anywhere but this file.
+ *
+ * Two palettes live here. The application surfaces keep the warm paper-and-ink
+ * scheme the static console established, so the two remain recognisably one
+ * product while both exist. The hero has its own dark scale, because it sits on
+ * a generated night-to-day sky and light-mode ink would vanish against it.
+ */
+:root {
+  /* paper surfaces */
+  --paper: #FFFFFF;
+  --surface: #F6F4F3;
+  --surface-2: #FCFBFB;
+  --ink: #191517;
+  --ink-2: #4E4549;
+  --ink-3: #8A7F83;
+  --rule: #E4DEDF;
+  --rule-soft: #F0ECEE;
+
+  /* semantics */
+  --accent: #7A3B52;
+  --accent-bg: #F6EBEF;
+  --ok: #1D6A46;
+  --ok-bg: #E7F2EC;
+  --sus: #8A5E11;
+  --sus-bg: #FAF1DC;
+  --bad: #AF382F;
+  --bad-bg: #FBE9E6;
+
+  /* dark scale, for the hero and anything sitting on the sky */
+  --night: #0B1020;
+  --night-2: #141B30;
+  --on-night: #F3F1EE;
+  --on-night-2: rgba(243, 241, 238, 0.72);
+  --on-night-3: rgba(243, 241, 238, 0.46);
+  --hairline: rgba(243, 241, 238, 0.16);
+
+  /* type */
+  --display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+  /* metrics */
+  --topbar-h: 62px;
+  --pad: 20px;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow: 0 1px 2px rgba(25, 21, 23, .05), 0 8px 24px rgba(25, 21, 23, .06);
+  --shadow-lift: 0 2px 4px rgba(25, 21, 23, .07), 0 14px 36px rgba(25, 21, 23, .12);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.015em; }
+p { margin: 0 0 0.8em; }
+a { color: inherit; }
+table { border-collapse: collapse; width: 100%; }
+button { font: inherit; color: inherit; }
+
+/* Numbers are tabular everywhere. A severity column whose digits change width
+ * from row to row cannot be scanned down, and scanning down it is the only
+ * thing anyone does with it. */
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); }
+.muted { color: var(--ink-3); }
+.small { font-size: 12.5px; }
+.r { text-align: right; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}

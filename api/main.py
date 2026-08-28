@@ -18,6 +18,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.engine import Engine, DEFAULT_DATA, DEFAULT_GRAPH
 from api.tiles import router as tiles_router
@@ -131,6 +132,54 @@ app.include_router(queue_router)
 _DASH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "dashboard")
 if os.path.isdir(_DASH):
     app.mount("/console", StaticFiles(directory=_DASH), name="console")
+
+# The React app, built by `npm run build` in web/.
+#
+# WHY A SUBCLASS AND NOT A PLAIN MOUNT
+#
+# The app routes on the client: /app/queue/sgpmetE37/D160923.11/rh is a real
+# URL a user can bookmark or reload, but there is no file at that path. A plain
+# StaticFiles mount 404s it, so the app works until someone presses F5 and then
+# appears broken. Falling back to index.html for anything that is not a real
+# file is what makes deep links survive a reload.
+#
+# The fallback is deliberately NOT applied to /app/assets/*: a missing bundle
+# there is a broken build, and answering it with index.html would hand the
+# browser HTML where it asked for JavaScript, producing a blank page and a MIME
+# error instead of an honest 404.
+class _SPAFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        # Starlette RAISES HTTPException(404) here rather than returning a 404
+        # response, so catching the exception is the only thing that works --
+        # inspecting `response.status_code` looks correct and never fires.
+        # OSError is caught alongside the 404 because queue item ids contain
+        # colons (sgpmetE37:D160930.5:rh). A colon is illegal in a Windows
+        # filename, so the lookup raises OSError instead of 404 and every deep
+        # link to an item returned a bare 500. On Linux the same URL 404s and
+        # falls through correctly -- so this bug is invisible on the deploy box
+        # and fatal on a developer's machine.
+        try:
+            return await super().get_response(path, scope)
+        except (StarletteHTTPException, OSError, ValueError) as exc:
+            # normpath: StaticFiles hands this path back through
+            # os.path.normpath, so on Windows it arrives as
+            # "assets\index.js" and a startswith("assets/") test
+            # silently never matches -- the guard would work on the Linux
+            # deploy box and quietly not on a developer's machine, which
+            # is the worst way for a check to fail.
+            guard = path.replace("\\", "/").startswith("assets/")
+            if getattr(exc, "status_code", 404) != 404 or guard:
+                raise
+            return await super().get_response("index.html", scope)
+
+
+_APP = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web", "dist")
+if os.path.isdir(_APP):
+    app.mount("/app", _SPAFiles(directory=_APP), name="app")
+    # NOTE: no html=True. StaticFiles' own html mode does its own fallback
+    # BEFORE the override above can run, which silently defeated the
+    # assets/ guard -- a missing bundle answered 200 text/html. The
+    # subclass handles the index.html fallback itself instead.
 
 
 @app.get("/")
