@@ -16,7 +16,7 @@
   --rule:#EDE4D2;
   --ink:#171A1E; --ink-2:#4A4038; --ink-3:#877B6C;
   --accent:#2C5D4F; --accent-soft:#E6EEE9;
-  --ok:#2C5D4F; --watch:#8A6212; --degrade:#A2361F; --suspect:#8E2A17; --failed:#6E1B10;
+  --ok:#2C5D4F; --watch:#8A6212; --degrade:#B4621B; --suspect:#A2361F; --failed:#6E1B10;
   --trace:#171A1E; --trace-2:#BFB4A0; --band:rgba(162,54,31,.14);
   --shadow:0 1px 2px rgba(60,44,34,.06),0 10px 26px -18px rgba(60,44,34,.30);
 }
@@ -714,17 +714,30 @@ function divergence(s, varname){
 // at a glance. White reads as "agrees with its neighbours" against any
 // background, and the two ends are far enough apart to tell sign at speed.
 function rampColour(z){
-  if (z === null || !isFinite(z)) return "#C9D2DE";
+  if (z === null || !isFinite(z)) return "#BFB4A0";
   const t = Math.max(-1, Math.min(1, z / 3));
-  const mid = [255, 255, 255];
-  const end = t < 0 ? [22, 96, 232] : [240, 90, 12];
+  // The STRUCTURE of this ramp is unchanged and the reasoning above still
+  // holds: a pale centre and two saturated ends is the only thing that stays
+  // readable over both desert and forest. Only the hues moved, out of the
+  // stock blue/orange and into the product's own teal-to-oxide, so the map
+  // belongs to the same object as the rest of the interface. Both ends are
+  // still dark enough to hold against imagery, and the centre is paper rather
+  // than pure white.
+  const mid = [252, 249, 242];
+  const end = t < 0 ? [30, 110, 126] : [180, 73, 31];
   const k = Math.abs(t);
   return "rgb(" + mid.map((m, i) => Math.round(m + (end[i] - m) * k)).join(",") + ")";
 }
 
-// Health ring colours, picked for contrast on imagery rather than on paper.
-const HEALTH_RING = {HEALTHY:"#12C08A", WATCH:"#FFC93D", DEGRADING:"#FF8A2B",
-                     SUSPECT:"#FF5A5A", FAILED:"#D42020"};
+// Station colours. These fill the dot; there is no longer a health ring.
+// Matching the --ok/--watch/--degrade/--suspect/--failed scale in :root. The
+// previous set was neon (#12C08A mint, #FFC93D yellow, #FF5A5A pink) and
+// predates the chart-paper palette -- five saturated dots on satellite imagery
+// read as a warning about the map rather than about any station. Same five
+// steps at ink weight: calm green through ochre to deep oxide, so severity
+// reads as a ramp and only the worst state is loud.
+const HEALTH_RING = {HEALTHY:"#2C5D4F", WATCH:"#8A6212", DEGRADING:"#B4621B",
+                     SUSPECT:"#A2361F", FAILED:"#6E1B10"};
 
 async function probeTiles(){
   if (!LIVE){ tilesOK = false; return false; }
@@ -743,7 +756,7 @@ async function probeTiles(){
 
 function legendHTML(){
   if (mapColour === "health")
-    return `<div class="maplegend">Dot colour: sensor health &middot; ring: degraded</div>`;
+    return `<div class="maplegend">Dot colour: sensor health</div>`;
   const u = {temp:"temperature", rh:"humidity", pres:"pressure"}[mapColour];
   return `<div class="maplegend">
     <span>&minus;3&sigma; below</span>
@@ -751,7 +764,7 @@ function legendHTML(){
       ${rampColour(-3)}, ${rampColour(0)}, ${rampColour(3)})"></span>
     <span>+3&sigma; above</span>
     <span style="margin-left:10px">fill = ${esc(u)} vs neighbours now
-      &middot; ring = sticky sensor health</span>
+      &middot; health in the tooltip</span>
   </div>`;
 }
 
@@ -825,7 +838,7 @@ function renderMaps(){
       // drawn twice: a white casing under a dark core, so the graph is legible
       // over both bright desert and dark forest
       edges.push(L.polyline([[s.latitude, s.longitude], [o.latitude, o.longitude]],
-                            {color:"#FFFFFF", weight:3.5, opacity:0.55}));
+                            {color:"#FCF9F2", weight:3, opacity:0.5}));
     }
   }
   const cores = [];
@@ -833,41 +846,50 @@ function renderMaps(){
     for (const nb of (DATA.neighbours[s.name] || [])){
       const o = shown.find(q => q.name === nb);
       if (o) cores.push(L.polyline([[s.latitude,s.longitude],[o.latitude,o.longitude]],
-                {color:"#1B3FA8", weight:1.6, opacity:0.95}));
+                {color:"#171A1E", weight:1, opacity:0.5}));
     }
   }
   edgeLayer = L.layerGroup(edges.concat(cores)).addTo(map);
 
-  // A white casing behind each marker. Without it a light fill vanishes over
-  // desert and a dark ring vanishes over forest; with it every dot has its own
-  // background and the colour means the same thing everywhere on the map.
-  const halos = shown.map(s => L.circleMarker([s.latitude, s.longitude], {
-      radius: (s.health.station === "HEALTHY" ? 7 : 9) + 3.5,
-      fillColor: "#FFFFFF", fillOpacity: 0.92, stroke: false,
-      interactive: false }));
+  // No separate halo layer any more. It was a white disc of radius up to 12.5
+  // behind a 9px dot with a 3.5px ring -- three concentric shapes per station,
+  // which on a ten-station map reads as clutter rather than as data. A 2px pale
+  // casing STROKE on the dot itself does the same job (a light fill no longer
+  // vanishes over desert, a dark one no longer vanishes over forest) in one
+  // shape instead of two, and halves the layers Leaflet has to keep.
 
   const marks = shown.map(s => {
     const st = s.health.station;
     const hcol = HEALTH_RING[st] || "#888";
     const z = mapColour === "health" ? null : divergence(s, mapColour);
+    const sel = s.name === current;
     const m = L.circleMarker([s.latitude, s.longitude], {
-      radius: st === "HEALTHY" ? 7 : 9,
-      // Fill is the LIVE divergence, ring is the STICKY health. They are
-      // different objects and must not be merged: one bad hour should never
-      // turn a station red.
+      // One uniform size. Radius used to carry health as well as colour, so a
+      // healthy station was 7px and a failed one 9px -- too small a difference
+      // to read deliberately, big enough to make the map look uneven. Colour
+      // carries health; selection is the only thing that changes size.
+      radius: sel ? 7 : 5.5,
+      // Fill is the LIVE divergence in a channel mode, and the STICKY health
+      // in health mode. These remain different objects -- one bad hour must
+      // never turn a station red -- so whichever one the fill is NOT showing is
+      // named in the tooltip instead. They are never merged into one colour.
       fillColor: mapColour === "health" ? hcol : rampColour(z),
       fillOpacity: 1,
-      color: s.name === current ? "#111A33" : hcol,
-      weight: s.name === current ? 4 : (st === "HEALTHY" ? 2.5 : 3.5),
+      // The casing, not a second encoding: pale so the dot separates from the
+      // imagery, ink when this is the station being inspected.
+      color: sel ? "#171A1E" : "#FCF9F2",
+      weight: sel ? 2.5 : 2,
     });
     const nm = s.name.replace(/_/g, " ");
-    m.bindTooltip(z === null ? nm
-        : `${nm}<br>${(z>=0?"+":"")}${z.toFixed(1)}\u03c3 vs neighbours`,
-      {direction:"top", offset:[0,-8]});
+    // Health is named in the tooltip because in divergence mode the fill shows
+    // divergence instead, and dropping the ring must not drop the information.
+    m.bindTooltip(z === null ? `${nm}<br>${st}`
+        : `${nm}<br>${(z>=0?"+":"")}${z.toFixed(1)}\u03c3 vs neighbours<br>${st}`,
+      {direction:"top", offset:[0,-7]});
     m.on("click", () => { current = s.name; openAlert = null; render(); });
     return m;
   });
-  stationLayer = L.layerGroup(halos.concat(marks)).addTo(map);
+  stationLayer = L.layerGroup(marks).addTo(map);
 
   const leg = document.querySelector(".maplegend");
   if (leg) leg.outerHTML = legendHTML(); else $("maps").insertAdjacentHTML("beforeend", legendHTML());
