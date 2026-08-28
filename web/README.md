@@ -49,15 +49,16 @@ web/
       client.ts         the only place fetch() is called
       queries.ts        one TanStack Query hook per endpoint
     components/
-      SkyScene.tsx      the generated hero sky
+      Barograph.tsx     one ruled plot: paper, pen, tolerance band
+      chart.ts          plot geometry (no JSX, so it is testable)
       ItemDetail.tsx    the evidence pane, used by the board
-      BeliefChart.tsx   reading + belief on a shared time axis
+      BeliefChart.tsx   two plates on one time axis
       Async, Badge, Callout, Field
     routes/
       HomeRoute.tsx     landing page
       BoardRoute.tsx    maintenance board (list + detail)
     styles/
-      tokens.css        two palettes; no hex codes anywhere else
+      tokens.css        paper, ink, and the four marks; no hex codes elsewhere
       app.css           layout and component styles
 ```
 
@@ -65,37 +66,51 @@ Routes: `/` is the landing page, `/board` and `/board/<id>` are the maintenance
 board. `/queue` and `/queue/<id>` redirect to the board, which is where they
 lived before.
 
-## The hero
+## The material: barograph chart paper
 
-`SkyScene` draws a mountain sky on a 2-D canvas: five ridgelines built by 1-D
-midpoint displacement (seeded, so the skyline is stable across resizes), a sky
-gradient keyed to the real local hour, stars, a sun or moon on an arc, drifting
-cloud and valley fog. Far ridges are blended toward the horizon colour — aerial
-perspective is what makes layered silhouettes read as distance.
+The instruments this product watches have been drawing on ruled paper for a
+century and a half — barographs, thermographs, hygrographs; a clockwork drum
+turning under an ink pen, with the observer's note in the margin. That is not a
+theme picked to look nice. It is what this data has always looked like, and a
+chart recorder is already a time-series display, so the borrowed language does
+real work instead of sitting on top of the interface.
 
-It is driven by state, not chosen for looks: `unrest` is the share of stations
-with a sensor on the board, and it raises cloud cover, wind speed and darkness.
-A healthy network is a clear dawn; a failing one closes in. The caption under
-the hero says which, because a visual signal nobody can decode is decoration.
+Consequences, all deliberate:
 
-Two things that will look wrong if you do not know why:
+- **The ground is warm paper, not a dark dashboard.** Every competing tool is
+  dark with a neon accent. Ruled cream is more distinctive and easier to read
+  for the hours an operator actually spends here.
+- **Colour is scarce.** Real chart stock is cream, brown ruling and one ink.
+  Oxide red is reserved for a trace that has left tolerance, so it means
+  something the instant it appears rather than being one hue among nine.
+- **IBM Plex throughout** — drawn for technical documentation, with a true mono
+  carrying tabular figures and a serif that reads as an instrument nameplate.
+- **Everything sits on a 9px grid**, the minor ruling, so panels and rows align
+  with the lines behind them rather than floating at arbitrary offsets.
 
-- **`VISUAL_UNREST_CAP = 0.55`.** Unrest is capped for *drawing only*; the
-  caption reports the true figure. A fault archive puts every station on the
-  board by construction, so the honest input sits pinned at 1.0 — uncapped, the
-  sky would be permanently overcast, which is a status display stuck on one
-  reading. The hero also carries the headline and must stay legible at the worst
-  value the input can take.
-- **Night is moonlit, not black.** Sampled off the canvas, the first pass put
-  the sky at `rgb(10,17,40)` against ridges at `rgb(14,17,29)` — four points of
-  luminance apart, invisible outside a dark room. The floor was lifted until the
-  separation reached ~18.
+The landing page hero is not an illustration: it is the worst fault currently on
+the board, drawn as the recorder would have drawn it, with the analyst's own
+note pinned in the margin. It costs no extra request — the board uses the same
+query. Further plates (the network map, per-station insight plots) drop in below
+it without disturbing anything above.
 
-`mediaSrc` is a slot for a real video to take over as the background layer
-later, with no other change.
+## Plot bias in sigma, never raw
 
-Motion respects `prefers-reduced-motion`: those visitors get one still frame,
-not a paused loop burning a core.
+`Barograph` takes a `threshold` and colours the pen oxide beyond it. **Feed it
+`inSigma(bias, noise)`, not `series.bias`.**
+
+The estimator's test is `|bias| <= BIAS_TOLERANCE * noise`, and severity on an
+item is `|bias| / noise` — so a constant ±2 band against *raw* bias draws some
+instruments sitting calmly inside a threshold they have in fact crossed. This
+shipped briefly and was caught by measurement: `nsametC1:pres` showed severity
+3.0 on its card beside a trace whose raw bias never passed 1.21, and rendered
+with no red at all. `/api/queue/{id}` returns the `noise` series precisely so
+the client never has to assume a constant band. Normalised, the end of the trace
+equals the card's severity by construction rather than by luck.
+
+The pen also **lifts at gaps** rather than joining across them. A null is a
+missing observation, and a straight line through a dropout reads as data where
+there is none — and dropouts are a fault class this product detects.
 
 ## Conventions
 

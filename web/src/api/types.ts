@@ -114,7 +114,13 @@ export interface QueueItemDetail extends QueueItem {
 export interface Series {
   t: string[]
   v: (number | null)[]
+  /** RAW bias, in the sensor's own units. Almost never what you want to plot:
+   *  tolerance is |bias| <= 2 * noise, not |bias| <= 2. Divide by `noise` and
+   *  the result is directly comparable to `severity` on the item. */
   bias: (number | null)[]
+  /** The noise the estimator held at each step. Present so a client can put
+   *  bias in units of it rather than assuming a constant band. */
+  noise: (number | null)[]
   trust: (number | null)[]
   faulty: boolean[]
 }

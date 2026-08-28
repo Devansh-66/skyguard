@@ -1,85 +1,101 @@
 /* Design tokens. No hex code should appear anywhere but this file.
  *
- * Two palettes live here. The application surfaces keep the warm paper-and-ink
- * scheme the static console established, so the two remain recognisably one
- * product while both exist. The hero has its own dark scale, because it sits on
- * a generated night-to-day sky and light-mode ink would vanish against it.
+ * THE MATERIAL: BAROGRAPH CHART PAPER
+ *
+ * The instruments this product watches have been drawing on ruled paper for a
+ * century and a half -- barographs, thermographs and hygrographs, clockwork
+ * drums turning under an ink pen, an observer's note in the margin. That is not
+ * a theme chosen to look nice. It is what this data has always looked like, and
+ * a chart recorder is already a time-series display, so the borrowed language
+ * does real work rather than sitting on top of the interface as decoration.
+ *
+ * Consequences, all deliberate:
+ *
+ *   - The ground is warm paper, not a dark dashboard. Every competing tool is
+ *     dark with a neon accent; ruled cream is both more distinctive and easier
+ *     to read for the hours an operator actually spends here.
+ *   - Colour is scarce. Real chart paper is cream, brown ruling and one ink.
+ *     Oxide red is reserved for a trace that has left tolerance, so it means
+ *     something the instant it appears rather than being one hue among nine.
+ *   - IBM Plex throughout: it was drawn for technical documentation, it has a
+ *     true mono with tabular figures, and its serif reads as an instrument
+ *     nameplate rather than as a magazine.
  */
 :root {
-  /* paper surfaces */
-  --paper: #FFFFFF;
-  --surface: #F6F4F3;
-  --surface-2: #FCFBFB;
-  --ink: #191517;
-  --ink-2: #4E4549;
-  --ink-3: #8A7F83;
-  --rule: #E4DEDF;
-  --rule-soft: #F0ECEE;
+  /* ---- the paper ---- */
+  --paper: #F7F2E7;          /* chart stock */
+  --paper-2: #FCF9F2;        /* a fresh sheet: cards, panels */
+  --paper-edge: #EDE4D2;     /* where sheets overlap */
+  --rule-minor: rgba(146, 106, 78, 0.13);
+  --rule-major: rgba(146, 106, 78, 0.26);
+  --rule-edge: rgba(60, 44, 34, 0.16);
 
-  /* semantics */
-  --accent: #7A3B52;
-  --accent-bg: #F6EBEF;
-  --ok: #1D6A46;
-  --ok-bg: #E7F2EC;
-  --sus: #8A5E11;
-  --sus-bg: #FAF1DC;
-  --bad: #AF382F;
-  --bad-bg: #FBE9E6;
+  /* ---- the ink ---- */
+  --ink: #171A1E;            /* the pen */
+  --ink-2: #4A4038;
+  --ink-3: #877B6C;
+  --ink-4: #A99C8B;
 
-  /* dark scale, for the hero and anything sitting on the sky */
-  --night: #0B1020;
-  --night-2: #141B30;
-  --on-night: #F3F1EE;
-  --on-night-2: rgba(243, 241, 238, 0.72);
-  --on-night-3: rgba(243, 241, 238, 0.46);
-  --hairline: rgba(243, 241, 238, 0.16);
+  /* ---- the marks that mean something ---- */
+  --oxide: #A2361F;          /* out of tolerance. Used nowhere else. */
+  --oxide-wash: rgba(162, 54, 31, 0.09);
+  --verdigris: #2C5D4F;      /* within tolerance, reference, confirmed */
+  --verdigris-wash: rgba(44, 93, 79, 0.10);
+  --amber: #8A6212;          /* watch */
+  --amber-wash: rgba(138, 98, 18, 0.12);
+  --indigo: #2A3F6B;         /* housekeeping: not a weather channel */
+  --indigo-wash: rgba(42, 63, 107, 0.10);
 
-  /* type */
-  --display: "Fraunces", "Iowan Old Style", Georgia, serif;
-  --sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  /* ---- type ---- */
+  --serif: "IBM Plex Serif", "Iowan Old Style", Georgia, serif;
+  --sans: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
 
-  /* metrics */
-  --topbar-h: 62px;
-  --pad: 20px;
-  --radius: 10px;
-  --radius-sm: 6px;
-  --shadow: 0 1px 2px rgba(25, 21, 23, .05), 0 8px 24px rgba(25, 21, 23, .06);
-  --shadow-lift: 0 2px 4px rgba(25, 21, 23, .07), 0 14px 36px rgba(25, 21, 23, .12);
+  /* ---- metrics ---- */
+  --topbar-h: 58px;
+  --grid: 9px;               /* the minor ruling; everything aligns to it */
+  --radius: 3px;             /* paper does not have rounded corners */
+  --shadow-sheet: 0 1px 0 rgba(60, 44, 34, .06), 0 6px 18px rgba(60, 44, 34, .07);
+  --shadow-lift: 0 1px 0 rgba(60, 44, 34, .08), 0 12px 30px rgba(60, 44, 34, .13);
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
 html, body, #root { height: 100%; }
 
 body {
   margin: 0;
-  background: var(--surface);
+  background: var(--paper);
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: 14.5px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.015em; }
+h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 p { margin: 0 0 0.8em; }
 a { color: inherit; }
 table { border-collapse: collapse; width: 100%; }
 button { font: inherit; color: inherit; }
 
-/* Numbers are tabular everywhere. A severity column whose digits change width
- * from row to row cannot be scanned down, and scanning down it is the only
- * thing anyone does with it. */
+/* Every number is tabular. A severity column whose digits change width from row
+ * to row cannot be scanned down, and scanning down it is the only thing anyone
+ * does with it. */
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .mono { font-family: var(--mono); }
 .muted { color: var(--ink-3); }
-.small { font-size: 12.5px; }
+.small { font-size: 12px; }
 .r { text-align: right; }
 
+/* An engraved label: the small caps stamped on an instrument's front plate. */
+.plate {
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  letter-spacing: .17em; text-transform: uppercase; color: var(--ink-3);
+}
+
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 1.5px solid var(--oxide);
   outline-offset: 2px;
-  border-radius: 3px;
+  border-radius: 1px;
 }

@@ -1,41 +1,23 @@
 /* Layout and routing.
  *
- * The sidebar is gone. Navigation is a single top bar, which is what lets the
- * landing page run the sky full-bleed to all four edges -- a fixed left rail
- * would have cut a slab out of the horizon on every page to hold three links.
+ * A single top bar, no sidebar. The scroll-dependent transparency the bar used
+ * to carry is gone with the dark hero it existed for: the page is chart paper
+ * from edge to edge now, so the bar is simply a ruled header that sits on it.
+ * A state that no longer changes anything is a state worth deleting.
  *
- * The bar is transparent over the hero and turns solid once the page scrolls,
- * so the type stays readable against a sky that changes colour through the day.
- *
- * Only routes that actually exist appear here. The map console is a link OUT to
- * the older static page rather than a stub route, because a nav item leading to
- * "coming soon" is worse than one leading somewhere real -- and the map is real,
- * it just has not been ported yet.
+ * Only routes that exist appear here. The map console is a link OUT to the
+ * older static page rather than a stub route -- a nav item leading to "coming
+ * soon" is worse than one leading somewhere real, and the map is real, it just
+ * has not been ported yet.
  */
-import { useEffect, useState } from 'react'
-import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { BoardRoute } from './routes/BoardRoute'
 import { HomeRoute } from './routes/HomeRoute'
 
 export default function App() {
-  const { pathname } = useLocation()
-  const onHome = pathname === '/'
-  const [scrolled, setScrolled] = useState(false)
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  // The board manages its own scrolling in two independent panes, so the page
-  // itself must not also scroll or the two fight each other.
-  const solid = !onHome || scrolled
-
   return (
-    <div className={'app' + (onHome ? ' on-home' : '')}>
-      <header className={'topbar' + (solid ? ' solid' : '')}>
+    <div className="app">
+      <header className="topbar">
         <Link to="/" className="mark">
           <Glyph />
           <span>SkyGuard</span>
@@ -43,9 +25,6 @@ export default function App() {
         <nav className="links">
           <NavLink to="/board">Maintenance</NavLink>
           <a href="/console/console.html">Network map</a>
-          <a href="/docs" onClick={(e) => e.preventDefault()} className="disabled" aria-disabled="true">
-            Method
-          </a>
         </nav>
       </header>
 
@@ -65,12 +44,12 @@ export default function App() {
   )
 }
 
-/** A ridgeline under a horizon: the product in eleven strokes. */
+/** A pen trace crossing a ruled sheet: the product in four strokes. */
 function Glyph() {
   return (
-    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
-      <circle cx="11" cy="11" r="10" className="glyph-ring" />
-      <path d="M3 15 L8 8 L11 12 L14 6 L19 15 Z" className="glyph-peak" />
+    <svg width="24" height="18" viewBox="0 0 24 18" aria-hidden="true" className="glyph">
+      <path d="M0 4.5H24M0 13.5H24" className="glyph-rule" />
+      <path d="M1 11 L6 6 L10 12 L14 4 L18 9 L23 6" className="glyph-pen" />
     </svg>
   )
 }

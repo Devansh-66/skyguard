@@ -290,6 +290,12 @@ def item(item_id: str) -> dict:
             "t": [t.isoformat() for t in df.timestamp],
             "v": [_f(x) for x in df[k]],
             "bias": [_f(b.bias) for b in beliefs[k]],
+            # The noise the estimator held at each step, so a client can plot
+            # bias in units of it. Tolerance is |bias| <= BIAS_TOLERANCE *
+            # noise, NOT |bias| <= BIAS_TOLERANCE -- without this series a chart
+            # has to assume a constant band and will draw a sensor sitting
+            # comfortably inside a threshold it has in fact crossed.
+            "noise": [_f(b.noise) for b in beliefs[k]],
             "trust": [_f(b.trust) for b in beliefs[k]],
             "faulty": [bool(x) for x in df.faulty],
         },
