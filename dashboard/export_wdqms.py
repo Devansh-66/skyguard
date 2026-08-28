@@ -62,10 +62,46 @@ BOX = dict(lat=(6.0, 37.5), lon=(67.5, 97.5))
 # unit here is ordinary; five is not.
 TOL = {"temp": 1.5, "rh": 10.0, "pres": 1.0}
 
-# Severity bands, in units of TOL. Deliberately the same five names the console
-# already uses for the simulated network, so one legend and one colour scale
-# serve both.
-BANDS = [(1.0, "HEALTHY"), (2.0, "WATCH"), (3.0, "DEGRADING"), (5.0, "SUSPECT")]
+# THREE states, not five.
+#
+# The previous version copied the simulated network's five-band scale, and on
+# 346 dots that was false precision twice over: the underlying number is a
+# threshold on a daily mean, which cannot support five grades of anything, and
+# five similar hues a few pixels across are indistinguishable on a map -- every
+# station genuinely did look the same. Three is what the data supports and what
+# the eye can separate.
+#
+#   OK      inside twice the channel's observation error. No colour at all.
+#   WATCH   two to five times. Worth a look.
+#   FAULT   beyond five times. Almost certainly the instrument.
+BANDS = [(2.0, "OK"), (5.0, "WATCH")]
+
+
+def region(lat: float, lon: float, in_india: bool) -> str:
+    """A coarse geographic band, computed from the coordinates.
+
+    WDQMS PUBLISHES NO STATE FIELD. Its columns are name, WIGOS id, country,
+    latitude, longitude, departure, variable, date and centre -- that is all.
+    Assigning a real state would need a state-boundary polygon set, which is not
+    vendored here, and guessing one from a nearest-city table would mislabel
+    every border station while looking authoritative.
+
+    So these are bands derived from latitude and longitude, and the interface
+    calls them regions rather than states, because that is what they are.
+    """
+    if not in_india:
+        return "Antarctic stations"
+    if lat >= 28.0:
+        return "North"
+    if lon >= 88.0:
+        return "North-East"
+    if lat < 16.0:
+        return "South"
+    if lon < 76.0:
+        return "West"
+    if lon >= 82.0:
+        return "East"
+    return "Central"
 
 
 def classify(dep: dict) -> dict:
@@ -90,10 +126,14 @@ def classify(dep: dict) -> dict:
     """
     worst_z, worst_k = 0.0, None
     for k, d in dep.items():
-        z = abs(d["mean"]) / TOL[k]
-        if z > worst_z:
-            worst_z, worst_k = z, k
-    state = "FAILED"
+        # Per-channel severity is stored so the map can size a dot by the
+        # channel it is CURRENTLY colouring. Sizing by the worst channel while
+        # colouring by the selected one drew a station large for bad pressure
+        # and neutral for fine temperature, in the same dot.
+        d["z"] = round(abs(d["mean"]) / TOL[k], 2)
+        if d["z"] > worst_z:
+            worst_z, worst_k = d["z"], k
+    state = "FAULT"
     for limit, name in BANDS:
         if worst_z < limit:
             state = name
@@ -105,7 +145,7 @@ def classify(dep: dict) -> dict:
         "channel": worst_k,
         # Do the centres agree? Only meaningful once there is something to
         # agree about, so a healthy station is never marked "confident".
-        "confident": (worst_z >= 1.0 and spread is not None
+        "confident": (worst_z >= 2.0 and spread is not None
                       and spread < abs(dep[worst_k]["mean"]) * 0.5),
     }
 
@@ -130,13 +170,15 @@ def main() -> None:
     for wid, g in latest.groupby("wigosid"):
         first = g.iloc[0]
         lat, lon = float(first["latitude"]), float(first["longitude"])
+        in_india = (BOX["lat"][0] <= lat <= BOX["lat"][1]
+                    and BOX["lon"][0] <= lon <= BOX["lon"][1])
         rec: dict = {
             "id": str(wid),
             "name": str(first["name"]).strip(),
             "latitude": round(lat, 4),
             "longitude": round(lon, 4),
-            "in_india": (BOX["lat"][0] <= lat <= BOX["lat"][1]
-                         and BOX["lon"][0] <= lon <= BOX["lon"][1]),
+            "in_india": in_india,
+            "region": region(lat, lon, in_india),
             "dep": {},
         }
         for long_name, key in VARS.items():
@@ -180,10 +222,17 @@ def main() -> None:
     for st in stations:
         counts[st["health"]["state"]] = counts.get(st["health"]["state"], 0) + 1
     print("  screened: " + "  ".join(
-        f"{k} {counts.get(k, 0)}" for k in
-        ("HEALTHY", "WATCH", "DEGRADING", "SUSPECT", "FAILED")))
+        f"{k} {counts.get(k, 0)}" for k in ("OK", "WATCH", "FAULT")))
+    reg = {}
+    for st in stations:
+        r = reg.setdefault(st["region"], [0, 0])
+        r[0] += 1
+        if st["health"]["state"] != "OK":
+            r[1] += 1
+    print("  by region: " + "  ".join(
+        f"{k} {v[0]}({v[1]} flagged)" for k, v in sorted(reg.items())))
     conf = sum(1 for st in stations if st["health"]["confident"])
-    print(f"  of the non-healthy, {conf} have the four centres in agreement")
+    print(f"  of the flagged, {conf} have the four centres in agreement")
     for key in ("temp", "rh", "pres"):
         have = [s for s in stations if key in s["dep"]]
         if have:
