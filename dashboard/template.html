@@ -391,6 +391,7 @@ let DATA = /*__DATA__*/null;
 // dashboard/export_wdqms.py for what this is and what it is not.
 const WDQMS = /*__WDQMS__*/null;
 let mapNetwork = "real";
+let realMarks = [];
 
 // Departures arrive in physical units, so one shared sigma scale would be
 // meaningless across channels: 3 K is an enormous temperature error and 3 %
@@ -507,7 +508,40 @@ $("state-filter").onchange = (e) => {
   else fitTo(visible.filter(s => s.latitude != null));
 };
 
+// The real network in the rail. Grouped by severity rather than by state:
+// WDQMS carries no state field, and "what needs attention" is the grouping
+// someone reading this list actually wants. Clicking flies the map to the
+// station rather than selecting it -- there is no time series behind these, so
+// the centre panes have nothing to show and pretending otherwise opens an empty
+// pane.
+function drawRailReal(){
+  const rs = (WDQMS && WDQMS.stations) ? WDQMS.stations : [];
+  const bad = rs.filter(s => s.health.state !== "HEALTHY");
+  const by = {};
+  for (const s of bad) (by[s.health.state] ||= []).push(s);
+
+  $("rail").innerHTML =
+    `<div class="state-head"><span>Needs attention</span>
+       <span class="state-count mono">${bad.length} of ${rs.length}</span></div>`
+    + ["FAILED","SUSPECT","DEGRADING","WATCH"].filter(k => by[k]).map(k =>
+        by[k].map(s => `
+          <button class="stn" data-lat="${s.latitude}" data-lon="${s.longitude}">
+            <span class="stripe bg-${k}"></span>
+            <span><span class="nm">${esc(s.name)}</span>
+              <div class="meta">${esc(s.health.channel)} &middot;
+                ${s.health.severity}&times; tolerance${s.health.confident ? " &middot; centres agree" : ""}</div></span>
+            <span class="chip h-${k}">${k}</span>
+          </button>`).join("")).join("")
+    + `<div class="state-head"><span>Within tolerance</span>
+         <span class="state-count mono">${rs.length - bad.length} stations</span></div>`;
+
+  $("rail").querySelectorAll(".stn").forEach(b => b.onclick = () => {
+    if (map) map.setView([+b.dataset.lat, +b.dataset.lon], 9);
+  });
+}
+
 function drawRail(){
+  if (mapNetwork === "real") return drawRailReal();
   // Grouped by state, always. The two regions are 1,700 km apart with nothing
   // in common meteorologically, and an alphabetical list interleaves them --
   // Guwahati, Jorhat, Mahabaleshwar -- which reads as one network when it is
@@ -771,6 +805,17 @@ async function probeTiles(){
   } catch { tilesOK = false; return false; }
 }
 
+// 346 dots on an all-India view is a crowd; the same dots at district zoom are
+// specks. Radius therefore tracks the zoom level, and severity multiplies it,
+// so the handful that matter stay findable when everything else is small and
+// the map looks neither congested nor empty at any zoom.
+function realRadius(sev){
+  const z = map ? map.getZoom() : 4;
+  const base = z <= 4 ? 2.4 : z <= 5 ? 3.2 : z <= 6 ? 4.2 : z <= 7 ? 5.4 : 6.8;
+  const k = sev >= 5 ? 1.75 : sev >= 3 ? 1.45 : sev >= 2 ? 1.25 : sev >= 1 ? 1.05 : 0.78;
+  return +(base * k).toFixed(2);
+}
+
 // The line above the map, which must not describe a neighbour graph on the
 // network that has none.
 function setHint(){
@@ -785,9 +830,22 @@ function setHint(){
 
 function legendHTML(){
   if (mapNetwork === "real"){
-    const u = {temp:"temperature (K)", rh:"humidity (%)", pres:"pressure (hPa)"}[
-      mapColour === "health" ? "temp" : mapColour];
     const w = WDQMS || {};
+    if (mapColour === "health"){
+      const n = {};
+      for (const st of (w.stations || [])) n[st.health.state] = (n[st.health.state] || 0) + 1;
+      const swatch = k =>
+        `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:9px">
+           <span style="width:9px;height:9px;border-radius:50%;background:${HEALTH_RING[k]};
+             ${k === "HEALTHY" ? "opacity:.5" : ""}"></span>${k.toLowerCase()} ${n[k] || 0}</span>`;
+      return `<div class="maplegend">
+        ${["FAILED","SUSPECT","DEGRADING","WATCH","HEALTHY"].map(swatch).join("")}
+        <span style="margin-left:4px">screened from departures vs
+          ${esc((w.centres || []).join("/"))} &middot; ${esc(String(w.date || ""))}
+          &middot; a screen, not the fault engine &mdash; see the board</span>
+      </div>`;
+    }
+    const u = {temp:"temperature (K)", rh:"humidity (%)", pres:"pressure (hPa)"}[mapColour];
     return `<div class="maplegend">
       <span>below background</span>
       <span class="rampbar" style="background:linear-gradient(90deg,
@@ -876,26 +934,59 @@ function renderMaps(){
   // graph is a real part of that dataset.
   if (mapNetwork === "real"){
     const rs = (WDQMS && WDQMS.stations) ? WDQMS.stations : [];
-    const key = (mapColour === "health") ? "temp" : mapColour;
-    const unit = {temp:"K", rh:"%", pres:"hPa"}[key] || "";
-    const marks = rs.filter(s => s.dep && s.dep[key]).map(s => {
-      const d = s.dep[key];
-      // Into the ramp's domain. rampColour saturates at |z| = 3, so dividing by
-      // the channel's "clearly wrong" magnitude and scaling by 3 puts each
-      // channel's own idea of large at the same end of the colour scale.
+    const byHealth = mapColour === "health";
+    const key = byHealth ? null : mapColour;
+    const unit = {temp:"K", rh:"%", pres:"hPa"};
+    const use = byHealth ? rs.slice() : rs.filter(s => s.dep && s.dep[key]);
+
+    // Worst drawn LAST so it lands on top. With 346 overlapping dots the
+    // painter's order decides what an operator can see at all, and the eight
+    // failed stations must never sit underneath a healthy neighbour.
+    use.sort((a, b) => a.health.severity - b.health.severity);
+
+    realMarks = use.map(s => {
+      const h = s.health;
+      const d = key ? s.dep[key] : s.dep[h.channel];
+      const ok = h.state === "HEALTHY";
       const m = L.circleMarker([s.latitude, s.longitude], {
-        radius: 4.5, fillColor: rampColour((d.mean / DEP_SCALE[key]) * 3),
-        fillOpacity: 1, color: "#FCF9F2", weight: 1.4,
+        radius: realRadius(h.severity),
+        // Into the ramp's domain when a channel is selected: rampColour
+        // saturates at |z| = 3, so dividing by the channel's "clearly wrong"
+        // magnitude and scaling by 3 puts every channel's idea of large at the
+        // same end of the scale.
+        fillColor: byHealth ? (HEALTH_RING[h.state] || "#888")
+                            : rampColour((d.mean / DEP_SCALE[key]) * 3),
+        // Healthy stations are deliberately quiet -- dimmed and smaller -- so
+        // that 271 of them recede and the 75 needing attention are what the eye
+        // lands on. They are still drawn: a map missing three quarters of the
+        // network would be a worse lie than a busy one.
+        fillOpacity: ok ? 0.5 : 1,
+        color: "#FCF9F2", weight: ok ? 0.7 : 1.3,
       });
+      const u = unit[key || h.channel] || "";
       m.bindTooltip(
-        `${esc(s.name)}<br>${(d.mean >= 0 ? "+" : "")}${d.mean} ${unit} vs background`
-        + (d.spread == null ? ""
-           : `<br>spread ${d.spread} ${unit} over ${d.n} obs, ${d.centres} centres`)
+        `<b>${esc(s.name)}</b> &mdash; ${h.state}`
+        + (d ? `<br>${(d.mean >= 0 ? "+" : "")}${d.mean} ${u} vs background` : "")
+        + (h.channel ? `<br>worst: ${h.channel}, ${h.severity}&times; tolerance` : "")
+        + (d && d.spread != null
+            ? `<br>spread ${d.spread} ${u} over ${d.n} obs, ${d.centres} centres` : "")
+        + (h.confident ? "<br>all centres agree" : "")
         + (s.in_india ? "" : "<br><b>Antarctic station</b>"),
-        {direction:"top", offset:[0,-6]});
+        {direction:"top", offset:[0,-5]});
+      m._sev = h.severity;
       return m;
     });
-    stationLayer = L.layerGroup(marks).addTo(map);
+    stationLayer = L.layerGroup(realMarks).addTo(map);
+
+    // Resize on zoom rather than rebuilding: 346 markers is enough that tearing
+    // them down and re-binding 346 tooltips on every wheel notch shows up as a
+    // stutter. Hooked once per map instance.
+    if (!map._skyguardZoomHook){
+      map._skyguardZoomHook = true;
+      map.on("zoomend", () => {
+        for (const m of realMarks) m.setRadius(realRadius(m._sev));
+      });
+    }
     setHint();
     const leg0 = document.querySelector(".maplegend");
     if (leg0) leg0.outerHTML = legendHTML(); else $("maps").insertAdjacentHTML("beforeend", legendHTML());
@@ -1191,14 +1282,16 @@ function start(){
   $("mapcolour").onchange = (e) => { mapColour = e.target.value; renderMaps(); };
   $("mapnetwork").onchange = (e) => {
     mapNetwork = e.target.value;
-    // The real network publishes no sticky health, so that colour mode does not
-    // apply to it. Falling back silently would leave every dot one flat colour
-    // with a legend claiming to show health.
+    // Health applies to BOTH networks now: the real one is screened from its
+    // WDQMS departures in dashboard/export_wdqms.py. It is also the default
+    // there, because a diverging ramp puts its palest colour on the stations
+    // nearest zero -- exactly the ones that are fine -- which makes the faulty
+    // handful the hardest thing on the map to see. Solid health colours invert
+    // that: the eye lands on the eight failed stations first.
     const csel = $("mapcolour");
-    const healthOpt = csel.querySelector('option[value="health"]');
-    if (healthOpt) healthOpt.disabled = (mapNetwork === "real");
-    if (mapNetwork === "real" && mapColour === "health"){ mapColour = "temp"; csel.value = "temp"; }
+    if (mapNetwork === "real"){ mapColour = "health"; csel.value = "health"; }
     renderMaps();
+    drawRail();
   };
   $("mapnetwork").dispatchEvent(new Event("change"));
   $("maptoggle").onclick = () => {

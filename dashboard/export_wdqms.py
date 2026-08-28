@@ -55,6 +55,60 @@ VARS = {"temperature": "temp", "humidity": "rh", "pressure": "pres"}
 # elsewhere -- see the note about Antarctica above.
 BOX = dict(lat=(6.0, 37.5), lon=(67.5, 97.5))
 
+# What counts as a large departure, per channel, in the channel's own units.
+# These are the rough observation-error scales NWP centres assume for surface
+# synoptic reports: a degree and a half of screen temperature, ten percent
+# relative humidity, one hectopascal of station pressure. A departure of one
+# unit here is ordinary; five is not.
+TOL = {"temp": 1.5, "rh": 10.0, "pres": 1.0}
+
+# Severity bands, in units of TOL. Deliberately the same five names the console
+# already uses for the simulated network, so one legend and one colour scale
+# serve both.
+BANDS = [(1.0, "HEALTHY"), (2.0, "WATCH"), (3.0, "DEGRADING"), (5.0, "SUSPECT")]
+
+
+def classify(dep: dict) -> dict:
+    """Grade a station from its departures.
+
+    WHAT THIS IS, AND WHAT IT IS NOT
+
+    This is a SCREEN, not the belief engine. It thresholds a daily-mean
+    departure and nothing more: no baseline is fitted, no drift is estimated,
+    no neighbour is consulted, and no checker panel adjudicates. A station can
+    show a large departure because its instrument has failed or because the
+    forecast background is poor over it -- a mast in complex terrain or at
+    altitude will disagree with a model that cannot resolve its valley, and
+    that is a statement about the model.
+
+    The spread across centres is the one thing that separates those cases here.
+    Four independent centres agreeing that a station is two degrees warm is
+    evidence about the station; four disagreeing wildly is evidence about the
+    models. So the spread is carried through to the UI rather than averaged
+    away, and `confident` marks the stations where it is small relative to the
+    departure itself.
+    """
+    worst_z, worst_k = 0.0, None
+    for k, d in dep.items():
+        z = abs(d["mean"]) / TOL[k]
+        if z > worst_z:
+            worst_z, worst_k = z, k
+    state = "FAILED"
+    for limit, name in BANDS:
+        if worst_z < limit:
+            state = name
+            break
+    spread = dep[worst_k]["spread"] if worst_k else None
+    return {
+        "state": state,
+        "severity": round(worst_z, 2),
+        "channel": worst_k,
+        # Do the centres agree? Only meaningful once there is something to
+        # agree about, so a healthy station is never marked "confident".
+        "confident": (worst_z >= 1.0 and spread is not None
+                      and spread < abs(dep[worst_k]["mean"]) * 0.5),
+    }
+
 
 def main() -> None:
     if not SRC.exists():
@@ -100,9 +154,12 @@ def main() -> None:
                 "centres": int(g[g["variable"] == long_name]["center"].nunique()),
             }
         if rec["dep"]:
+            rec["health"] = classify(rec["dep"])
             stations.append(rec)
 
-    stations.sort(key=lambda s: s["name"])
+    # Worst first. The list is read from the top by someone deciding where to
+    # send a technician, so the ordering is the product, not a detail.
+    stations.sort(key=lambda s: -s["health"]["severity"])
     out = {
         "source": "WMO WDQMS (NWP land surface), observation minus background",
         "centres": sorted(latest["center"].dropna().unique().tolist()),
@@ -119,6 +176,14 @@ def main() -> None:
     print(f"{OUT}  {OUT.stat().st_size/1024:.0f} kB")
     print(f"  {len(stations)} stations  ·  {day}  ·  centres: {', '.join(out['centres'])}")
     print(f"  outside the Indian box: {len(outside)} ({', '.join(outside) or 'none'})")
+    counts = {}
+    for st in stations:
+        counts[st["health"]["state"]] = counts.get(st["health"]["state"], 0) + 1
+    print("  screened: " + "  ".join(
+        f"{k} {counts.get(k, 0)}" for k in
+        ("HEALTHY", "WATCH", "DEGRADING", "SUSPECT", "FAILED")))
+    conf = sum(1 for st in stations if st["health"]["confident"])
+    print(f"  of the non-healthy, {conf} have the four centres in agreement")
     for key in ("temp", "rh", "pres"):
         have = [s for s in stations if key in s["dep"]]
         if have:
