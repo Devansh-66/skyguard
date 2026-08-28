@@ -14,6 +14,8 @@ Four substitutions:
     /*__BOUNDARY__*/null  NCMRWF's india_boundary, simplified, so the border
                           still draws offline -- and is the official depiction
     /*__DATA__*/null      the snapshot
+    /*__WDQMS__*/null     real Indian stations and their WMO departures,
+                          from `python -m dashboard.export_wdqms`
 """
 from __future__ import annotations
 import json
@@ -21,6 +23,7 @@ from pathlib import Path
 
 TPL = Path("dashboard/template.html")
 SNAP = Path("dashboard/snapshot.json")
+WDQMS = Path("dashboard/wdqms.json")
 VENDOR = Path("dashboard/vendor")
 OUT = Path("dashboard/console.html")
 
@@ -29,6 +32,7 @@ SUBS = [
     ("/*__LEAFLET_JS__*/", VENDOR / "leaflet.js", "leaflet"),
     ("/*__BOUNDARY__*/null", VENDOR / "india_boundary.min.json", "boundary"),
     ("/*__DATA__*/null", SNAP, "snapshot"),
+    ("/*__WDQMS__*/null", WDQMS, "WDQMS real-station departures"),
 ]
 
 
@@ -41,7 +45,8 @@ def main() -> None:
             raise SystemExit(
                 f"missing {label}: {path}\n"
                 "Leaflet and the boundary are vendored under dashboard/vendor/;\n"
-                "the snapshot comes from `python -m dashboard.export`.")
+                "the snapshot comes from `python -m dashboard.export`;\n"
+                "wdqms.json from `python -m dashboard.export_wdqms`.")
         body = path.read_text(encoding="utf-8")
         if path.suffix == ".css":
             # Leaflet's CSS points at marker and layer-control PNGs we do not

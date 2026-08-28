@@ -313,12 +313,17 @@ body{padding-top:58px}
 <section class="mapstrip" id="mapstrip">
   <div class="maphead">
     <span class="lbl">Network map</span>
-    <span class="maphint">Lines are the neighbour graph &mdash; who each station is
-      compared against. A fault moves one dot; weather moves the cluster.</span>
+    <span class="maphint" id="maphint"></span>
     <label class="ctl-lab">View
       <select id="mapview" aria-label="Map extent">
         <option value="basemap" selected>All India</option>
         <option value="regional">Fit to region</option>
+      </select>
+    </label>
+    <label class="ctl-lab">Network
+      <select id="mapnetwork" aria-label="Which stations to plot">
+        <option value="real" selected>Real &mdash; 346 IMD stations</option>
+        <option value="sim">Simulated &mdash; 10 stations</option>
       </select>
     </label>
     <label class="ctl-lab">Colour
@@ -380,6 +385,18 @@ const BOUNDARY = /*__BOUNDARY__*/null;
 // opens in a browser instead of throwing a syntax error -- it renders the
 // "no data" notice below rather than a blank page.
 let DATA = /*__DATA__*/null;
+
+// Real stations operated by India, with the observation-minus-background
+// departures four forecast centres computed for them. See
+// dashboard/export_wdqms.py for what this is and what it is not.
+const WDQMS = /*__WDQMS__*/null;
+let mapNetwork = "real";
+
+// Departures arrive in physical units, so one shared sigma scale would be
+// meaningless across channels: 3 K is an enormous temperature error and 3 %
+// relative humidity is nothing. These are the "clearly wrong" magnitude for
+// each channel, used only to normalise the colour ramp.
+const DEP_SCALE = {temp: 3, rh: 15, pres: 3};
 
 // Live service if one is reachable, inlined snapshot if not.
 //
@@ -754,7 +771,33 @@ async function probeTiles(){
   } catch { tilesOK = false; return false; }
 }
 
+// The line above the map, which must not describe a neighbour graph on the
+// network that has none.
+function setHint(){
+  const el = $("maphint");
+  if (!el) return;
+  el.innerHTML = mapNetwork === "real"
+    ? "Real stations operated by India, from WMO's quality monitoring. Colour is "
+      + "how far each sat from four forecast centres' background."
+    : "Lines are the neighbour graph &mdash; who each station is compared against. "
+      + "A fault moves one dot; weather moves the cluster.";
+}
+
 function legendHTML(){
+  if (mapNetwork === "real"){
+    const u = {temp:"temperature (K)", rh:"humidity (%)", pres:"pressure (hPa)"}[
+      mapColour === "health" ? "temp" : mapColour];
+    const w = WDQMS || {};
+    return `<div class="maplegend">
+      <span>below background</span>
+      <span class="rampbar" style="background:linear-gradient(90deg,
+        ${rampColour(-3)}, ${rampColour(0)}, ${rampColour(3)})"></span>
+      <span>above background</span>
+      <span style="margin-left:10px">fill = ${esc(u)} minus background,
+        ${esc((w.centres || []).join("/"))} &middot; ${esc(String(w.date || ""))}
+        &middot; real stations, no fault labels &mdash; see the board</span>
+    </div>`;
+  }
   if (mapColour === "health")
     return `<div class="maplegend">Dot colour: sensor health</div>`;
   const u = {temp:"temperature", rh:"humidity", pres:"pressure"}[mapColour];
@@ -824,6 +867,42 @@ function renderMaps(){
   if (edgeLayer) map.removeLayer(edgeLayer);
   if (stationLayer) map.removeLayer(stationLayer);
 
+  // The real network. 346 stations operated by India, coloured by how far each
+  // one sat from four forecast centres' background yesterday.
+  //
+  // No neighbour edges are drawn here. WDQMS publishes no neighbour graph, and
+  // deriving one from distance would be inventing structure and then drawing it
+  // as though it were given. The simulated network keeps its edges because its
+  // graph is a real part of that dataset.
+  if (mapNetwork === "real"){
+    const rs = (WDQMS && WDQMS.stations) ? WDQMS.stations : [];
+    const key = (mapColour === "health") ? "temp" : mapColour;
+    const unit = {temp:"K", rh:"%", pres:"hPa"}[key] || "";
+    const marks = rs.filter(s => s.dep && s.dep[key]).map(s => {
+      const d = s.dep[key];
+      // Into the ramp's domain. rampColour saturates at |z| = 3, so dividing by
+      // the channel's "clearly wrong" magnitude and scaling by 3 puts each
+      // channel's own idea of large at the same end of the colour scale.
+      const m = L.circleMarker([s.latitude, s.longitude], {
+        radius: 4.5, fillColor: rampColour((d.mean / DEP_SCALE[key]) * 3),
+        fillOpacity: 1, color: "#FCF9F2", weight: 1.4,
+      });
+      m.bindTooltip(
+        `${esc(s.name)}<br>${(d.mean >= 0 ? "+" : "")}${d.mean} ${unit} vs background`
+        + (d.spread == null ? ""
+           : `<br>spread ${d.spread} ${unit} over ${d.n} obs, ${d.centres} centres`)
+        + (s.in_india ? "" : "<br><b>Antarctic station</b>"),
+        {direction:"top", offset:[0,-6]});
+      return m;
+    });
+    stationLayer = L.layerGroup(marks).addTo(map);
+    setHint();
+    const leg0 = document.querySelector(".maplegend");
+    if (leg0) leg0.outerHTML = legendHTML(); else $("maps").insertAdjacentHTML("beforeend", legendHTML());
+    setTimeout(() => map.invalidateSize(), 40);
+    return;
+  }
+
   // Neighbour edges: who each station is compared against. This is the reason
   // the map exists -- an excursion at one dot with its neighbours calm is a
   // fault; the whole cluster moving together is weather.
@@ -891,6 +970,7 @@ function renderMaps(){
   });
   stationLayer = L.layerGroup(marks).addTo(map);
 
+  setHint();
   const leg = document.querySelector(".maplegend");
   if (leg) leg.outerHTML = legendHTML(); else $("maps").insertAdjacentHTML("beforeend", legendHTML());
   setTimeout(() => map.invalidateSize(), 40);
@@ -1095,12 +1175,32 @@ function start(){
   buildStateFilter();
   wireClock();
   $("mapview").onchange = (e) => {
-    if (e.target.value === "regional")
-      fitTo(DATA.stations.filter(s =>
-        (stateFilter === "all" || s.state === stateFilter) && s.latitude != null));
+    if (e.target.value === "regional"){
+      // MAITRI and BHARATI are India's Antarctic stations. They are real and
+      // they stay on the map, but fitting the bounds to them zooms the view out
+      // to show the South Pole, which looks like a broken map rather than like
+      // two research bases.
+      if (mapNetwork === "real")
+        fitTo((WDQMS && WDQMS.stations ? WDQMS.stations : []).filter(s => s.in_india));
+      else
+        fitTo(DATA.stations.filter(s =>
+          (stateFilter === "all" || s.state === stateFilter) && s.latitude != null));
+    }
     else if (map) map.setView([22.6, 80.0], 4);
   };
   $("mapcolour").onchange = (e) => { mapColour = e.target.value; renderMaps(); };
+  $("mapnetwork").onchange = (e) => {
+    mapNetwork = e.target.value;
+    // The real network publishes no sticky health, so that colour mode does not
+    // apply to it. Falling back silently would leave every dot one flat colour
+    // with a legend claiming to show health.
+    const csel = $("mapcolour");
+    const healthOpt = csel.querySelector('option[value="health"]');
+    if (healthOpt) healthOpt.disabled = (mapNetwork === "real");
+    if (mapNetwork === "real" && mapColour === "health"){ mapColour = "temp"; csel.value = "temp"; }
+    renderMaps();
+  };
+  $("mapnetwork").dispatchEvent(new Event("change"));
   $("maptoggle").onclick = () => {
     const strip = $("mapstrip");
     const hidden = !strip.dataset.hidden;
