@@ -17,13 +17,7 @@
  */
 import { useQuery } from '@tanstack/react-query'
 import { get } from './client'
-import type {
-  CatalogResponse,
-  QueueItemDetail,
-  QueueResponse,
-  Station,
-  TileStatus,
-} from './types'
+import type { CatalogResponse, QueueItemDetail, QueueResponse } from './types'
 
 const ARCHIVE_STALE_MS = 5 * 60 * 1000
 
@@ -31,8 +25,6 @@ export const keys = {
   queue: ['queue'] as const,
   queueItem: (id: string) => ['queue', id] as const,
   catalog: ['ai', 'catalog'] as const,
-  stations: ['stations'] as const,
-  tiles: ['tiles', 'status'] as const,
 }
 
 export function useQueue() {
@@ -68,21 +60,3 @@ export function useCatalog() {
   })
 }
 
-export function useStations() {
-  return useQuery({
-    queryKey: keys.stations,
-    queryFn: ({ signal }) => get<Station[]>('/api/stations', signal),
-    staleTime: ARCHIVE_STALE_MS,
-  })
-}
-
-/** The tile service's own status. Fetched rather than assumed so the map can
- *  say why it is blank instead of just being blank -- a cold cache with no
- *  route upstream is a completely different problem from a broken map. */
-export function useTileStatus() {
-  return useQuery({
-    queryKey: keys.tiles,
-    queryFn: ({ signal }) => get<TileStatus>('/api/tiles/status', signal),
-    staleTime: ARCHIVE_STALE_MS,
-  })
-}

@@ -23,8 +23,9 @@
  * These are US and Portuguese instruments. That is not an accident and it is
  * not hidden: they are the validation set, because ARM publishes fault reports
  * written by humans who inspected the hardware, and no Indian network publishes
- * anything equivalent. The deployment target is the Indian network on the
- * /network map. The two are never plotted together.
+ * anything equivalent. The deployment target is the Indian network on the map
+ * console. The two are never plotted together -- drawing an Oklahoma mast on
+ * the India map would claim this monitors Oklahoma, which it does not.
  */
 
 export interface SiteInfo {

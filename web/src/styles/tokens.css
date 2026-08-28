@@ -17,9 +17,9 @@
  *   - Colour is scarce. Real chart paper is cream, brown ruling and one ink.
  *     Oxide red is reserved for a trace that has left tolerance, so it means
  *     something the instant it appears rather than being one hue among nine.
- *   - IBM Plex throughout: it was drawn for technical documentation, it has a
- *     true mono with tabular figures, and its serif reads as an instrument
- *     nameplate rather than as a magazine.
+ *   - One grotesque, one mono, no serif. The type should read as an instrument
+ *     panel, not as a printed article -- so nothing here has a serif on it, and
+ *     every number is set in a mono with tabular figures.
  */
 :root {
   /* ---- the paper ---- */
@@ -46,10 +46,14 @@
   --indigo: #2A3F6B;         /* housekeeping: not a weather channel */
   --indigo-wash: rgba(42, 63, 107, 0.10);
 
-  /* ---- type ---- */
-  --serif: "IBM Plex Serif", "Iowan Old Style", Georgia, serif;
-  --sans: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  /* ---- type ----
+   * One grotesque and one mono. No serif anywhere: a serif heading on a page
+   * of dense instrument tables reads as editorial, and this is not an article.
+   * `--display` is the same family as `--sans`, separated only so that display
+   * sizes can be tuned (heavier, tighter) in one place. */
+  --display: "Archivo", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --sans: "Archivo", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "Roboto Mono", ui-monospace, Consolas, monospace;
 
   /* ---- metrics ---- */
   --topbar-h: 58px;

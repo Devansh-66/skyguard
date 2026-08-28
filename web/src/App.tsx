@@ -5,21 +5,14 @@
  * from edge to edge now, so the bar is simply a ruled header that sits on it.
  * A state that no longer changes anything is a state worth deleting.
  *
- * The map now lives at /network inside the app. It used to be a link out to
- * /console/console.html, which left the shell entirely: the top bar vanished
- * and there was no way back except the browser's back button.
+ * The map is the older static console at /console/console.html, linked out to
+ * rather than ported. Note the consequence: that page is outside this shell, so
+ * the top bar is not on it and the way back is the browser's back button.
  */
-import { Suspense, lazy } from 'react'
 import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { BoardRoute } from './routes/BoardRoute'
 import { HomeRoute } from './routes/HomeRoute'
 
-/* Leaflet is ~160 kB and is needed by exactly one route. Bundled with the rest
- * it would make an operator opening the maintenance board wait for a mapping
- * library they are not going to use. */
-const NetworkRoute = lazy(() =>
-  import('./routes/NetworkRoute').then((m) => ({ default: m.NetworkRoute })),
-)
 
 export default function App() {
   return (
@@ -31,7 +24,7 @@ export default function App() {
         </Link>
         <nav className="links">
           <NavLink to="/board">Maintenance</NavLink>
-          <NavLink to="/network">Network</NavLink>
+          <a href="/console/console.html">Network map</a>
         </nav>
       </header>
 
@@ -40,14 +33,6 @@ export default function App() {
           <Route path="/" element={<HomeRoute />} />
           <Route path="/board" element={<BoardRoute />} />
           <Route path="/board/*" element={<BoardRoute />} />
-          <Route
-            path="/network"
-            element={
-              <Suspense fallback={<p className="notfound muted">Loading the map…</p>}>
-                <NetworkRoute />
-              </Suspense>
-            }
-          />
           {/* The board used to live at /queue. Anyone holding an old link is
               sent on rather than shown a dead end. */}
           <Route path="/queue" element={<Navigate to="/board" replace />} />

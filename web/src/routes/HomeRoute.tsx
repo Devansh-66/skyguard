@@ -172,7 +172,7 @@ export function HomeRoute() {
 
       <section className="closing">
         <Link to="/board" className="btn">Open the maintenance board</Link>
-        <Link to="/network" className="btn ghost">Network</Link>
+        <a href="/console/console.html" className="btn ghost">Network map</a>
         <p className="small muted colophon">
           Detections run against real ARM one-minute observations. Fault labels
           are written by human analysts and are never shown to the estimator.
