@@ -44,27 +44,28 @@ export default function App() {
   )
 }
 
-/** The station plot.
+/** Three readings, one adrift.
  *
- * This is the symbol a meteorologist already reads: the WMO station model that
- * has been drawn on synoptic charts since the 1930s. The circle is the station
- * and its fill is sky cover; the shaft is wind direction and each feather is a
- * speed increment. It is the one mark in this field that means something before
- * anyone is told what it means, and no software uses it.
+ * The previous mark was the WMO station plot -- a circle with a long shaft and
+ * two perpendicular feathers -- and it read as a KEY: circular bow, straight
+ * stem, teeth. Correct meteorologically, wrong as a logo, and unfixable without
+ * losing the thing that made it a station plot.
  *
- * Monochrome on purpose. Oxide red is reserved for "this instrument has left
- * tolerance", and spending it on a logo would blunt the one place it has to
- * carry weight. Everything here inherits currentColor, so the mark works on the
- * bar, inverted on a dark button, or at 16px in a tab.
+ * This says what the product does instead of what the domain looks like. Three
+ * bars are the three channels: temperature, pressure, humidity. Two hold their
+ * line and one has slipped out of it, and that one is red. Drift is only
+ * visible against something that has not drifted, which is the whole argument
+ * of the project, stated in three rectangles.
+ *
+ * Two colours, both from the agreed set. No curves, so nothing to resemble a
+ * bow or a barb, and it stays square at 16px where circles turn to mush.
  */
 function Glyph() {
   return (
-    <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true" className="glyph">
-      {/* sky cover: the half fill that gives the mark weight at small sizes */}
-      <path d="M13 10.2a6.8 6.8 0 0 0 0 13.6z" className="glyph-cover" />
-      <circle cx="13" cy="17" r="6.8" className="glyph-ring" />
-      <path d="M17.9 12.2 L27 3.2" className="glyph-shaft" />
-      <path d="M27 3.2 L23.6 1.9 M24.2 6 L20.8 4.7" className="glyph-barb" />
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" className="glyph">
+      <rect className="glyph-hold" x="2" y="4.6" width="15" height="3.2" />
+      <rect className="glyph-drift" x="6.8" y="10.4" width="15" height="3.2" />
+      <rect className="glyph-hold" x="2" y="16.2" width="15" height="3.2" />
     </svg>
   )
 }

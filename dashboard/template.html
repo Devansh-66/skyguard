@@ -279,11 +279,12 @@ body{padding-top:58px}
 
 <div class="appbar">
   <a class="mark" href="/app/">
-    <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M13 10.2a6.8 6.8 0 0 0 0 13.6z" fill="currentColor"/>
-      <circle cx="13" cy="17" r="6.8" fill="none" stroke="currentColor" stroke-width="2"/>
-      <path d="M17.9 12.2 L27 3.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      <path d="M27 3.2 L23.6 1.9 M24.2 6 L20.8 4.7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <!-- Three readings, one adrift. The two steady channels inherit the bar's
+         colour; the drifted one is always red. Matches web/src/App.tsx. -->
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="2" y="4.6" width="15" height="3.2" fill="currentColor"/>
+      <rect x="6.8" y="10.4" width="15" height="3.2" fill="#E01B24"/>
+      <rect x="2" y="16.2" width="15" height="3.2" fill="currentColor"/>
     </svg>
     <span>SkyGuard</span>
   </a>
@@ -805,7 +806,7 @@ function divergence(s, varname){
 // at a glance. White reads as "agrees with its neighbours" against any
 // background, and the two ends are far enough apart to tell sign at speed.
 function rampColour(z){
-  if (z === null || !isFinite(z)) return "#BFB4A0";
+  if (z === null || !isFinite(z)) return "#FFFFFF";
   const t = Math.max(-1, Math.min(1, z / 3));
   // The STRUCTURE of this ramp is unchanged and the reasoning above still
   // holds: a pale centre and two saturated ends is the only thing that stays
@@ -814,8 +815,8 @@ function rampColour(z){
   // belongs to the same object as the rest of the interface. Both ends are
   // still dark enough to hold against imagery, and the centre is paper rather
   // than pure white.
-  const mid = [252, 249, 242];
-  const end = t < 0 ? [30, 110, 126] : [180, 73, 31];
+  const mid = [255, 255, 255];
+  const end = t < 0 ? [29, 111, 224] : [224, 27, 36];
   const k = Math.abs(t);
   return "rgb(" + mid.map((m, i) => Math.round(m + (end[i] - m) * k)).join(",") + ")";
 }
@@ -827,15 +828,21 @@ function rampColour(z){
 // read as a warning about the map rather than about any station. Same five
 // steps at ink weight: calm green through ochre to deep oxide, so severity
 // reads as a ramp and only the worst state is loud.
-const HEALTH_RING = {HEALTHY:"#2C5D4F", WATCH:"#8A6212", DEGRADING:"#B4621B",
-                     SUSPECT:"#A2361F", FAILED:"#6E1B10"};
+// Three colours out of red / green / blue / white / black, and that is all the
+// map uses. Green is deliberately not among them: the basemap is satellite
+// imagery, mostly vegetation, and a green dot on green terrain is the one
+// combination that reliably disappears. White carries "nothing to see here",
+// blue "worth a look", red "wrong".
+const HEALTH_RING = {HEALTHY:"#FFFFFF", WATCH:"#1D6FE0", DEGRADING:"#1D6FE0",
+                     SUSPECT:"#E01B24", FAILED:"#E01B24"};
+const REAL_STATE_C = {OK:"#FFFFFF", WATCH:"#1D6FE0", FAULT:"#E01B24"};
 
 // The real network gets three states and, in effect, two colours: a station
 // that is fine is drawn in ink at low opacity and carries no hue at all, so
 // every coloured dot on the map is a dot worth looking at. Five graded hues at
 // three pixels across were indistinguishable, which is the whole reason 346
 // stations looked identical.
-const REAL_STATE = {OK:"#8C8172", WATCH:"#8A6212", FAULT:"#A2361F"};
+const REAL_STATE = REAL_STATE_C;
 const REAL_ORDER = {OK:0, WATCH:1, FAULT:2};
 
 // Band a severity the same way the exporter does, so the map can grade a single
@@ -943,18 +950,32 @@ function renderMaps(){
     // works correctly, which is the path taken when animation is disabled. An
     // instant view change is fine on a dashboard; a filter that does nothing is
     // not.
-    map = L.map("lmap", {zoomControl:true, attributionControl:false,
-                         zoomAnimation:false, fadeAnimation:false})
-           .setView([22.6, 80.0], 4);
+    map = L.map("lmap", {
+      zoomControl:true, attributionControl:false,
+      zoomAnimation:false, fadeAnimation:false,
+      // The world repeated infinitely: panning east past the dateline just kept
+      // drawing India again, forever, because Leaflet wraps longitude by
+      // default. Verified before the fix by setting the view to longitude 440
+      // and finding twelve tiles still rendering. maxBounds stops the drag at
+      // the edge; noWrap on the tile layers stops the copies existing at all.
+      // The box is generous enough to include MAITRI and BHARATI, since the
+      // rail can fly the map to them.
+      maxBounds: L.latLngBounds([[-75, 5], [40, 100]]),
+      maxBoundsViscosity: 0.85,
+      // A wheel notch used to be a whole zoom level, which overshoots the
+      // country in two clicks. Half-steps, and about twice the wheel distance
+      // per level, so zooming is something you can aim.
+      zoomSnap: 0.5, zoomDelta: 0.5, wheelPxPerZoomLevel: 170,
+    }).setView([22.6, 80.0], 4);
     map._skyguardTiles = tilesOK;
 
     if (tilesOK){
       // Through our own proxy: same origin, disk-cached, so the map keeps
       // drawing after the venue wifi dies.
       L.tileLayer(API + TILE_TPL,
-                  {maxZoom:12, minZoom:3, crossOrigin:true}).addTo(map);
+                  {maxZoom:12, minZoom:3, crossOrigin:true, noWrap:true}).addTo(map);
       boundaryLayer = L.tileLayer(API + BND_TPL,
-                  {maxZoom:12, minZoom:3, opacity:0.9}).addTo(map);
+                  {maxZoom:12, minZoom:3, opacity:0.9, noWrap:true}).addTo(map);
       $("mapattrib").innerHTML =
         "Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; "
         + "Boundary &copy; NCMRWF, Ministry of Earth Sciences";
@@ -1012,8 +1033,11 @@ function renderMaps(){
         // A station that is fine recedes: no hue, half opacity, no casing. The
         // casing exists to separate a coloured dot from the imagery, and an
         // uncoloured one has nothing to separate.
-        fillOpacity: ok ? 0.45 : 1,
-        color: "#FCF9F2", weight: ok ? 0 : 1.4, stroke: !ok,
+        // No border on any dot. A casing was there to separate a fill from the
+        // imagery, but with white / blue / red the fills carry themselves, and
+        // 346 outlined discs read as a mesh rather than as points.
+        fillOpacity: ok ? 0.55 : 0.95,
+        stroke: false,
       });
       const u = unit[g.k] || "";
       m.bindTooltip(
@@ -1102,10 +1126,11 @@ function renderMaps(){
       // named in the tooltip instead. They are never merged into one colour.
       fillColor: mapColour === "health" ? hcol : rampColour(z),
       fillOpacity: 1,
-      // The casing, not a second encoding: pale so the dot separates from the
-      // imagery, ink when this is the station being inspected.
-      color: sel ? "#171A1E" : "#FCF9F2",
-      weight: sel ? 2.5 : 2,
+      // Only the selected station carries a ring, and it is black. Everything
+      // else is a bare fill.
+      stroke: sel,
+      color: "#000000",
+      weight: sel ? 2.5 : 0,
     });
     const nm = s.name.replace(/_/g, " ");
     // Health is named in the tooltip because in divergence mode the fill shows

@@ -38,6 +38,9 @@
 
   /* ---- the marks that mean something ---- */
   --oxide: #A2361F;          /* out of tolerance. Used nowhere else. */
+  /* The pure signal red, matching the map's fault dots. Distinct from --oxide,
+   * which is the ink-weight red used in running text and rules. */
+  --signal-red: #E01B24;
   --oxide-wash: rgba(162, 54, 31, 0.09);
   --verdigris: #2C5D4F;      /* within tolerance, reference, confirmed */
   --verdigris-wash: rgba(44, 93, 79, 0.10);

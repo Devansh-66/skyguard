@@ -17,12 +17,13 @@
   display: flex; align-items: center; gap: 10px; text-decoration: none;
   font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: -.02em;
 }
-.glyph { overflow: visible; flex: none; }
-.glyph-ring { fill: none; stroke: currentColor; stroke-width: 2; }
-.glyph-cover { fill: currentColor; }
-.glyph-shaft, .glyph-barb {
-  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round;
-}
+.glyph { flex: none; }
+/* The two steady channels take whatever colour the mark sits on, so the logo
+ * inverts correctly on a dark button. The drifted one is always red: it is the
+ * only thing in the mark carrying meaning, and it should not change with the
+ * background. */
+.glyph-hold { fill: currentColor; }
+.glyph-drift { fill: var(--signal-red); }
 
 .links { display: flex; align-items: center; gap: 2px; }
 .links a {
