@@ -139,9 +139,16 @@ main{
    Two columns left several hundred pixels of nothing to the right of the table
    on a wide screen, and the thing that belonged there was the station a watcher
    had just clicked. */
-#maps{display:grid; grid-template-columns:minmax(320px, 460px) 1fr;
-      gap:24px; align-items:start}
-.mapbelow{grid-column:1 / -1; margin-top:6px}
+/* Four maps of one size, in one row: the interactive one and one per channel.
+   A big map with three thumbnails beside it read as a map plus decoration; the
+   point is that they are four views of the same 346 stations and should carry
+   the same weight. Legend above, everything else below. */
+#maps{display:grid; grid-template-columns:repeat(4, minmax(180px, 1fr));
+      gap:16px 16px; align-items:start}
+.maplegendbar{grid-column:1 / -1}
+.mapbox{grid-column:1; min-width:0}
+.chmaps{grid-column:2 / -1}
+.mapbelow{grid-column:1 / -1; margin-top:14px}
 .belowgrid{display:grid; grid-template-columns:minmax(280px, 420px) minmax(280px, 1fr);
            gap:28px; align-items:start}
 .belowhead{
@@ -149,16 +156,20 @@ main{
   letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3);
   padding-bottom:5px; margin-bottom:9px; border-bottom:1px solid var(--line);
 }
-.chmaps{display:flex; gap:14px; flex-wrap:wrap; margin-top:10px}
-.chmap{margin:0; flex:0 0 auto}
+/* Four panels of the same size in one row: the interactive map and one per
+   channel. They were 150px thumbnails, which is not a map but a scatter -- there
+   was nothing in them to reason from. */
+.chmaps{display:grid; grid-template-columns:repeat(3, minmax(220px, 1fr));
+        gap:16px; margin-top:0}
+.chmap{margin:0; min-width:0}
 .chmap figcaption{
-  font-family:"Roboto Mono",ui-monospace,monospace; font-size:9px;
+  font-family:"Roboto Mono",ui-monospace,monospace; font-size:9.5px;
   letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3);
-  display:flex; justify-content:space-between; gap:8px; margin-bottom:3px;
+  display:flex; justify-content:space-between; gap:8px; margin-bottom:5px;
 }
 .chmap .chcount{font-family:"Roboto Mono",ui-monospace,monospace}
-.chmap svg{display:block; width:150px; height:165px;
-           background:var(--surface); border:1px solid var(--rule)}
+.chmap svg{display:block; width:100%; height:auto;
+           border:1px solid var(--rule)}
 @media (max-width:900px){ .belowgrid{grid-template-columns:1fr} }
 .mapdetail{font-size:12px; color:var(--ink-2)}
 .mapdetail h5{
@@ -177,7 +188,9 @@ main{
 .spark svg{display:block; width:100%; height:44px; border:1px solid var(--rule)}
 .detail-empty{color:var(--ink-3); font-size:11.5px; line-height:1.5}
 @media (max-width:1180px){ #maps{grid-template-columns:minmax(320px,470px) 1fr} }
-#lmap{height:520px; border:1px solid var(--line); border-radius:5px}
+/* Same proportions as the channel panels beside it, so the four line up. The
+   country is far taller than wide, and this is that shape. */
+#lmap{aspect-ratio:300 / 339; border:1px solid var(--line); border-radius:5px}
 .mapside{
   display:flex; flex-direction:column; gap:10px; padding-top:2px;
   font-size:11.5px; color:var(--ink-3);
@@ -1130,7 +1143,55 @@ function setDetail(){
     : "";
 }
 
-// THE SAME STATIONS, THREE TIMES, ONE CHANNEL EACH.
+// The national outline as an SVG path, built once and reused by every panel.
+//
+// The first attempt drew the channel panels as bare dot clouds with no
+// coastline, at 150 pixels. That is not a map -- it is scatter, and there is
+// nothing in it to reason from. A panel that cannot be read is worse than no
+// panel, because it occupies the space where a readable one would go.
+const MAP_BOX = {lon0: 67.3, lon1: 97.8, lat0: 6.4, lat1: 37.4};
+let _indiaPath = null;
+
+function indiaPathD(W, H, P){
+  if (_indiaPath && _indiaPath.W === W) return _indiaPath.d;
+  if (typeof BOUNDARY === "undefined" || !BOUNDARY) return "";
+  const g = BOUNDARY.geometry || BOUNDARY;
+  const polys = g.type === "MultiPolygon" ? g.coordinates : [g.coordinates];
+  const x = lon => P + ((lon - MAP_BOX.lon0) / (MAP_BOX.lon1 - MAP_BOX.lon0)) * (W - 2 * P);
+  const y = lat => P + ((MAP_BOX.lat1 - lat) / (MAP_BOX.lat1 - MAP_BOX.lat0)) * (H - 2 * P);
+  // The national boundary carries 8,778 points across 756 rings, which is
+  // 100 kB of path per panel and three panels of it in the DOM. At 300 pixels
+  // wide most of those rings are single sandbars. Dropping rings whose bounding
+  // box is under a fifth of a degree, and collapsing points that land on the
+  // same pixel, cuts the markup by most of that without changing a coastline
+  // anyone can see at this size.
+  let d = "";
+  for (const poly of polys){
+    for (const ring of poly){
+      if (ring.length < 4) continue;
+      let lo0 = 1e9, la0 = 1e9, lo1 = -1e9, la1 = -1e9;
+      for (const pt of ring){
+        if (pt[0] < lo0) lo0 = pt[0];
+        if (pt[0] > lo1) lo1 = pt[0];
+        if (pt[1] < la0) la0 = pt[1];
+        if (pt[1] > la1) la1 = pt[1];
+      }
+      if ((lo1 - lo0) < 0.2 && (la1 - la0) < 0.2) continue;
+      let seg = "", px = null, py = null;
+      for (const pt of ring){
+        const cx = +x(pt[0]).toFixed(1), cy = +y(pt[1]).toFixed(1);
+        if (cx === px && cy === py) continue;
+        seg += (seg ? "L" : "M") + cx + " " + cy;
+        px = cx; py = cy;
+      }
+      if (seg.length > 24) d += seg + "Z";
+    }
+  }
+  _indiaPath = {W: W, d: d};
+  return d;
+}
+
+// THE SAME STATIONS, ONCE PER CHANNEL, ALL AT THE SAME SIZE.
 //
 // The main map can only show one channel at a time, so a watcher had to flip a
 // dropdown and hold the last view in their head to answer the question they
@@ -1143,37 +1204,65 @@ function setDetail(){
 // across the country draw India by themselves.
 function channelMapHTML(key){
   const rs = (WDQMS && WDQMS.stations) ? WDQMS.stations : [];
-  const W = 150, H = 165, P = 5;
-  const LON0 = 68, LON1 = 97.5, LAT0 = 6.5, LAT1 = 37.5;
-  const x = lon => P + ((lon - LON0) / (LON1 - LON0)) * (W - 2 * P);
-  const y = lat => P + ((LAT1 - lat) / (LAT1 - LAT0)) * (H - 2 * P);
-  const nm = {temp:"temperature", rh:"humidity", pres:"pressure"};
-  let n = {OK:0, WATCH:0, FAULT:0};
-  const dots = rs.filter(s => s.in_india && s.dep && s.dep[key]).map(s => {
-    const st = bandOf(s.dep[key].z);
-    n[st]++;
-    return {s, st};
-  });
-  // Worst last, so a fault is never hidden under a neighbour that is fine.
-  dots.sort((a, b) => REAL_ORDER[a.st] - REAL_ORDER[b.st]);
-  const marks = dots.map(d => {
-    const ok = d.st === "OK";
-    return `<circle cx="${x(d.s.longitude).toFixed(1)}" cy="${y(d.s.latitude).toFixed(1)}"
-      r="${ok ? 1.5 : d.st === "FAULT" ? 3.2 : 2.4}"
-      fill="${ok ? okColour() : REAL_STATE[d.st]}"
-      fill-opacity="${ok ? okOpacity() : 0.95}"/>`;
+  // Same size as the interactive map beside it, and the same proportions as the
+  // country, so four panels read as four views of one thing rather than as a
+  // map plus three ornaments.
+  const W = 300, H = 339, P = 8;
+  const st = STYLES[mapStyle] || STYLES.plain;
+  const x = lon => P + ((lon - MAP_BOX.lon0) / (MAP_BOX.lon1 - MAP_BOX.lon0)) * (W - 2 * P);
+  const y = lat => P + ((MAP_BOX.lat1 - lat) / (MAP_BOX.lat1 - MAP_BOX.lat0)) * (H - 2 * P);
+  const nm = {temp:"Temperature", rh:"Humidity", pres:"Pressure", health:"Worst channel"};
+  const unit = {temp:"K", rh:"%", pres:"hPa"};
+
+  const n = {OK:0, WATCH:0, FAULT:0};
+  const dots = [];
+  for (const s of rs){
+    if (!s.in_india) continue;
+    let band, d;
+    if (key === "health"){ band = s.health.state; d = s.dep[s.health.channel]; }
+    else { if (!s.dep || !s.dep[key]) continue; d = s.dep[key]; band = bandOf(d.z); }
+    n[band]++;
+    dots.push({s, band, d});
+  }
+  // Worst painted last, so a fault is never underneath a neighbour that is fine.
+  dots.sort((a, b) => REAL_ORDER[a.band] - REAL_ORDER[b.band]);
+
+  const marks = dots.map(t => {
+    const ok = t.band === "OK";
+    const sel = t.s.id === currentReal;
+    return `<circle class="chdot" data-id="${esc(t.s.id)}"
+      cx="${x(t.s.longitude).toFixed(1)}" cy="${y(t.s.latitude).toFixed(1)}"
+      r="${sel ? 6 : ok ? 2.4 : t.band === "FAULT" ? 5 : 3.8}"
+      fill="${ok ? okColour() : REAL_STATE[t.band]}"
+      fill-opacity="${ok ? okOpacity() : 0.95}"
+      ${sel ? 'stroke="#171A1E" stroke-width="1.5"' : ""}><title>${esc(t.s.name)} — ${t.band}${
+        t.d ? ` — ${(t.d.mean >= 0 ? "+" : "")}${t.d.mean} ${unit[key === "health" ? t.s.health.channel : key] || ""}` : ""}</title></circle>`;
   }).join("");
+
   return `<figure class="chmap">
-    <figcaption>${nm[key]}
-      <span class="chcount">${n.FAULT ? `<b style="color:${REAL_STATE.FAULT}">${n.FAULT}</b> ` : ""}${
-        n.WATCH ? `<b style="color:${REAL_STATE.WATCH}">${n.WATCH}</b>` : ""}${
+    <figcaption><span>${nm[key]}</span>
+      <span class="chcount">${n.FAULT ? `<b style="color:${REAL_STATE.FAULT}">${n.FAULT} fault</b>` : ""}${
+        n.FAULT && n.WATCH ? " &middot; " : ""}${
+        n.WATCH ? `<b style="color:${REAL_STATE.WATCH}">${n.WATCH} watch</b>` : ""}${
         (!n.FAULT && !n.WATCH) ? "all clear" : ""}</span></figcaption>
-    <svg viewBox="0 0 ${W} ${H}">${marks}</svg></figure>`;
+    <svg viewBox="0 0 ${W} ${H}" style="background:${st.tiles ? "#0B0B0B" : st.ground}">
+      <path d="${indiaPathD(W, H, P)}" fill="${st.tiles ? "#111" : st.land}"
+        stroke="${st.line}" stroke-width="${st.lineW * 0.7}" stroke-linejoin="round"/>
+      ${marks}</svg></figure>`;
 }
 
-function channelMapsHTML(){
-  if (mapNetwork !== "real") return "";
-  return `<div class="chmaps">${["temp", "rh", "pres"].map(channelMapHTML).join("")}</div>`;
+function drawChannelMaps(){
+  const el = $("chmaps");
+  if (!el) return;
+  el.innerHTML = mapNetwork === "real"
+    ? ["temp", "rh", "pres"].map(channelMapHTML).join("") : "";
+}
+
+function bindChannelDots(){
+  document.querySelectorAll(".chdot").forEach(c => {
+    c.style.cursor = "pointer";
+    c.onclick = () => { currentReal = c.dataset.id; setDetail(); renderMaps(); };
+  });
 }
 
 function regionSummaryHTML(){
@@ -1283,11 +1372,12 @@ function renderMaps(){
   if (map && map._skyguardTiles !== tilesOK){ map.remove(); map = null; }
   if (!map){
     $("maps").innerHTML =
-      `<div class="mapbox">
+      `<div class="maplegendbar" id="mapside"></div>
+       <div class="mapbox">
          <div id="lmap"></div>
          <div class="mapattrib" id="mapattrib"></div>
        </div>
-       <aside class="mapside" id="mapside"></aside>
+       <div class="chmaps" id="chmaps"></div>
        <div class="mapbelow" id="mapbelow"></div>` ;
     // zoomAnimation off, deliberately. With it on, setView and fitBounds were
     // silently swallowed: Leaflet's _tryAnimatedZoom claims the move and hands
@@ -1437,7 +1527,9 @@ function renderMaps(){
       });
     }
     setHint();
-    setLegend(legendHTML() + channelMapsHTML());
+    setLegend(legendHTML());
+    drawChannelMaps();
+    bindChannelDots();
     setDetail();
     setTimeout(() => map.invalidateSize(), 40);
     return;
