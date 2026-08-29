@@ -68,8 +68,39 @@ MAX_PER_STATION = int(os.environ.get("SKYGUARD_INGEST_BUFFER", "512"))
 # broken one -- and rejecting those readings would throw away exactly the
 # conditions the network exists to record. 100-105 is flagged and clamped;
 # above 105 is a fault.
-RAILS = {"temp": (-40.0, 60.0), "rh": (0.0, 105.0), "pres": (500.0, 1100.0)}
-RH_SATURATED = 100.0
+# THE RAILS ARE NOW WMO-No. 8's, NOT OURS.
+#
+# Annex 1.A of Volume I (2024) states the measuring range for each variable, and
+# a reading outside it is not an anomaly to be scored -- it is outside what the
+# instrument is defined to report at all. Taking the ranges from the standard
+# replaces three numbers we chose with three anyone can check, and the two
+# places this project deliberately departs from it are now named rather than
+# silently baked in.
+#
+# What changed, and why each one was wrong before:
+#
+#   temp   was -40, WMO says -80. Ours was a CLIMATOLOGY limit wearing an
+#          instrument rail's clothes: -40 is generous for India but India's
+#          record low is about -45 at Dras, so the old rail would have rejected
+#          a real reading as a broken frame. Plausibility for a given site is a
+#          different check from what the sensor can report, and conflating them
+#          throws away good data.
+#   pres   was 1100, WMO says 1080. Ours was simply looser than the standard for
+#          no reason anyone had written down.
+#   rh     was 105 and STAYS 105. This is a deliberate, documented departure:
+#          the annex gives the REPORTED range as 0-100%, but real capacitive
+#          probes read slightly above saturation in fog and rain, and 100.5 is a
+#          healthy sensor rather than a broken one. Rejecting those would throw
+#          away exactly the conditions the network exists to record. 100-105 is
+#          flagged and clamped; above 105 is a fault.
+from physics.wmo_limits import WMO_ANNEX_1A
+
+RAILS = {
+    "temp": WMO_ANNEX_1A["temp"]["range"],
+    "rh": (WMO_ANNEX_1A["rh"]["range"][0], 105.0),   # see the note above
+    "pres": WMO_ANNEX_1A["pres"]["range"],
+}
+RH_SATURATED = WMO_ANNEX_1A["rh"]["range"][1]   # 100.0, from the annex
 
 # Largest believable change per minute. Generous on purpose: this rejects
 # transmission corruption, not weather.
