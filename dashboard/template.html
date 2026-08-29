@@ -143,16 +143,18 @@ main{
    A big map with three thumbnails beside it read as a map plus decoration; the
    point is that they are four views of the same 346 stations and should carry
    the same weight. Legend above, everything else below. */
-#maps{display:grid; grid-template-columns:repeat(4, minmax(180px, 1fr));
-      gap:16px 16px; align-items:start}
+/* ONE map. The three channel panels became base options in the same selector
+   as the imagery, so there is a single country on screen at a usable size
+   rather than four at four sizes. */
+#maps{display:grid; grid-template-columns:minmax(360px, 620px) minmax(260px, 1fr);
+      gap:22px; align-items:start}
 .maplegendbar{grid-column:1 / -1}
 .mapbox{grid-column:1; min-width:0}
 /* No channel panels on the simulated network -- ten stations already have real
    charts under the map, per station and per channel, so a three-up overview of
    ten dots would repeat what is already there better. The map takes the room
    instead of leaving a void. */
-#maps.solo .mapbox{grid-column:1 / span 2}
-.chmaps{grid-column:2 / -1}
+.chmaps{grid-column:2 / -1; display:none}
 .mapbelow{grid-column:1 / -1; margin-top:14px}
 .belowgrid{display:grid; grid-template-columns:minmax(280px, 420px) minmax(280px, 1fr);
            gap:28px; align-items:start}
@@ -169,7 +171,6 @@ main{
 .simclock{font-size:11.5px; color:var(--ink)}
 .simcount{font-size:11px; color:var(--ink-3)}
 .strip{width:100%; height:22px; border:1px solid var(--rule)}
-#maps.solo{grid-template-columns:minmax(320px, 470px) 1fr}
 .chmaps{display:grid; grid-template-columns:repeat(3, minmax(220px, 1fr));
         gap:16px; margin-top:0}
 .chmap{margin:0; min-width:0}
@@ -208,7 +209,11 @@ main{
 @media (max-width:1180px){ #maps{grid-template-columns:minmax(320px,470px) 1fr} }
 /* Same proportions as the channel panels beside it, so the four line up. The
    country is far taller than wide, and this is that shape. */
-#lmap{aspect-ratio:300 / 339; border:1px solid var(--line); border-radius:5px}
+/* min-height as well as the ratio: the ratio alone gives a zero-height element
+   until the grid has resolved a width, and a Leaflet map built into a zero box
+   fits its bounds to NaN. */
+#lmap{aspect-ratio:300 / 339; min-height:420px;
+      border:1px solid var(--line); border-radius:5px}
 .mapside{
   display:flex; flex-direction:column; gap:10px; padding-top:2px;
   font-size:11.5px; color:var(--ink-3);
@@ -447,6 +452,9 @@ body{padding-top:58px}
         <option value="imagery" selected>Imagery</option>
         <option value="plain">Plain</option>
         <option value="ink">Ink</option>
+        <option value="field_temp">Temperature field</option>
+        <option value="field_rh">Humidity field</option>
+        <option value="field_pres">Pressure field (MSL)</option>
       </select>
     </label>
     <label class="ctl-lab" style="gap:5px">
@@ -454,10 +462,10 @@ body{padding-top:58px}
     </label>
     <label class="ctl-lab">Network
       <select id="mapnetwork" aria-label="Which stations to plot">
-        <option value="sim" selected>Simulated &mdash; 10 stations</option>
+        <option value="sim">Simulated &mdash; 10 stations</option>
         <option value="real">Real &mdash; 346 IMD stations</option>
         <option value="arm">Validation &mdash; 9 ARM instruments</option>
-        <option value="sim344">Simulated &mdash; 344 IMD locations, 30 days</option>
+        <option value="sim344" selected>Simulated &mdash; 344 IMD locations, 30 days</option>
       </select>
     </label>
     <label class="ctl-lab">Colour
@@ -559,7 +567,7 @@ let stateLayer = null;
 // Both stay selectable. The real network is the evidence that this problem is
 // real on Indian instruments; ARM is the evidence the detector works. Neither
 // is the thing the console is demonstrating.
-let mapNetwork = "sim";
+let mapNetwork = "sim344";
 let realMarks = [];
 // Imagery by default. The plain base was chosen when the map carried 346 WDQMS
 // dots and the basemap was competing with them; with the simulated network it
@@ -594,7 +602,24 @@ const STYLES = {
           land:"#000000", line:"#FFFFFF", lineW:0.8, fill:false,
           ok:"#FFFFFF", okOpacity:0.42},
   imagery:{label:"Imagery", tiles:true, ok:"#FFFFFF", okOpacity:0.60},
+  // THE CHANNEL FIELDS ARE BASES, NOT SEPARATE MAPS.
+  //
+  // Three small panels beside a big one meant reading the same country four
+  // times at four sizes, and the small ones were never big enough to reason
+  // from. A field is what the map is DRAWN ON -- the same thing a satellite
+  // basemap is -- so it belongs in the same selector, at full size, with the
+  // stations on top of it where they have always been.
+  field_temp:{label:"Temperature field", tiles:false, field:"temp",
+              ground:"#0E1014", land:"#0E1014", line:"#FFFFFF", lineW:0.9,
+              fill:false, ok:"#FFFFFF", okOpacity:0.55},
+  field_rh:  {label:"Humidity field", tiles:false, field:"rh",
+              ground:"#0E1014", land:"#0E1014", line:"#FFFFFF", lineW:0.9,
+              fill:false, ok:"#FFFFFF", okOpacity:0.55},
+  field_pres:{label:"Pressure field (MSL)", tiles:false, field:"pres",
+              ground:"#0E1014", land:"#0E1014", line:"#FFFFFF", lineW:0.9,
+              fill:false, ok:"#FFFFFF", okOpacity:0.55},
 };
+let fieldOverlay = null;
 
 // Esri imagery is beautiful and it is BUSY: desert, forest, cloud and snow all
 // in one frame, at every luminance a dot might use. A single dark scrim between
@@ -1248,6 +1273,23 @@ function simBarHTML(){
   </div>`;
 }
 
+/* The colour scale for whichever field is drawn. It used to sit under each
+   little panel; with the field promoted to a base it belongs beside the map,
+   and only when a field is actually selected. */
+function fieldScaleHTML(){
+  const st = STYLES[mapStyle] || STYLES.plain;
+  if (!st.field || !SIM || !SIM.range) return "";
+  const k = st.field;
+  const unit = {temp:"°C", rh:"%", pres:"hPa"}[k];
+  const stops = [0, 0.14, 0.28, 0.42, 0.57, 0.71, 0.85, 1].map(u => {
+    const c = rampAt(k, u);
+    return `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+  }).join(",");
+  return `<div class="fieldscale"><span class="mono">${SIM.range[k][0]}</span>
+    <span class="ramp" style="background:linear-gradient(90deg,${stops})"></span>
+    <span class="mono">${SIM.range[k][1]} ${unit}</span></div>`;
+}
+
 function simLegendHTML(){
   const n = {OK:0, WATCH:0, FAULT:0, NODATA:0};
   const key = mapColour === "health" ? "health" : mapColour;
@@ -1618,6 +1660,62 @@ function fieldPanelHTML(key){
 /* Paint every field canvas for the current hour. Interpolation happens here and
    not in the markup, because it is 15,000 cells times eight neighbours and
    belongs in typed arrays rather than in a string. */
+/* Paint one field into any canvas. Split out of the panel painter so the same
+   interpolation serves the full-size overlay and nothing is computed twice. */
+function paintFieldCanvas(cv, key, rows, idx, wt, frame){
+  const vk = key === "temp" ? "vt" : key === "rh" ? "vh" : "vp";
+  const vals = new Float32Array(rows.length);
+  const ok = new Uint8Array(rows.length);
+  for (let i = 0; i < rows.length; i++){
+    if (!rows[i]["_" + vk]) rows[i]["_" + vk] = b64bytes(rows[i][vk]);
+    const b = rows[i]["_" + vk][frame];
+    ok[i] = b === 0 ? 0 : 1;
+    vals[i] = b === 0 ? 0 : (b - 1) / 254;
+  }
+  const ctx = cv.getContext("2d");
+  const img = ctx.createImageData(FIELD_W, FIELD_H);
+  const d = img.data;
+  for (let c = 0; c < FIELD_W * FIELD_H; c++){
+    const base = c * FIELD_K;
+    let acc = 0, wsum = 0;
+    for (let k = 0; k < FIELD_K; k++){
+      const si = idx[base + k];
+      if (!ok[si]) continue;
+      acc += vals[si] * wt[base + k];
+      wsum += wt[base + k];
+    }
+    const p = c * 4;
+    if (wsum <= 0){ d[p + 3] = 0; continue; }
+    const col = rampAt(key, acc / wsum);
+    d[p] = col[0]; d[p + 1] = col[1]; d[p + 2] = col[2]; d[p + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+/* The field as the map's own background: an image overlay in the same low pane
+   as the boundary, so the stations stay on top of it. Redrawn whenever the
+   clock moves. */
+function updateFieldOverlay(){
+  const st = STYLES[mapStyle] || STYLES.plain;
+  if (fieldOverlay){ try { map.removeLayer(fieldOverlay); } catch (e) {} fieldOverlay = null; }
+  if (!st.field || mapNetwork !== "sim344") return;
+  const rows = simRows();
+  if (!rows.length) return;
+  const {idx, wt} = fieldIndex(rows);
+  const every = SIM.field_every || 3;
+  const frame = Math.min(Math.floor(simStep / every), (SIM.n_fields || 1) - 1);
+  const cv = document.createElement("canvas");
+  cv.width = FIELD_W; cv.height = FIELD_H;
+  paintFieldCanvas(cv, st.field, rows, idx, wt, frame);
+  if (!map.getPane("basemap")){
+    map.createPane("basemap");
+    map.getPane("basemap").style.zIndex = 250;
+  }
+  fieldOverlay = L.imageOverlay(cv.toDataURL(),
+    [[MAP_BOX.lat0, MAP_BOX.lon0], [MAP_BOX.lat1, MAP_BOX.lon1]],
+    {pane: "basemap", opacity: 0.92, interactive: false}).addTo(map);
+}
+
 function paintFields(){
   const rows = simRows();
   if (!rows.length) return;
@@ -1661,12 +1759,12 @@ function paintFields(){
 function drawChannelMaps(){
   const el = $("chmaps");
   if (!el) return;
-  const on = (mapNetwork === "real" || mapNetwork === "sim344");
-  el.innerHTML = !on ? ""
-    : mapNetwork === "sim344"
-      ? ["temp", "rh", "pres"].map(fieldPanelHTML).join("")
-      : ["temp", "rh", "pres"].map(channelMapHTML).join("");
-  if (mapNetwork === "sim344") paintFields();
+  // The channel panels are gone. Their content is now a BASE, at full size,
+  // in the same selector as the imagery -- see the note on STYLES. Keeping a
+  // shrunken duplicate beside the real thing would be showing the same country
+  // twice and asking which one to believe.
+  const on = (mapNetwork === "real");
+  el.innerHTML = on ? ["temp", "rh", "pres"].map(channelMapHTML).join("") : "";
   const wrap = $("maps");
   if (wrap) wrap.classList.toggle("solo", !on);
 }
@@ -1874,6 +1972,10 @@ function renderMaps(){
       return m;
     });
     stationLayer = L.layerGroup(realMarks).addTo(map);
+    // The field is a picture of ONE HOUR, so it has to be repainted whenever
+    // the clock moves -- otherwise the dots advance across a background frozen
+    // at whatever hour the base was last chosen.
+    updateFieldOverlay();
     if (!map._skyguardZoomHook){
       map._skyguardZoomHook = true;
       map.on("zoomend", () => {
@@ -1881,7 +1983,7 @@ function renderMaps(){
       });
     }
     setHint();
-    setLegend(simBarHTML() + simLegendHTML());
+    setLegend(simBarHTML() + fieldScaleHTML() + simLegendHTML());
     bindSimBar();
     // The rail lists who is flagged AT THIS HOUR, so it has to be redrawn with
     // the map. Without this the clock moved, the dots moved, and the list sat
@@ -2166,8 +2268,16 @@ function applyBaseStyle(){
     baseLayers = [boundaryLayer];
   }
   drawStates(st);
+  updateFieldOverlay();
   $("mapattrib").innerHTML =
-    "Boundary &copy; NCMRWF, Ministry of Earth Sciences (simplified)"
+    (st.field
+      ? (mapNetwork === "sim344"
+          ? `${esc(STYLES[mapStyle].label)} interpolated from 344 stations by IDW`
+            + (st.field === "pres" ? ", reduced to mean sea level" : "")
+            + " &middot; <b>simulated readings</b> &middot; "
+          : "Field bases need the simulated network &mdash; choose it above &middot; ")
+      : "")
+    + "Boundary &copy; NCMRWF, Ministry of Earth Sciences (simplified)"
     + (showStates ? " &middot; state outlines: Datameet, indicative only" : "")
     + (st.tiles && !tilesOK
         ? " &middot; imagery unavailable: tiles need the API running" : "");
@@ -2179,9 +2289,30 @@ function applyBaseStyle(){
 // territory it omits is real and is on the map.
 function fitIndia(){
   if (!map) return;
-  const b = (boundaryLayer && boundaryLayer.getBounds
-             && boundaryLayer.getBounds().isValid())
-            ? boundaryLayer.getBounds() : L.latLngBounds(INDIA);
+  // A ZERO-SIZED CONTAINER MAKES fitBounds RETURN NaN, and Leaflet then throws
+  // "Invalid LatLng object: (NaN, NaN)" and abandons the rest of the boot --
+  // which is why the map came up 1px wide with no stations on it. The height
+  // comes from an aspect-ratio, so at the moment the map is constructed the
+  // grid has not laid out and the element has no width yet. Wait for a real
+  // size rather than fitting to nothing.
+  const sz = map.getSize();
+  if (!sz || sz.x < 20 || sz.y < 20){
+    setTimeout(() => { if (map){ map.invalidateSize(); fitIndia(); } }, 60);
+    return;
+  }
+  // Defensive, because this runs during start-up before every layer is
+  // settled: a layer can exist and still have no valid bounds yet, and Leaflet
+  // answers a NaN bounding box with an exception that kills the rest of the
+  // boot. The typed box is always valid, so it is the floor.
+  let b = L.latLngBounds(INDIA);
+  try {
+    if (boundaryLayer && typeof boundaryLayer.getBounds === "function"){
+      const g = boundaryLayer.getBounds();
+      if (g && g.isValid()
+          && isFinite(g.getSouth()) && isFinite(g.getNorth())
+          && isFinite(g.getWest()) && isFinite(g.getEast())) b = g;
+    }
+  } catch (e) { /* keep the typed box */ }
   map.fitBounds(b, {padding:[8, 8]});
 }
 
