@@ -273,6 +273,42 @@ def main() -> None:
         gh = gi[::4]
         per_ch[ch] = ["".join(chars[gh[:, s]]) for s in range(n_st)]
 
+    # THE VALUES THEMSELVES, for the field maps.
+    #
+    # A temperature map is a continuous surface, not a scatter of coloured
+    # points -- that is simply how the quantity is represented, and grades alone
+    # cannot draw one. So each station's readings go out too, quantised to a
+    # byte against a fixed per-channel range and subsampled to three-hourly:
+    # 240 frames is plenty for a field that changes on a synoptic timescale, and
+    # it is a third of the payload of hourly.
+    import base64
+    FIELD_EVERY = 3                      # hours between field frames
+    # PRESSURE IS REDUCED TO SEA LEVEL FOR THE FIELD MAP, and only for the map.
+    #
+    # Station pressure spans 611 to 1022 hPa across this network, and almost all
+    # of that is elevation: a field drawn from it is a map of the Himalaya with
+    # the weather invisible underneath. Every pressure chart a meteorologist
+    # reads is MSL for exactly this reason -- it is the reduction that makes
+    # synoptic systems appear at all.
+    #
+    # The DETECTOR keeps using station pressure. Reduction needs temperature,
+    # so an MSL value carries the thermometer's errors into the barometer's
+    # channel, which is the last thing a per-sensor fault detector should have.
+    RANGE = {"temp": (-5.0, 50.0), "rh": (0.0, 100.0), "pres": (990.0, 1026.0)}
+    elev = np.asarray(d["elev"], dtype=np.float64)[None, :]
+    msl = data["pres"] * (1.0 - (0.0065 * elev)
+                          / (data["temp"] + 0.0065 * elev + 273.15)) ** -5.257
+    field_src = {"temp": data["temp"], "rh": data["rh"], "pres": msl}
+    field_step = FIELD_EVERY * (60 // STEP_MIN)
+    fields = {}
+    for ch in CHANNELS:
+        lo, hi = RANGE[ch]
+        a = field_src[ch][::field_step]
+        q = np.clip(np.round((a - lo) / (hi - lo) * 254.0) + 1.0, 1, 255)
+        q = np.where(np.isfinite(a), q, 0).astype(np.uint8)   # 0 = missing
+        fields[ch] = q
+    n_f = fields["temp"].shape[0]
+
     truth = {e["station"]: e for e in events}
     stations = []
     for s in range(n_st):
@@ -284,6 +320,9 @@ def main() -> None:
             "elev": int(d["elev"][s]),
             "g": rows[s],
             "gt": per_ch["temp"][s], "gh": per_ch["rh"][s], "gp": per_ch["pres"][s],
+            "vt": base64.b64encode(fields["temp"][:, s].tobytes()).decode(),
+            "vh": base64.b64encode(fields["rh"][:, s].tobytes()).decode(),
+            "vp": base64.b64encode(fields["pres"][:, s].tobytes()).decode(),
             # The truth is exported so the interface can SHOW it beside the
             # detection. It is written after grading and never read before.
             "fault": (None if e is None else
@@ -297,6 +336,10 @@ def main() -> None:
                  "geography is real; the temperature, pressure and humidity are "
                  "generated. Graded by neighbour differencing within 250 km."),
         "t0": str(t0), "step_hours": 1, "n_steps": int(n_h),
+        "field_every": FIELD_EVERY, "n_fields": int(n_f),
+        "range": {k: list(v) for k, v in RANGE.items()},
+        "field_note": {"pres": "reduced to mean sea level; the detector uses "
+                               "station pressure"},
         "legend": {"0": "ok", "1": "watch", "2": "fault", "-": "no data"},
         "stations": stations,
     }, separators=(",", ":")), encoding="utf-8")

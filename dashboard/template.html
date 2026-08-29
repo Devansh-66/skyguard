@@ -181,6 +181,13 @@ main{
 .chmap .chcount{font-family:"Roboto Mono",ui-monospace,monospace}
 .chmap svg{display:block; width:100%; height:auto;
            border:1px solid var(--rule)}
+.fieldwrap{position:relative; border:1px solid var(--rule); line-height:0}
+.fieldcv{display:block; width:100%; height:auto; image-rendering:auto;
+         filter:blur(0.2px)}
+.fieldov{position:absolute; inset:0; width:100%; height:100%; border:none}
+.fieldscale{display:flex; align-items:center; gap:6px; margin-top:4px;
+            font-size:9px; color:var(--ink-3)}
+.fieldscale .ramp{flex:1; height:7px; border:1px solid var(--rule)}
 @media (max-width:900px){ .belowgrid{grid-template-columns:1fr} }
 .mapdetail{font-size:12px; color:var(--ink-2)}
 .mapdetail h5{
@@ -1115,6 +1122,91 @@ async function probeTiles(){
 // specks. Radius therefore tracks the zoom level, and severity multiplies it,
 // so the handful that matter stay findable when everything else is small and
 // the map looks neither congested nor empty at any zoom.
+/* ------------------------------------------------------- the field maps --- */
+
+/* A TEMPERATURE MAP IS A SURFACE, NOT A SCATTER.
+ *
+ * Coloured dots were the wrong representation and no amount of choosing better
+ * colours would have fixed it. Temperature, humidity and pressure are
+ * continuous fields; a meteorologist reads them as filled contours, and the
+ * station is only where the field was sampled. So these panels interpolate the
+ * 344 stations onto a grid, colour the surface, and put dots back only where a
+ * station is FLAGGED -- the anomaly on top of the field, which is what the
+ * combination is for.
+ *
+ * Inverse distance weighting, power 2, over the eight nearest stations to each
+ * cell. It is the standard first choice for scattered meteorological data, it
+ * honours the observations exactly at the stations, and it needs no fitting.
+ * Kriging would be defensible and would cost a variogram per frame per channel
+ * for a difference nobody would see at this size.
+ */
+const FIELD_W = 116, FIELD_H = 128, FIELD_K = 8;
+let _fieldIdx = null;          // per-cell nearest stations, computed once
+
+// Meteorological ramps. Temperature runs cold blue to hot red through the
+// conventional cyan-green-yellow; humidity runs dry brown to wet blue-green;
+// pressure runs low purple through white to high orange. Each is a set of
+// anchors the renderer interpolates between.
+const RAMPS = {
+  temp: [[8,32,120],[20,110,200],[60,180,190],[120,200,110],[240,220,90],
+         [240,150,50],[210,60,40],[140,20,30]],
+  rh:   [[120,80,40],[180,150,90],[225,215,175],[170,215,200],[70,175,180],
+         [30,110,165],[15,55,120]],
+  pres: [[70,30,110],[60,90,180],[150,190,225],[245,245,240],[245,200,130],
+         [230,140,60],[170,70,35]],
+};
+
+function rampAt(name, u){
+  const c = RAMPS[name];
+  const x = Math.max(0, Math.min(0.9999, u)) * (c.length - 1);
+  const i = Math.floor(x), f = x - i;
+  const a = c[i], b = c[Math.min(i + 1, c.length - 1)];
+  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f,
+          a[2] + (b[2] - a[2]) * f];
+}
+
+function b64bytes(s){
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/* Which stations feed each grid cell. Depends only on geometry, so it survives
+   every frame and every channel -- computing it per frame would make scrubbing
+   the clock crawl. */
+function fieldIndex(rows){
+  if (_fieldIdx) return _fieldIdx;
+  const idx = new Int16Array(FIELD_W * FIELD_H * FIELD_K);
+  const wt = new Float32Array(FIELD_W * FIELD_H * FIELD_K);
+  const n = rows.length;
+  const d = new Float64Array(n);
+  for (let gy = 0; gy < FIELD_H; gy++){
+    const lat = MAP_BOX.lat1 - (gy + 0.5) / FIELD_H * (MAP_BOX.lat1 - MAP_BOX.lat0);
+    for (let gx = 0; gx < FIELD_W; gx++){
+      const lon = MAP_BOX.lon0 + (gx + 0.5) / FIELD_W * (MAP_BOX.lon1 - MAP_BOX.lon0);
+      for (let i = 0; i < n; i++){
+        const dx = (rows[i].lon - lon) * Math.cos(lat * Math.PI / 180);
+        const dy = rows[i].lat - lat;
+        d[i] = dx * dx + dy * dy;
+      }
+      const order = Array.from({length: n}, (_, i) => i)
+        .sort((a, b) => d[a] - d[b]).slice(0, FIELD_K);
+      const base = (gy * FIELD_W + gx) * FIELD_K;
+      let sum = 0;
+      for (let k = 0; k < FIELD_K; k++){
+        const w = 1.0 / Math.max(d[order[k]], 1e-4);   // power 2 on distance
+        idx[base + k] = order[k];
+        wt[base + k] = w;
+        sum += w;
+      }
+      for (let k = 0; k < FIELD_K; k++) wt[base + k] /= sum;
+    }
+  }
+  _fieldIdx = {idx: idx, wt: wt};
+  return _fieldIdx;
+}
+
 /* ---------------------------------------------- the simulated network ----- */
 
 const SIM_BAND = {"0":"OK", "1":"WATCH", "2":"FAULT", "-":"NODATA"};
@@ -1471,11 +1563,110 @@ function channelMapHTML(key){
       ${marks}</svg></figure>`;
 }
 
+/* One field panel: the interpolated surface, the country cut out of a mask so
+   nothing shows in the sea, and dots only where a station is flagged. */
+function fieldPanelHTML(key){
+  const nm = {temp:"Temperature", rh:"Relative humidity", pres:"Pressure"}[key];
+  const unit = {temp:"°C", rh:"%", pres:"hPa"}[key];
+  const rows = simRows();
+  const gk = key === "temp" ? "gt" : key === "rh" ? "gh" : "gp";
+  let w = 0, f = 0;
+  for (const s of rows){
+    const b = SIM_BAND[s[gk][simStep]];
+    if (b === "WATCH") w++; else if (b === "FAULT") f++;
+  }
+  const st = STYLES[mapStyle] || STYLES.plain;
+  const ground = st.tiles ? "#0B0B0B" : st.ground;
+  const W = 300, H = 339, P = 8;
+  const x = lon => P + ((lon - MAP_BOX.lon0) / (MAP_BOX.lon1 - MAP_BOX.lon0)) * (W - 2 * P);
+  const y = lat => P + ((MAP_BOX.lat1 - lat) / (MAP_BOX.lat1 - MAP_BOX.lat0)) * (H - 2 * P);
+
+  const dots = rows.filter(s => {
+    const b = SIM_BAND[s[gk][simStep]];
+    return b === "WATCH" || b === "FAULT";
+  }).map(s => {
+    const b = SIM_BAND[s[gk][simStep]];
+    return `<circle cx="${x(s.lon).toFixed(1)}" cy="${y(s.lat).toFixed(1)}"
+      r="${b === "FAULT" ? 5 : 3.6}" fill="none" stroke="${REAL_STATE[b]}"
+      stroke-width="2.2"/><circle cx="${x(s.lon).toFixed(1)}" cy="${y(s.lat).toFixed(1)}"
+      r="1.4" fill="${REAL_STATE[b]}"><title>${esc(s.name)} — ${b}</title></circle>`;
+  }).join("");
+
+  const path = indiaPathD(W, H, P);
+  return `<figure class="chmap">
+    <figcaption><span>${nm}</span>
+      <span class="chcount">${f ? `<b style="color:${REAL_STATE.FAULT}">${f}</b> ` : ""}${
+        w ? `<b style="color:${REAL_STATE.WATCH}">${w}</b>` : ""}${
+        (!f && !w) ? "no anomaly" : " flagged"}</span></figcaption>
+    <div class="fieldwrap" style="background:${ground}">
+      <canvas class="fieldcv" data-key="${key}" width="${FIELD_W}" height="${FIELD_H}"></canvas>
+      <svg class="fieldov" viewBox="0 0 ${W} ${H}">
+        <path d="M0 0H${W}V${H}H0Z${path}" fill="${ground}" fill-rule="evenodd"/>
+        <path d="${path}" fill="none" stroke="${st.tiles ? "#FFFFFF" : st.line}"
+          stroke-width="0.8" opacity="0.75"/>
+        ${dots}
+      </svg>
+    </div>
+    <div class="fieldscale"><span class="mono">${
+      SIM.range[key][0]}</span><span class="ramp" style="background:linear-gradient(90deg,${
+      [0,0.14,0.28,0.42,0.57,0.71,0.85,1].map(u=>{const c=rampAt(key,u);
+        return `rgb(${c[0]|0},${c[1]|0},${c[2]|0})`}).join(",")})"></span><span class="mono">${
+      SIM.range[key][1]} ${unit}</span></div>
+  </figure>`;
+}
+
+/* Paint every field canvas for the current hour. Interpolation happens here and
+   not in the markup, because it is 15,000 cells times eight neighbours and
+   belongs in typed arrays rather than in a string. */
+function paintFields(){
+  const rows = simRows();
+  if (!rows.length) return;
+  const {idx, wt} = fieldIndex(rows);
+  const every = SIM.field_every || 3;
+  const frame = Math.min(Math.floor(simStep / every), (SIM.n_fields || 1) - 1);
+
+  document.querySelectorAll(".fieldcv").forEach(cv => {
+    const key = cv.dataset.key;
+    const vk = key === "temp" ? "vt" : key === "rh" ? "vh" : "vp";
+    // Decoded once per station per repaint, not once per cell.
+    const vals = new Float32Array(rows.length);
+    const ok = new Uint8Array(rows.length);
+    for (let i = 0; i < rows.length; i++){
+      if (!rows[i]["_" + vk]) rows[i]["_" + vk] = b64bytes(rows[i][vk]);
+      const b = rows[i]["_" + vk][frame];
+      ok[i] = b === 0 ? 0 : 1;
+      vals[i] = b === 0 ? 0 : (b - 1) / 254;
+    }
+    const ctx = cv.getContext("2d");
+    const img = ctx.createImageData(FIELD_W, FIELD_H);
+    const d = img.data;
+    for (let c = 0; c < FIELD_W * FIELD_H; c++){
+      const base = c * FIELD_K;
+      let acc = 0, wsum = 0;
+      for (let k = 0; k < FIELD_K; k++){
+        const si = idx[base + k];
+        if (!ok[si]) continue;
+        acc += vals[si] * wt[base + k];
+        wsum += wt[base + k];
+      }
+      const p = c * 4;
+      if (wsum <= 0){ d[p + 3] = 0; continue; }
+      const col = rampAt(key, acc / wsum);
+      d[p] = col[0]; d[p + 1] = col[1]; d[p + 2] = col[2]; d[p + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  });
+}
+
 function drawChannelMaps(){
   const el = $("chmaps");
   if (!el) return;
   const on = (mapNetwork === "real" || mapNetwork === "sim344");
-  el.innerHTML = on ? ["temp", "rh", "pres"].map(channelMapHTML).join("") : "";
+  el.innerHTML = !on ? ""
+    : mapNetwork === "sim344"
+      ? ["temp", "rh", "pres"].map(fieldPanelHTML).join("")
+      : ["temp", "rh", "pres"].map(channelMapHTML).join("");
+  if (mapNetwork === "sim344") paintFields();
   const wrap = $("maps");
   if (wrap) wrap.classList.toggle("solo", !on);
 }
