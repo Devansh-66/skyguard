@@ -135,8 +135,30 @@ main{
    a centring problem but a SHAPE problem. The map column is therefore given
    proportions near the country's own, and the freed column carries the legend.
    Background is set from JS per base style, so no colour is fixed here. */
-#maps{display:grid; grid-template-columns:minmax(320px, 470px) minmax(260px, 460px);
-      gap:22px; align-items:start; justify-content:start}
+/* Three columns: the country, the counts, and whichever station is selected.
+   Two columns left several hundred pixels of nothing to the right of the table
+   on a wide screen, and the thing that belonged there was the station a watcher
+   had just clicked. */
+#maps{display:grid;
+      grid-template-columns:minmax(320px, 460px) minmax(230px, 320px) minmax(260px, 420px);
+      gap:24px; align-items:start; justify-content:start}
+.mapdetail{font-size:12px; color:var(--ink-2)}
+.mapdetail h5{
+  font-family:"Archivo","Segoe UI",system-ui,sans-serif; font-size:14px;
+  font-weight:700; margin:0; letter-spacing:-.01em; color:var(--ink);
+}
+.mapdetail .sub{
+  font-family:"Roboto Mono",ui-monospace,monospace; font-size:10px;
+  letter-spacing:.08em; color:var(--ink-3); margin:2px 0 10px;
+}
+.spark{margin-bottom:9px}
+.spark .cap{
+  display:flex; justify-content:space-between; font-family:"Roboto Mono",ui-monospace,monospace;
+  font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3);
+}
+.spark svg{display:block; width:100%; height:44px; border:1px solid var(--rule)}
+.detail-empty{color:var(--ink-3); font-size:11.5px; line-height:1.5}
+@media (max-width:1180px){ #maps{grid-template-columns:minmax(320px,470px) 1fr} }
 #lmap{height:520px; border:1px solid var(--line); border-radius:5px}
 .mapside{
   display:flex; flex-direction:column; gap:10px; padding-top:2px;
@@ -457,6 +479,7 @@ const ARM = /*__ARM__*/null;
 let mapNetwork = "real";
 let realMarks = [];
 let mapStyle = "plain";
+let currentReal = null;
 let baseLayers = [];
 
 // India, as a box. Used for the default view and for "All India", so the map
@@ -625,7 +648,7 @@ function drawRailReal(){
           ? flagged.length + " of " + group.length + " flagged"
           : "all " + group.length + " clear"}</span>
       </summary>` + (flagged.length ? flagged.map(x => `
-        <button class="stn" data-lat="${x.latitude}" data-lon="${x.longitude}">
+        <button class="stn" data-id="${esc(x.id)}" data-lat="${x.latitude}" data-lon="${x.longitude}">
           <span class="stripe" style="background:${REAL_STATE[x.health.state]}"></span>
           <span><span class="nm">${esc(x.name)}</span>
             <div class="meta">${esc(x.health.channel)} &middot;
@@ -641,9 +664,9 @@ function drawRailReal(){
   }).join("");
 
   $("rail").querySelectorAll(".stn").forEach(b => b.onclick = () => {
-    // No time series exists behind a WDQMS station, so there is nothing for the
-    // centre panes to show. Flying the map to it is the honest interaction.
-    if (map) map.setView([+b.dataset.lat, +b.dataset.lon], 9);
+    currentReal = b.dataset.id;
+    setDetail();
+    if (map) map.setView([+b.dataset.lat, +b.dataset.lon], 7);
   });
 }
 function drawRailArm(){
@@ -974,6 +997,79 @@ function realRadius(state){
 // is per area. The map answers the first, this answers the second, and putting
 // them side by side means neither has to be held in the head while reading the
 // other. It also gives the freed column something worth carrying.
+// Tolerance per channel, in its own units. Mirrors TOL in
+// dashboard/export_wdqms.py; if one moves the other must.
+const DEP_TOL = {temp:1.5, rh:10.0, pres:1.0};
+
+// One channel's departure history, with the tolerance band behind it. Six
+// points is a short record, but it is the difference between a number and a
+// behaviour: +15 hPa once is a bad cycle, +15 hPa at every observation is a
+// barometer reading high.
+function sparkline(vals, tol){
+  const pts = vals.map(v => (v == null || !isFinite(v)) ? null : v);
+  const fin = pts.filter(v => v !== null);
+  if (!fin.length) return '<div class="detail-empty">no observations</div>';
+  const lim = Math.max(tol * 1.4, ...fin.map(Math.abs)) * 1.15;
+  const W = 240, H = 44, P = 4;
+  const x = i => P + (i / Math.max(pts.length - 1, 1)) * (W - 2 * P);
+  const y = v => H / 2 - (v / lim) * (H / 2 - P);
+  let d = "", pen = false;
+  pts.forEach((v, i) => {
+    if (v === null) { pen = false; return; }
+    d += (pen ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1) + " ";
+    pen = true;
+  });
+  const dots = pts.map((v, i) => v === null ? "" :
+    `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.1" fill="${
+      Math.abs(v) > tol * 5 ? "#E01B24" : Math.abs(v) > tol * 2 ? "#1D6FE0" : "#171A1E"}"/>`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <rect x="0" y="${y(tol * 2).toFixed(1)}" width="${W}"
+      height="${(y(-tol * 2) - y(tol * 2)).toFixed(1)}" fill="#1D6FE0" opacity=".08"/>
+    <line x1="0" x2="${W}" y1="${(H / 2).toFixed(1)}" y2="${(H / 2).toFixed(1)}"
+      stroke="#171A1E" stroke-width=".5" stroke-dasharray="3 3" opacity=".45"/>
+    <path d="${d.trim()}" fill="none" stroke="#171A1E" stroke-width="1.2"
+      stroke-linejoin="round"/>${dots}</svg>`;
+}
+
+// The selected station. THIS IS THE PART THAT WAS MISSING: the map showed 346
+// dots and the charts under it never changed, because those panes are driven by
+// the simulated network and know nothing about a WDQMS station. A real station
+// has its own departure record, and that is what someone clicking a dot is
+// asking to see.
+function realDetailHTML(){
+  const rs = (WDQMS && WDQMS.stations) ? WDQMS.stations : [];
+  const s = rs.find(x => x.id === currentReal);
+  if (!s) return `<div class="detail-empty">Click a station on the map, or a row
+    in the list, to see its departure record here.</div>`;
+  const unit = {temp:"K", rh:"%", pres:"hPa"};
+  const nm = {temp:"temperature", rh:"humidity", pres:"pressure"};
+  const ser = s.series || {t:[]};
+  const body = ["temp", "rh", "pres"].map(k => {
+    if (!ser[k]) return "";
+    const d = s.dep[k];
+    return `<div class="spark">
+      <div class="cap"><span>${nm[k]} (${unit[k]})</span>
+        <span>${d ? (d.mean >= 0 ? "+" : "") + d.mean + " mean" : ""}</span></div>
+      ${sparkline(ser[k], DEP_TOL[k])}</div>`;
+  }).join("");
+  const n = s.near || {};
+  return `<h5>${esc(s.name)}</h5>
+    <div class="sub">${esc(s.id)} &middot; ${esc(s.region)} &middot; ${s.health.state}</div>
+    ${body}
+    <div class="regnote">${ser.t.length} observations, ${esc(ser.t[0] || "")} to
+      ${esc(ser.t[ser.t.length - 1] || "")}. Band is &plusmn;2&times; this channel's
+      tolerance. ${n.verdict === "isolated"
+        ? "<b>Alone in its area</b> &mdash; neighbours within 250 km are quiet."
+        : n.verdict === "widespread"
+          ? "Area-wide: the neighbours are flagged too, which points at the forecast rather than the instrument."
+          : ""}</div>`;
+}
+
+function setDetail(){
+  const el = $("mapdetail");
+  if (el) el.innerHTML = realDetailHTML();
+}
+
 function regionSummaryHTML(){
   const rs = (WDQMS && WDQMS.stations) ? WDQMS.stations : [];
   if (!rs.length) return "";
@@ -1081,7 +1177,8 @@ function renderMaps(){
          <div id="lmap"></div>
          <div class="mapattrib" id="mapattrib"></div>
        </div>
-       <aside class="mapside" id="mapside"></aside>` ;
+       <aside class="mapside" id="mapside"></aside>
+       <aside class="mapdetail" id="mapdetail"></aside>` ;
     // zoomAnimation off, deliberately. With it on, setView and fitBounds were
     // silently swallowed: Leaflet's _tryAnimatedZoom claims the move and hands
     // it to a CSS transition that never runs here, so no view change happened
@@ -1215,6 +1312,7 @@ function renderMaps(){
         + (g.s.in_india ? "" : "<br><b>Antarctic station</b>"),
         {direction:"top", offset:[0,-5]});
       m._state = g.state;
+      m.on("click", () => { currentReal = g.s.id; setDetail(); });
       return m;
     });
     stationLayer = L.layerGroup(realMarks).addTo(map);
@@ -1230,6 +1328,7 @@ function renderMaps(){
     }
     setHint();
     setLegend(legendHTML() + regionSummaryHTML());
+    setDetail();
     setTimeout(() => map.invalidateSize(), 40);
     return;
   }

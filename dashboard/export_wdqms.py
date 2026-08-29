@@ -222,6 +222,24 @@ def main() -> None:
     day = max(df["day"])
     latest = df[df["day"] == day]
 
+    # The whole record per station, not just the graded day. It is short -- the
+    # file holds 12 synoptic times and a typical station reports at six of them
+    # -- but it is the difference between a number and a behaviour. A pressure
+    # departure of +15 hPa once could be a bad cycle; the same +15 at every one
+    # of six observations is a barometer reading high, and only a series shows
+    # that. The health grade still comes from the latest day alone.
+    series_by: dict[str, dict] = {}
+    for wid, g in df.groupby("wigosid"):
+        piv = (g.pivot_table(index="date", columns="variable",
+                             values="avg_bg_dep", aggfunc="mean")
+                .sort_index())
+        rec = {"t": [t.strftime("%Y-%m-%d %H:%MZ") for t in piv.index]}
+        for long_name, key in VARS.items():
+            if long_name in piv.columns:
+                rec[key] = [None if pd.isna(v) else round(float(v), 2)
+                            for v in piv[long_name]]
+        series_by[str(wid)] = rec
+
     stations: list[dict] = []
     for wid, g in latest.groupby("wigosid"):
         first = g.iloc[0]
@@ -253,6 +271,7 @@ def main() -> None:
             }
         if rec["dep"]:
             rec["health"] = classify(rec["dep"])
+            rec["series"] = series_by.get(str(wid), {"t": []})
             stations.append(rec)
 
     add_isolation(stations)
