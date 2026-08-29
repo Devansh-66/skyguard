@@ -77,17 +77,67 @@ TOL = {"temp": 1.5, "rh": 10.0, "pres": 1.0}
 BANDS = [(2.0, "OK"), (5.0, "WATCH")]
 
 
+STATES_FILE = Path("dashboard/vendor/india_states.min.json")
+
+
+def _load_states():
+    """State polygons with a bounding box each, or None if not vendored.
+
+    WDQMS publishes no state field -- its columns are name, WIGOS id, country,
+    latitude, longitude, departure, variable, date and centre. The state comes
+    from geometry instead, which is the only way to get it without inventing it.
+    See dashboard/simplify_states.py for the source and its two known dating
+    problems.
+    """
+    if not STATES_FILE.exists():
+        return None
+    d = json.loads(STATES_FILE.read_text(encoding="utf-8"))
+    out = []
+    for f in d.get("features", []):
+        name = f["properties"]["st"]
+        for poly in f["geometry"]["coordinates"]:
+            ring = poly[0]
+            holes = poly[1:]
+            xs = [p[0] for p in ring]
+            ys = [p[1] for p in ring]
+            out.append((name, min(xs), min(ys), max(xs), max(ys), ring, holes))
+    return out
+
+
+def _in_ring(x: float, y: float, ring) -> bool:
+    """Ray casting. The ring is closed, so the last point repeats the first."""
+    inside = False
+    n = len(ring)
+    j = n - 1
+    for i in range(n):
+        xi, yi = ring[i]
+        xj, yj = ring[j]
+        if (yi > y) != (yj > y):
+            xc = (xj - xi) * (y - yi) / (yj - yi) + xi
+            if x < xc:
+                inside = not inside
+        j = i
+    return inside
+
+
+def state_of(lat: float, lon: float, polys) -> str | None:
+    """Which state a point falls in. Bounding box first: 36 states become a
+    handful of real tests per station."""
+    if not polys:
+        return None
+    for name, x0, y0, x1, y1, ring, holes in polys:
+        if not (x0 <= lon <= x1 and y0 <= lat <= y1):
+            continue
+        if _in_ring(lon, lat, ring) and not any(_in_ring(lon, lat, h) for h in holes):
+            return name
+    return None
+
+
 def region(lat: float, lon: float, in_india: bool) -> str:
-    """A coarse geographic band, computed from the coordinates.
-
-    WDQMS PUBLISHES NO STATE FIELD. Its columns are name, WIGOS id, country,
-    latitude, longitude, departure, variable, date and centre -- that is all.
-    Assigning a real state would need a state-boundary polygon set, which is not
-    vendored here, and guessing one from a nearest-city table would mislabel
-    every border station while looking authoritative.
-
-    So these are bands derived from latitude and longitude, and the interface
-    calls them regions rather than states, because that is what they are.
+    """Fallback grouping when the polygons are not vendored, or a station falls
+    outside every one of them -- which happens on small islands the simplifier
+    dropped and just off the coast, where a mast can sit a few hundred metres
+    outside a 2 km-tolerance outline.
     """
     if not in_india:
         return "Antarctic stations"
@@ -240,6 +290,11 @@ def main() -> None:
                             for v in piv[long_name]]
         series_by[str(wid)] = rec
 
+    polys = _load_states()
+    if polys is None:
+        print("  NOTE: dashboard/vendor/india_states.min.json missing -- "
+              "falling back to computed regions")
+
     stations: list[dict] = []
     for wid, g in latest.groupby("wigosid"):
         first = g.iloc[0]
@@ -252,7 +307,12 @@ def main() -> None:
             "latitude": round(lat, 4),
             "longitude": round(lon, 4),
             "in_india": in_india,
-            "region": region(lat, lon, in_india),
+            # The real state where the geometry gives one; the computed band
+            # only where it cannot. Both go in the same field so the console has
+            # one thing to group by, and `state_source` records which it was so
+            # a coarse label is never mistaken for an administrative one.
+            "region": (state_of(lat, lon, polys) or region(lat, lon, in_india)),
+            "state_source": ("polygon" if state_of(lat, lon, polys) else "computed"),
             "dep": {},
         }
         for long_name, key in VARS.items():
@@ -306,8 +366,14 @@ def main() -> None:
         r[0] += 1
         if st["health"]["state"] != "OK":
             r[1] += 1
-    print("  by region: " + "  ".join(
-        f"{k} {v[0]}({v[1]} flagged)" for k, v in sorted(reg.items())))
+    src = {}
+    for st in stations:
+        src[st["state_source"]] = src.get(st["state_source"], 0) + 1
+    print(f"  state from polygon: {src.get('polygon', 0)}, "
+          f"fell back to a computed band: {src.get('computed', 0)}")
+    print(f"  areas: {len(reg)}")
+    for k, v in sorted(reg.items(), key=lambda kv: (-kv[1][1], kv[0]))[:10]:
+        print(f"    {k:28s} {v[0]:4d} stations  {v[1]:3d} flagged")
     v = {}
     for st in stations:
         vd = st["near"].get("verdict")

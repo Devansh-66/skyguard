@@ -400,6 +400,9 @@ body{padding-top:58px}
         <option value="imagery">Imagery</option>
       </select>
     </label>
+    <label class="ctl-lab" style="gap:5px">
+      <input type="checkbox" id="mapstates"> State outlines
+    </label>
     <label class="ctl-lab">Network
       <select id="mapnetwork" aria-label="Which stations to plot">
         <option value="real" selected>Real &mdash; 346 IMD stations</option>
@@ -476,6 +479,14 @@ const WDQMS = /*__WDQMS__*/null;
 // never an overlay: drawing an Oklahoma mast beside Ahmadabad would say this
 // network monitors Oklahoma, which it does not.
 const ARM = /*__ARM__*/null;
+
+// State outlines, simplified from datameet/maps. See dashboard/simplify_states.py
+// for provenance and for the two ways its LABELS are out of date -- undivided
+// Jammu & Kashmir, and separate Dadara & Nagar Havelli / Daman & Diu. The
+// NATIONAL boundary on this map is NCMRWF's and is unaffected.
+const STATES = /*__STATES__*/null;
+let showStates = false;
+let stateLayer = null;
 let mapNetwork = "real";
 let realMarks = [];
 let mapStyle = "plain";
@@ -630,9 +641,14 @@ function drawRailReal(){
   // Regions in a fixed geographic order, not alphabetical, so the list reads
   // down the country the way a map does and does not reshuffle when the counts
   // change.
-  const ORDER = ["North", "North-East", "East", "Central", "West", "South",
-                 "Antarctic stations"];
-  const regions = ORDER.filter(r => by[r]);
+  // Ordered by how much needs attention, then by name. There are 37 areas now
+  // that these are real states rather than seven invented bands, and a fixed
+  // list would both miss most of them and bury the ones that matter.
+  const regions = Object.keys(by).sort((a, b) => {
+    const fa = by[a].filter(x => x.health.state !== "OK").length;
+    const fb = by[b].filter(x => x.health.state !== "OK").length;
+    return (fb - fa) || a.localeCompare(b);
+  });
 
   $("rail").innerHTML = regions.map(r => {
     const group = by[r].slice().sort((a, b) => b.health.severity - a.health.severity);
@@ -1073,8 +1089,6 @@ function setDetail(){
 function regionSummaryHTML(){
   const rs = (WDQMS && WDQMS.stations) ? WDQMS.stations : [];
   if (!rs.length) return "";
-  const ORDER = ["North", "North-East", "East", "Central", "West", "South",
-                 "Antarctic stations"];
   const by = {};
   for (const x of rs){
     const r = (by[x.region] ||= {n:0, w:0, f:0, alone:0});
@@ -1083,7 +1097,12 @@ function regionSummaryHTML(){
     if (x.health.state === "FAULT") r.f++;
     if (x.near && x.near.verdict === "isolated") r.alone++;
   }
-  const rows = ORDER.filter(r => by[r]).map(r => {
+  // Worst first, and only the areas that have something wrong: 37 states of
+  // which most are clear does not belong in a summary column.
+  const rows = Object.keys(by)
+    .filter(r => by[r].w || by[r].f)
+    .sort((a, b) => (by[b].f - by[a].f) || (by[b].w - by[a].w) || a.localeCompare(b))
+    .map(r => {
     const d = by[r];
     return `<tr><td>${esc(r)}</td>`
       + `<td class="r mono">${d.n}</td>`
@@ -1414,11 +1433,34 @@ function renderMaps(){
 // Build whatever the chosen style needs, having torn down whatever was there.
 // Called on creation and on every style change; the station layer is untouched,
 // so switching base does not rebuild 346 markers.
+// State outlines, in the same low pane as the national boundary so they can
+// never paint over the stations -- the bug that made 346 dots vanish.
+//
+// Hairline and unfilled, always. These are an aid to placing a mast, not an
+// administrative map: the file's labels predate the 2019 reorganisation, and
+// drawing them heavily would present a dated depiction as authoritative. The
+// national boundary underneath remains NCMRWF's.
+function drawStates(st){
+  if (!showStates || typeof STATES === "undefined" || !STATES) return;
+  if (!map.getPane("basemap")){
+    map.createPane("basemap");
+    map.getPane("basemap").style.zIndex = 250;
+  }
+  stateLayer = L.geoJSON(STATES, {
+    pane: "basemap",
+    interactive: false,
+    style: {color: st.tiles ? "#FFFFFF" : st.line, weight: 0.6,
+            opacity: st.tiles ? 0.5 : 0.45, fill: false},
+  }).addTo(map);
+}
+
 function applyBaseStyle(){
   if (!map) return;
   for (const l of baseLayers){ try { map.removeLayer(l); } catch (e) {} }
   baseLayers = [];
   boundaryLayer = null;
+
+  if (stateLayer){ try { map.removeLayer(stateLayer); } catch (e) {} stateLayer = null; }
 
   const st = STYLES[mapStyle] || STYLES.plain;
   const el = $("lmap");
@@ -1432,9 +1474,11 @@ function applyBaseStyle(){
     boundaryLayer = L.tileLayer(API + BND_TPL,
       {maxZoom:12, minZoom:3, opacity:0.9, noWrap:true}).addTo(map);
     baseLayers = [t, boundaryLayer];
+    drawStates(st);
     $("mapattrib").innerHTML =
       "Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; "
-      + "Boundary &copy; NCMRWF, Ministry of Earth Sciences";
+      + "Boundary &copy; NCMRWF, Ministry of Earth Sciences"
+      + (showStates ? " &middot; state outlines: Datameet, indicative only" : "");
     return;
   }
 
@@ -1459,8 +1503,10 @@ function applyBaseStyle(){
              fillColor:st.land, fillOpacity:st.fill ? 1 : 0}}).addTo(map);
     baseLayers = [boundaryLayer];
   }
+  drawStates(st);
   $("mapattrib").innerHTML =
     "Boundary &copy; NCMRWF, Ministry of Earth Sciences (simplified)"
+    + (showStates ? " &middot; state outlines: Datameet, indicative only" : "")
     + (st.tiles && !tilesOK
         ? " &middot; imagery unavailable: tiles need the API running" : "");
 }
@@ -1691,6 +1737,7 @@ function start(){
   };
   $("mapcolour").onchange = (e) => { mapColour = e.target.value; renderMaps(); };
   $("mapstyle").onchange = (e) => { mapStyle = e.target.value; applyBaseStyle(); };
+  $("mapstates").onchange = (e) => { showStates = e.target.checked; applyBaseStyle(); };
   $("mapnetwork").onchange = (e) => {
     mapNetwork = e.target.value;
     // Health applies to BOTH networks now: the real one is screened from its

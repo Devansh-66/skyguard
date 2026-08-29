@@ -28,6 +28,7 @@ SNAP = Path("dashboard/snapshot.json")
 WDQMS = Path("dashboard/wdqms.json")
 ARM = Path("dashboard/arm_sites.json")
 VENDOR = Path("dashboard/vendor")
+STATES = VENDOR / "india_states.min.json"
 OUT = Path("dashboard/console.html")
 
 SUBS = [
@@ -37,6 +38,7 @@ SUBS = [
     ("/*__DATA__*/null", SNAP, "snapshot"),
     ("/*__WDQMS__*/null", WDQMS, "WDQMS real-station departures"),
     ("/*__ARM__*/null", ARM, "ARM validation instruments"),
+    ("/*__STATES__*/null", STATES, "India state outlines"),
 ]
 
 
