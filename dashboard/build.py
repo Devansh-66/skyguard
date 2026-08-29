@@ -29,6 +29,7 @@ WDQMS = Path("dashboard/wdqms.json")
 ARM = Path("dashboard/arm_sites.json")
 VENDOR = Path("dashboard/vendor")
 STATES = VENDOR / "india_states.min.json"
+SIM = Path("dashboard/sim_map.json")
 OUT = Path("dashboard/console.html")
 
 SUBS = [
@@ -39,6 +40,7 @@ SUBS = [
     ("/*__WDQMS__*/null", WDQMS, "WDQMS real-station departures"),
     ("/*__ARM__*/null", ARM, "ARM validation instruments"),
     ("/*__STATES__*/null", STATES, "India state outlines"),
+    ("/*__SIM__*/null", SIM, "simulated 15-minute network"),
 ]
 
 

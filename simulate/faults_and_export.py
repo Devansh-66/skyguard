@@ -256,11 +256,22 @@ def main() -> None:
                        np.where(worst >= 6, 2, np.where(worst >= 4, 1, 0)))
     grade_i = np.where(np.isfinite(worst), grade_i, 3)   # 3 = no data
 
-    # hourly for the map
+    # Per-channel grades too, so the four map panels work on this network the
+    # same way they do on WDQMS. One character per station per hour per channel
+    # is about 250 kB each; the combined grade is derived in the browser as the
+    # worst of the three rather than shipped a fourth time.
+    chars = np.array(list("012-"))
     hourly = grade_i[::4]
     n_h = hourly.shape[0]
-    chars = np.array(list("012-"))
     rows = ["".join(chars[hourly[:, s]]) for s in range(n_st)]
+
+    per_ch = {}
+    for ci, ch in enumerate(CHANNELS):
+        az = np.abs(z[ch])
+        gi = np.where(np.isfinite(az),
+                      np.where(az >= 6, 2, np.where(az >= 4, 1, 0)), 3)
+        gh = gi[::4]
+        per_ch[ch] = ["".join(chars[gh[:, s]]) for s in range(n_st)]
 
     truth = {e["station"]: e for e in events}
     stations = []
@@ -272,6 +283,7 @@ def main() -> None:
             "lat": round(float(lat[s]), 4), "lon": round(float(lon[s]), 4),
             "elev": int(d["elev"][s]),
             "g": rows[s],
+            "gt": per_ch["temp"][s], "gh": per_ch["rh"][s], "gp": per_ch["pres"][s],
             # The truth is exported so the interface can SHOW it beside the
             # detection. It is written after grading and never read before.
             "fault": (None if e is None else

@@ -147,6 +147,11 @@ main{
       gap:16px 16px; align-items:start}
 .maplegendbar{grid-column:1 / -1}
 .mapbox{grid-column:1; min-width:0}
+/* No channel panels on the simulated network -- ten stations already have real
+   charts under the map, per station and per channel, so a three-up overview of
+   ten dots would repeat what is already there better. The map takes the room
+   instead of leaving a void. */
+#maps.solo .mapbox{grid-column:1 / span 2}
 .chmaps{grid-column:2 / -1}
 .mapbelow{grid-column:1 / -1; margin-top:14px}
 .belowgrid{display:grid; grid-template-columns:minmax(280px, 420px) minmax(280px, 1fr);
@@ -159,6 +164,12 @@ main{
 /* Four panels of the same size in one row: the interactive map and one per
    channel. They were 150px thumbnails, which is not a map but a scatter -- there
    was nothing in them to reason from. */
+.simbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px}
+.simbar input[type=range]{flex:1 1 220px; min-width:180px; accent-color:#E01B24}
+.simclock{font-size:11.5px; color:var(--ink)}
+.simcount{font-size:11px; color:var(--ink-3)}
+.strip{width:100%; height:22px; border:1px solid var(--rule)}
+#maps.solo{grid-template-columns:minmax(320px, 470px) 1fr}
 .chmaps{display:grid; grid-template-columns:repeat(3, minmax(220px, 1fr));
         gap:16px; margin-top:0}
 .chmap{margin:0; min-width:0}
@@ -426,9 +437,9 @@ body{padding-top:58px}
     </label>
     <label class="ctl-lab">Base
       <select id="mapstyle" aria-label="Map background">
-        <option value="plain" selected>Plain</option>
+        <option value="imagery" selected>Imagery</option>
+        <option value="plain">Plain</option>
         <option value="ink">Ink</option>
-        <option value="imagery">Imagery</option>
       </select>
     </label>
     <label class="ctl-lab" style="gap:5px">
@@ -436,9 +447,10 @@ body{padding-top:58px}
     </label>
     <label class="ctl-lab">Network
       <select id="mapnetwork" aria-label="Which stations to plot">
-        <option value="real" selected>Real &mdash; 346 IMD stations</option>
-        <option value="sim">Simulated &mdash; 10 stations</option>
+        <option value="sim" selected>Simulated &mdash; 10 stations</option>
+        <option value="real">Real &mdash; 346 IMD stations</option>
         <option value="arm">Validation &mdash; 9 ARM instruments</option>
+        <option value="sim344">Simulated &mdash; 344 IMD locations, 30 days</option>
       </select>
     </label>
     <label class="ctl-lab">Colour
@@ -516,11 +528,38 @@ const ARM = /*__ARM__*/null;
 // Jammu & Kashmir, and separate Dadara & Nagar Havelli / Daman & Diu. The
 // NATIONAL boundary on this map is NCMRWF's and is unaffected.
 const STATES = /*__STATES__*/null;
+
+// The simulated network: 344 real IMD locations, generated readings, 720 hourly
+// frames. SIMULATED, and every surface that shows it says so. This is the one
+// dataset that can be moved through time -- WDQMS gives three days at six
+// hourly, which colours a map once and then has nothing left to show.
+const SIM = /*__SIM__*/null;
+let simStep = 0;
+let simPlaying = false;
+let simTimer = null;
 let showStates = false;
 let stateLayer = null;
-let mapNetwork = "real";
+// THE SIMULATED NETWORK IS THE DEFAULT, and this is a decision about what the
+// console is for rather than about which data is better.
+//
+// PS26073 is about an AWS network being monitored: series, neighbours, alerts,
+// a clock you can replay. The simulated network drives every one of those
+// panels because it was built to. WDQMS drives almost none of them -- it is
+// daily means over six observations with no neighbour graph and no
+// per-instrument fault report -- so with it selected, half the console had
+// nothing to show and the layout kept fracturing around that.
+//
+// Both stay selectable. The real network is the evidence that this problem is
+// real on Indian instruments; ARM is the evidence the detector works. Neither
+// is the thing the console is demonstrating.
+let mapNetwork = "sim";
 let realMarks = [];
-let mapStyle = "plain";
+// Imagery by default. The plain base was chosen when the map carried 346 WDQMS
+// dots and the basemap was competing with them; with the simulated network it
+// is ten stations on a neighbour graph, and the terrain around a mast is
+// context a station watcher actually uses -- is this one in a valley, on a
+// coast, above a city.
+let mapStyle = "imagery";
 let currentReal = null;
 let baseLayers = [];
 
@@ -549,6 +588,12 @@ const STYLES = {
           ok:"#FFFFFF", okOpacity:0.42},
   imagery:{label:"Imagery", tiles:true, ok:"#FFFFFF", okOpacity:0.60},
 };
+
+// Esri imagery is beautiful and it is BUSY: desert, forest, cloud and snow all
+// in one frame, at every luminance a dot might use. A single dark scrim between
+// the tiles and the stations costs nothing, keeps the terrain legible, and
+// gives every marker the same ground to sit on wherever it is in the country.
+const IMAGERY_SCRIM = 0.42;
 
 function okColour(){ return (STYLES[mapStyle] || STYLES.plain).ok || "#FFFFFF"; }
 function okOpacity(){ const s = STYLES[mapStyle] || STYLES.plain;
@@ -675,6 +720,44 @@ $("state-filter").onchange = (e) => {
 // station rather than selecting it -- there is no time series behind these, so
 // the centre panes have nothing to show and pretending otherwise opens an empty
 // pane.
+// The simulated network's rail: who is flagged AT THIS INSTANT, worst first.
+// It changes as the clock runs, which is the point -- a station that is clean
+// on day 3 and failing on day 22 appears when it fails.
+function drawRailSim(){
+  const key = mapColour === "health" ? "health" : mapColour;
+  const rows = simRows().map(s => ({s, band: simBand(s, key, simStep)}))
+                        .filter(r => r.band === "WATCH" || r.band === "FAULT");
+  rows.sort((a, b) => REAL_ORDER[b.band] - REAL_ORDER[a.band]
+                      || a.s.name.localeCompare(b.s.name));
+  const by = {};
+  for (const r of rows) (by[r.s.state] ||= []).push(r);
+  const areas = Object.keys(by).sort((a, b) => by[b].length - by[a].length
+                                               || a.localeCompare(b));
+  $("rail").innerHTML =
+    `<div class="state-head"><span>Flagged now</span>
+       <span class="state-count mono">${rows.length} of ${simRows().length}
+       &middot; ${esc(simTimeLabel(simStep))}</span></div>`
+    + (rows.length ? areas.map(a => `<details class="reg" open>
+        <summary><span>${esc(a)}</span>
+          <span class="state-count mono">${by[a].length}</span></summary>`
+        + by[a].map(r => `
+          <button class="stn" data-id="${esc(r.s.id)}" data-lat="${r.s.lat}" data-lon="${r.s.lon}">
+            <span class="stripe" style="background:${REAL_STATE[r.band]}"></span>
+            <span><span class="nm">${esc(r.s.name)}</span>
+              <div class="meta">${r.s.elev} m${r.s.fault
+                ? " &middot; injected " + esc(r.s.fault.kind) : ""}</div></span>
+            <span class="chip" style="color:${REAL_STATE[r.band]};
+              border-color:${REAL_STATE[r.band]}">${r.band}</span>
+          </button>`).join("") + `</details>`).join("")
+      : `<div class="reg-empty">nothing flagged at this hour</div>`);
+
+  $("rail").querySelectorAll(".stn").forEach(b => b.onclick = () => {
+    currentReal = b.dataset.id;
+    setDetail();
+    if (map) map.setView([+b.dataset.lat, +b.dataset.lon], 7);
+  });
+}
+
 function drawRailReal(){
   const rs = (WDQMS && WDQMS.stations) ? WDQMS.stations : [];
   const by = {};
@@ -745,6 +828,7 @@ function drawRailArm(){
 
 function drawRail(){
   if (mapNetwork === "arm") return drawRailArm();
+  if (mapNetwork === "sim344") return drawRailSim();
   if (mapNetwork === "real") return drawRailReal();
   // Grouped by state, always. The two regions are 1,700 km apart with nothing
   // in common meteorologically, and an alphabetical list interleaves them --
@@ -1031,6 +1115,84 @@ async function probeTiles(){
 // specks. Radius therefore tracks the zoom level, and severity multiplies it,
 // so the handful that matter stay findable when everything else is small and
 // the map looks neither congested nor empty at any zoom.
+/* ---------------------------------------------- the simulated network ----- */
+
+const SIM_BAND = {"0":"OK", "1":"WATCH", "2":"FAULT", "-":"NODATA"};
+const SIM_COL = {OK:null, WATCH:"#1D6FE0", FAULT:"#E01B24", NODATA:"#8C8172"};
+
+function simRows(){ return (SIM && SIM.stations) ? SIM.stations : []; }
+
+function simBand(s, key, step){
+  const str = key === "health" ? s.g
+            : key === "temp" ? s.gt : key === "rh" ? s.gh : s.gp;
+  return SIM_BAND[str ? str[step] : "-"] || "NODATA";
+}
+
+function simTimeLabel(step){
+  if (!SIM || !SIM.t0) return "";
+  const t = new Date(SIM.t0 + "Z");
+  t.setUTCHours(t.getUTCHours() + step);
+  return t.toISOString().slice(0, 16).replace("T", " ") + "Z";
+}
+
+/* The clock. 720 hourly frames over 30 days, which is the whole reason this
+   network exists: WDQMS gives three days at six-hourly and there is nothing to
+   move through. A drift that starts on day 18 is invisible in a still. */
+function simBarHTML(){
+  const n = (SIM && SIM.n_steps) ? SIM.n_steps : 1;
+  const rows = simRows();
+  let w = 0, f = 0;
+  for (const s of rows){
+    const b = simBand(s, mapColour === "health" ? "health" : mapColour, simStep);
+    if (b === "WATCH") w++; else if (b === "FAULT") f++;
+  }
+  return `<div class="simbar">
+    <button id="simplay" class="ctl">${simPlaying ? "Pause" : "Play"}</button>
+    <input id="simslider" type="range" min="0" max="${n - 1}" value="${simStep}">
+    <span class="simclock mono">${esc(simTimeLabel(simStep))}</span>
+    <span class="simcount mono">
+      <b style="color:${SIM_COL.FAULT}">${f}</b> fault &middot;
+      <b style="color:${SIM_COL.WATCH}">${w}</b> watch &middot; hour ${simStep + 1}/${n}</span>
+  </div>`;
+}
+
+function simLegendHTML(){
+  const n = {OK:0, WATCH:0, FAULT:0, NODATA:0};
+  const key = mapColour === "health" ? "health" : mapColour;
+  for (const s of simRows()) n[simBand(s, key, simStep)]++;
+  const what = key === "health" ? "worst channel"
+    : {temp:"temperature", rh:"humidity", pres:"pressure"}[key];
+  const sw = (st, lbl) =>
+    `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:11px">
+      <span style="width:${st === "FAULT" ? 11 : st === "WATCH" ? 8 : 5}px;
+        height:${st === "FAULT" ? 11 : st === "WATCH" ? 8 : 5}px;border-radius:50%;
+        background:${st === "OK" ? okColour() : REAL_STATE[st]};${
+        st === "OK" ? "opacity:" + okOpacity() : ""}"></span>${lbl} ${n[st]}</span>`;
+  return `<div class="maplegend">
+    ${sw("FAULT", "fault")}${sw("WATCH", "watch")}${sw("OK", "ok")}
+    <span>graded on ${esc(what)} by neighbour differencing within 250 km
+      &middot; <b>simulated readings</b> at real IMD locations
+      &middot; 4&sigma; watch, 6&sigma; fault &mdash; 32% recall at 6% false alarms</span>
+  </div>`;
+}
+
+function bindSimBar(){
+  const sl = $("simslider"), pl = $("simplay");
+  if (sl) sl.oninput = (e) => { simStep = +e.target.value; renderMaps(); };
+  if (pl) pl.onclick = () => {
+    simPlaying = !simPlaying;
+    if (simTimer){ clearInterval(simTimer); simTimer = null; }
+    if (simPlaying){
+      simTimer = setInterval(() => {
+        const n = (SIM && SIM.n_steps) ? SIM.n_steps : 1;
+        simStep = (simStep + 1) % n;
+        renderMaps();
+      }, 90);
+    }
+    renderMaps();
+  };
+}
+
 function realRadius(state){
   const z = map ? map.getZoom() : 4;
   const base = z <= 4 ? 3.0 : z <= 5 ? 3.8 : z <= 6 ? 4.8 : z <= 7 ? 6.0 : 7.4;
@@ -1130,9 +1292,58 @@ function realDetailHTML(){
 // question in two different places depending on which network was chosen. That
 // is the confusion. One rule now: the map is the map, and every number and
 // every graph is under it.
+// The selected simulated station: its grade through the whole 30 days as a
+// strip, so the moment a fault begins is visible rather than inferred, with the
+// injected truth printed underneath for checking.
+function simDetailHTML(){
+  const s = simRows().find(x => x.id === currentReal);
+  if (!s) return `<div class="detail-empty">Click a station, or a row in the
+    list, to see its whole 30 days here.</div>`;
+  const n = SIM.n_steps;
+  const strip = (str, label) => {
+    const W = 720, H = 22;
+    const cells = [];
+    for (let i = 0; i < n; i++){
+      const b = SIM_BAND[str[i]];
+      if (b === "OK") continue;
+      cells.push(`<rect x="${(i / n * W).toFixed(2)}" y="0"
+        width="${Math.max(W / n, 1).toFixed(2)}" height="${H}"
+        fill="${b === "NODATA" ? "#8C8172" : REAL_STATE[b]}"/>`);
+    }
+    return `<div class="spark"><div class="cap"><span>${label}</span>
+        <span>${cells.length} of ${n} hours flagged</span></div>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="strip">
+        <rect width="${W}" height="${H}" fill="var(--surface-2)"/>${cells.join("")}
+        <rect x="${(simStep / n * W).toFixed(2)}" y="0" width="1.5" height="${H}"
+          fill="#171A1E"/></svg></div>`;
+  };
+  return `<div class="belowgrid">
+    <section><div class="belowhead">Selected station</div>
+      <h5>${esc(s.name)}</h5>
+      <div class="sub">${esc(s.state)} &middot; ${s.elev} m &middot;
+        ${s.lat.toFixed(2)}N ${s.lon.toFixed(2)}E</div>
+      ${strip(s.gt, "temperature")}${strip(s.gh, "humidity")}${strip(s.gp, "pressure")}
+      <div class="regnote">Each strip is the whole 30 days; the vertical line is
+        the hour on the map. ${s.fault
+          ? `<b>Injected: ${esc(s.fault.kind)} on ${esc(s.fault.channel)} from hour
+             ${s.fault.onset_hour}.</b> Shown for checking &mdash; the grader never saw it.`
+          : "No fault was injected into this station."}</div>
+    </section>
+    <section><div class="belowhead">What this network is</div>
+      <div class="regnote">${esc(SIM.note || "")}<br><br>
+        Graded by neighbour differencing against every station within 250 km,
+        with each station's own baseline taken from the first 15 days. At the
+        4&sigma; / 6&sigma; bands the map uses, this finds 32% of injected faults
+        while flagging 6% of healthy stations. The full trade-off is in the
+        commit that generated it; a single threshold cannot do better on this
+        data, which is why the board runs the belief engine instead.</div>
+    </section></div>`;
+}
+
 function setDetail(){
   const el = $("mapbelow");
   if (!el) return;
+  if (mapNetwork === "sim344"){ el.innerHTML = simDetailHTML(); return; }
   el.innerHTML = mapNetwork === "real"
     ? `<div class="belowgrid">
          <section><div class="belowhead">Where it is wrong, by state</div>
@@ -1216,6 +1427,15 @@ function channelMapHTML(key){
 
   const n = {OK:0, WATCH:0, FAULT:0};
   const dots = [];
+  if (mapNetwork === "sim344"){
+    for (const s of simRows()){
+      const band = simBand(s, key === "health" ? "health" : key, simStep);
+      if (band === "NODATA") continue;
+      n[band]++;
+      dots.push({s: {longitude: s.lon, latitude: s.lat, name: s.name, id: s.id},
+                 band, d: null});
+    }
+  } else
   for (const s of rs){
     if (!s.in_india) continue;
     let band, d;
@@ -1254,8 +1474,10 @@ function channelMapHTML(key){
 function drawChannelMaps(){
   const el = $("chmaps");
   if (!el) return;
-  el.innerHTML = mapNetwork === "real"
-    ? ["temp", "rh", "pres"].map(channelMapHTML).join("") : "";
+  const on = (mapNetwork === "real" || mapNetwork === "sim344");
+  el.innerHTML = on ? ["temp", "rh", "pres"].map(channelMapHTML).join("") : "";
+  const wrap = $("maps");
+  if (wrap) wrap.classList.toggle("solo", !on);
 }
 
 function bindChannelDots(){
@@ -1430,6 +1652,57 @@ function renderMaps(){
   // deriving one from distance would be inventing structure and then drawing it
   // as though it were given. The simulated network keeps its edges because its
   // graph is a real part of that dataset.
+  if (mapNetwork === "sim344"){
+    const rows = simRows();
+    const key = mapColour === "health" ? "health" : mapColour;
+    const graded = rows.map(s => ({s, band: simBand(s, key, simStep)}))
+                       .filter(g => g.band !== "NODATA");
+    // Worst last, so a fault is never painted under a healthy neighbour.
+    graded.sort((a, b) => REAL_ORDER[a.band] - REAL_ORDER[b.band]);
+
+    realMarks = graded.map(g => {
+      const ok = g.band === "OK";
+      const sel = g.s.id === currentReal;
+      const m = L.circleMarker([g.s.lat, g.s.lon], {
+        radius: realRadius(g.band) * (sel ? 1.4 : 1),
+        fillColor: ok ? okColour() : REAL_STATE[g.band],
+        fillOpacity: ok ? okOpacity() : 0.95,
+        stroke: sel, color: "#FFFFFF", weight: sel ? 2 : 0,
+      });
+      m.bindTooltip(
+        `<b>${esc(g.s.name)}</b> &mdash; ${g.band}`
+        + `<br>${esc(g.s.state)} &middot; ${g.s.elev} m`
+        + `<br><span class="mono">${esc(simTimeLabel(simStep))}</span>`
+        // The injected truth, shown BESIDE the detection rather than used by
+        // it. A demonstration that cannot be checked is a slideshow.
+        + (g.s.fault ? `<br><b>injected: ${esc(g.s.fault.kind)} on `
+            + `${esc(g.s.fault.channel)}, hour ${g.s.fault.onset_hour}</b>` : ""),
+        {direction:"top", offset:[0,-5]});
+      m._state = g.band;
+      m.on("click", () => { currentReal = g.s.id; setDetail(); });
+      return m;
+    });
+    stationLayer = L.layerGroup(realMarks).addTo(map);
+    if (!map._skyguardZoomHook){
+      map._skyguardZoomHook = true;
+      map.on("zoomend", () => {
+        for (const m of realMarks) m.setRadius(realRadius(m._state));
+      });
+    }
+    setHint();
+    setLegend(simBarHTML() + simLegendHTML());
+    bindSimBar();
+    // The rail lists who is flagged AT THIS HOUR, so it has to be redrawn with
+    // the map. Without this the clock moved, the dots moved, and the list sat
+    // still showing hour one -- three surfaces disagreeing about the time.
+    drawRail();
+    drawChannelMaps();
+    bindChannelDots();
+    setDetail();
+    setTimeout(() => map.invalidateSize(), 40);
+    return;
+  }
+
   // The validation instruments. No health colouring: these are not a network
   // being watched, they are the instruments the detector was PROVED on, and
   // colouring them by state would imply we are monitoring them live. Red marks
@@ -1463,6 +1736,7 @@ function renderMaps(){
       <span>US and Portuguese instruments &mdash; the validation set, not a monitored network</span>
     </div>`;
     setLegend(html);
+    drawChannelMaps();
     setTimeout(() => map.invalidateSize(), 40);
     return;
   }
@@ -1610,6 +1884,7 @@ function renderMaps(){
 
   setHint();
   setLegend(legendHTML());
+  drawChannelMaps();
   setTimeout(() => map.invalidateSize(), 40);
 }
 
@@ -1646,6 +1921,8 @@ function applyBaseStyle(){
   if (stateLayer){ try { map.removeLayer(stateLayer); } catch (e) {} stateLayer = null; }
 
   const st = STYLES[mapStyle] || STYLES.plain;
+  if (map.getPane("scrim"))
+    map.getPane("scrim").style.opacity = st.tiles ? String(IMAGERY_SCRIM) : "0";
   const el = $("lmap");
   if (el) el.style.background = st.tiles ? "#000000" : st.ground;
 
@@ -1656,6 +1933,17 @@ function applyBaseStyle(){
       {maxZoom:12, minZoom:3, crossOrigin:true, noWrap:true}).addTo(map);
     boundaryLayer = L.tileLayer(API + BND_TPL,
       {maxZoom:12, minZoom:3, opacity:0.9, noWrap:true}).addTo(map);
+    // The scrim: one dark sheet between the imagery and the stations. Without
+    // it a white dot over cloud and a white dot over desert are different
+    // marks, and the eye has to relearn the legend in every part of the country.
+    if (!map.getPane("scrim")){
+      map.createPane("scrim");
+      const sp = map.getPane("scrim");
+      sp.style.zIndex = 240;
+      sp.style.pointerEvents = "none";
+      sp.style.background = "#05070C";
+    }
+    map.getPane("scrim").style.opacity = String(IMAGERY_SCRIM);
     baseLayers = [t, boundaryLayer];
     drawStates(st);
     $("mapattrib").innerHTML =
