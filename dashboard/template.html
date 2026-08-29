@@ -139,9 +139,27 @@ main{
    Two columns left several hundred pixels of nothing to the right of the table
    on a wide screen, and the thing that belonged there was the station a watcher
    had just clicked. */
-#maps{display:grid;
-      grid-template-columns:minmax(320px, 460px) minmax(230px, 320px) minmax(260px, 420px);
-      gap:24px; align-items:start; justify-content:start}
+#maps{display:grid; grid-template-columns:minmax(320px, 460px) 1fr;
+      gap:24px; align-items:start}
+.mapbelow{grid-column:1 / -1; margin-top:6px}
+.belowgrid{display:grid; grid-template-columns:minmax(280px, 420px) minmax(280px, 1fr);
+           gap:28px; align-items:start}
+.belowhead{
+  font-family:"Roboto Mono",ui-monospace,monospace; font-size:9.5px;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3);
+  padding-bottom:5px; margin-bottom:9px; border-bottom:1px solid var(--line);
+}
+.chmaps{display:flex; gap:14px; flex-wrap:wrap; margin-top:10px}
+.chmap{margin:0; flex:0 0 auto}
+.chmap figcaption{
+  font-family:"Roboto Mono",ui-monospace,monospace; font-size:9px;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3);
+  display:flex; justify-content:space-between; gap:8px; margin-bottom:3px;
+}
+.chmap .chcount{font-family:"Roboto Mono",ui-monospace,monospace}
+.chmap svg{display:block; width:150px; height:165px;
+           background:var(--surface); border:1px solid var(--rule)}
+@media (max-width:900px){ .belowgrid{grid-template-columns:1fr} }
 .mapdetail{font-size:12px; color:var(--ink-2)}
 .mapdetail h5{
   font-family:"Archivo","Segoe UI",system-ui,sans-serif; font-size:14px;
@@ -504,13 +522,24 @@ const INDIA = [[6.5, 68.0], [36.5, 97.5]];
 // legible, and it competes with the only thing on this map that matters. So the
 // default draws the country and nothing else, and imagery is there for the one
 // question it does answer -- what is physically around this mast.
+// `ok` is the colour of a station with nothing wrong, and it MUST follow the
+// base. It was white on every base, which is invisible on cream paper -- 313 of
+// 346 stations disappeared the moment anyone chose the plain background. A
+// neutral has to be dark on a light ground and light on a dark one; only the
+// two colours that MEAN something, blue and red, stay fixed.
 const STYLES = {
   plain: {label:"Plain", tiles:false, ground:"#F7F2E7",
-          land:"#FCF9F2", line:"#171A1E", lineW:1.1, fill:true},
+          land:"#FCF9F2", line:"#171A1E", lineW:1.1, fill:true,
+          ok:"#171A1E", okOpacity:0.30},
   ink:   {label:"Ink",   tiles:false, ground:"#000000",
-          land:"#000000", line:"#FFFFFF", lineW:0.8, fill:false},
-  imagery:{label:"Imagery", tiles:true},
+          land:"#000000", line:"#FFFFFF", lineW:0.8, fill:false,
+          ok:"#FFFFFF", okOpacity:0.42},
+  imagery:{label:"Imagery", tiles:true, ok:"#FFFFFF", okOpacity:0.60},
 };
+
+function okColour(){ return (STYLES[mapStyle] || STYLES.plain).ok || "#FFFFFF"; }
+function okOpacity(){ const s = STYLES[mapStyle] || STYLES.plain;
+                      return s.okOpacity == null ? 0.5 : s.okOpacity; }
 
 // Departures arrive in physical units, so one shared sigma scale would be
 // meaningless across channels: 3 K is an enormous temperature error and 3 %
@@ -1081,9 +1110,70 @@ function realDetailHTML(){
           : ""}</div>`;
 }
 
+// Everything that is not the map goes UNDERNEATH it, in one place.
+//
+// The health counts and the selected station used to sit BESIDE the map while
+// the simulated network's charts sat BELOW it, so the page answered the same
+// question in two different places depending on which network was chosen. That
+// is the confusion. One rule now: the map is the map, and every number and
+// every graph is under it.
 function setDetail(){
-  const el = $("mapdetail");
-  if (el) el.innerHTML = realDetailHTML();
+  const el = $("mapbelow");
+  if (!el) return;
+  el.innerHTML = mapNetwork === "real"
+    ? `<div class="belowgrid">
+         <section><div class="belowhead">Where it is wrong, by state</div>
+           ${regionSummaryHTML()}</section>
+         <section><div class="belowhead">Selected station</div>
+           ${realDetailHTML()}</section>
+       </div>`
+    : "";
+}
+
+// THE SAME STATIONS, THREE TIMES, ONE CHANNEL EACH.
+//
+// The main map can only show one channel at a time, so a watcher had to flip a
+// dropdown and hold the last view in their head to answer the question they
+// actually have: is this station bad at everything, or only at pressure? Three
+// small maps side by side answer it by looking.
+//
+// Plain SVG, not three more Leaflet instances: these are thumbnails, they need
+// no pan or zoom, and 346 markers times three in a mapping library would cost
+// far more than it returns. No outline is drawn either -- 346 stations spread
+// across the country draw India by themselves.
+function channelMapHTML(key){
+  const rs = (WDQMS && WDQMS.stations) ? WDQMS.stations : [];
+  const W = 150, H = 165, P = 5;
+  const LON0 = 68, LON1 = 97.5, LAT0 = 6.5, LAT1 = 37.5;
+  const x = lon => P + ((lon - LON0) / (LON1 - LON0)) * (W - 2 * P);
+  const y = lat => P + ((LAT1 - lat) / (LAT1 - LAT0)) * (H - 2 * P);
+  const nm = {temp:"temperature", rh:"humidity", pres:"pressure"};
+  let n = {OK:0, WATCH:0, FAULT:0};
+  const dots = rs.filter(s => s.in_india && s.dep && s.dep[key]).map(s => {
+    const st = bandOf(s.dep[key].z);
+    n[st]++;
+    return {s, st};
+  });
+  // Worst last, so a fault is never hidden under a neighbour that is fine.
+  dots.sort((a, b) => REAL_ORDER[a.st] - REAL_ORDER[b.st]);
+  const marks = dots.map(d => {
+    const ok = d.st === "OK";
+    return `<circle cx="${x(d.s.longitude).toFixed(1)}" cy="${y(d.s.latitude).toFixed(1)}"
+      r="${ok ? 1.5 : d.st === "FAULT" ? 3.2 : 2.4}"
+      fill="${ok ? okColour() : REAL_STATE[d.st]}"
+      fill-opacity="${ok ? okOpacity() : 0.95}"/>`;
+  }).join("");
+  return `<figure class="chmap">
+    <figcaption>${nm[key]}
+      <span class="chcount">${n.FAULT ? `<b style="color:${REAL_STATE.FAULT}">${n.FAULT}</b> ` : ""}${
+        n.WATCH ? `<b style="color:${REAL_STATE.WATCH}">${n.WATCH}</b>` : ""}${
+        (!n.FAULT && !n.WATCH) ? "all clear" : ""}</span></figcaption>
+    <svg viewBox="0 0 ${W} ${H}">${marks}</svg></figure>`;
+}
+
+function channelMapsHTML(){
+  if (mapNetwork !== "real") return "";
+  return `<div class="chmaps">${["temp", "rh", "pres"].map(channelMapHTML).join("")}</div>`;
 }
 
 function regionSummaryHTML(){
@@ -1160,7 +1250,8 @@ function legendHTML(){
       `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:11px">
          <span style="width:${st === "FAULT" ? 11 : st === "WATCH" ? 8 : 5}px;
            height:${st === "FAULT" ? 11 : st === "WATCH" ? 8 : 5}px;border-radius:50%;
-           background:${REAL_STATE[st]};${st === "OK" ? "opacity:.45" : ""}"></span>${st.toLowerCase()} ${n[st]}</span>`;
+           background:${st === "OK" ? okColour() : REAL_STATE[st]};${
+             st === "OK" ? "opacity:" + okOpacity() : ""}"></span>${st.toLowerCase()} ${n[st]}</span>`;
     return `<div class="maplegend">
       ${["FAULT","WATCH","OK"].map(swatch).join("")}
       <span style="margin-left:2px">graded on ${esc(what)} vs
@@ -1197,7 +1288,7 @@ function renderMaps(){
          <div class="mapattrib" id="mapattrib"></div>
        </div>
        <aside class="mapside" id="mapside"></aside>
-       <aside class="mapdetail" id="mapdetail"></aside>` ;
+       <div class="mapbelow" id="mapbelow"></div>` ;
     // zoomAnimation off, deliberately. With it on, setView and fitBounds were
     // silently swallowed: Leaflet's _tryAnimatedZoom claims the move and hands
     // it to a CSS transition that never runs here, so no view change happened
@@ -1310,14 +1401,14 @@ function renderMaps(){
       const ok = g.state === "OK";
       const m = L.circleMarker([g.s.latitude, g.s.longitude], {
         radius: realRadius(g.state),
-        fillColor: REAL_STATE[g.state],
+        fillColor: g.state === "OK" ? okColour() : REAL_STATE[g.state],
         // A station that is fine recedes: no hue, half opacity, no casing. The
         // casing exists to separate a coloured dot from the imagery, and an
         // uncoloured one has nothing to separate.
         // No border on any dot. A casing was there to separate a fill from the
         // imagery, but with white / blue / red the fills carry themselves, and
         // 346 outlined discs read as a mesh rather than as points.
-        fillOpacity: ok ? 0.55 : 0.95,
+        fillOpacity: ok ? okOpacity() : 0.95,
         stroke: false,
       });
       const u = unit[g.k] || "";
@@ -1346,7 +1437,7 @@ function renderMaps(){
       });
     }
     setHint();
-    setLegend(legendHTML() + regionSummaryHTML());
+    setLegend(legendHTML() + channelMapsHTML());
     setDetail();
     setTimeout(() => map.invalidateSize(), 40);
     return;
@@ -1736,7 +1827,14 @@ function start(){
     else fitIndia();
   };
   $("mapcolour").onchange = (e) => { mapColour = e.target.value; renderMaps(); };
-  $("mapstyle").onchange = (e) => { mapStyle = e.target.value; applyBaseStyle(); };
+  $("mapstyle").onchange = (e) => {
+    mapStyle = e.target.value;
+    applyBaseStyle();
+    // The neutral dot colour is a function of the base, so the stations must be
+    // redrawn too. Without this, switching to plain left 313 white dots on
+    // cream paper -- the bug this replaced.
+    renderMaps();
+  };
   $("mapstates").onchange = (e) => { showStates = e.target.checked; applyBaseStyle(); };
   $("mapnetwork").onchange = (e) => {
     mapNetwork = e.target.value;
