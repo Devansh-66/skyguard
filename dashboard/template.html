@@ -347,6 +347,7 @@ body{padding-top:58px}
       <select id="mapnetwork" aria-label="Which stations to plot">
         <option value="real" selected>Real &mdash; 346 IMD stations</option>
         <option value="sim">Simulated &mdash; 10 stations</option>
+        <option value="arm">Validation &mdash; 9 ARM instruments</option>
       </select>
     </label>
     <label class="ctl-lab">Colour
@@ -413,6 +414,11 @@ let DATA = /*__DATA__*/null;
 // departures four forecast centres computed for them. See
 // dashboard/export_wdqms.py for what this is and what it is not.
 const WDQMS = /*__WDQMS__*/null;
+
+// The nine ARM masts every board figure is measured against. A SEPARATE layer,
+// never an overlay: drawing an Oklahoma mast beside Ahmadabad would say this
+// network monitors Oklahoma, which it does not.
+const ARM = /*__ARM__*/null;
 let mapNetwork = "real";
 let realMarks = [];
 
@@ -581,7 +587,24 @@ function drawRailReal(){
     if (map) map.setView([+b.dataset.lat, +b.dataset.lon], 9);
   });
 }
+function drawRailArm(){
+  const as = (ARM && ARM.stations) ? ARM.stations : [];
+  $("rail").innerHTML =
+    `<div class="state-head"><span>Validation instruments</span>
+       <span class="state-count mono">${as.length} masts</span></div>`
+    + as.map(a => `
+      <button class="stn" data-lat="${a.latitude}" data-lon="${a.longitude}">
+        <span class="stripe" style="background:${a.reports ? "#E01B24" : "#FFFFFF"}"></span>
+        <span><span class="nm">${esc(a.place)}</span>
+          <div class="meta">${esc(a.id)} &middot; ${a.reports} report${a.reports === 1 ? "" : "s"}</div></span>
+      </button>`).join("");
+  $("rail").querySelectorAll(".stn").forEach(b => b.onclick = () => {
+    if (map) map.setView([+b.dataset.lat, +b.dataset.lon], 7);
+  });
+}
+
 function drawRail(){
+  if (mapNetwork === "arm") return drawRailArm();
   if (mapNetwork === "real") return drawRailReal();
   // Grouped by state, always. The two regions are 1,700 km apart with nothing
   // in common meteorologically, and an alphabetical list interleaves them --
@@ -884,6 +907,12 @@ function realRadius(state){
 function setHint(){
   const el = $("maphint");
   if (!el) return;
+  if (mapNetwork === "arm"){
+    el.innerHTML = "The nine instruments the detector was measured against. "
+      + "They are in Oklahoma, Alaska and the Azores, and are drawn on their own "
+      + "layer so nothing implies this network monitors them.";
+    return;
+  }
   el.innerHTML = mapNetwork === "real"
     ? "Real stations operated by India, from WMO's quality monitoring. Colour is "
       + "how far each sat from four forecast centres' background."
@@ -960,7 +989,11 @@ function renderMaps(){
       // the edge; noWrap on the tile layers stops the copies existing at all.
       // The box is generous enough to include MAITRI and BHARATI, since the
       // rail can fly the map to them.
-      maxBounds: L.latLngBounds([[-75, 5], [40, 100]]),
+      // Wide enough to hold every layer this console can show: the Indian
+      // network, India's two Antarctic bases, and the ARM masts in Alaska and
+      // the Azores. Narrower bounds would silently refuse to fly to a station
+      // the rail offers.
+      maxBounds: L.latLngBounds([[-80, -170], [80, 110]]),
       maxBoundsViscosity: 0.85,
       // A wheel notch used to be a whole zoom level, which overshoots the
       // country in two clicks. Half-steps, and about twice the wheel distance
@@ -1005,6 +1038,44 @@ function renderMaps(){
   // deriving one from distance would be inventing structure and then drawing it
   // as though it were given. The simulated network keeps its edges because its
   // graph is a real part of that dataset.
+  // The validation instruments. No health colouring: these are not a network
+  // being watched, they are the instruments the detector was PROVED on, and
+  // colouring them by state would imply we are monitoring them live. Red marks
+  // the ones an analyst has filed fault reports about, which is why they are in
+  // the corpus at all.
+  if (mapNetwork === "arm"){
+    const as = (ARM && ARM.stations) ? ARM.stations : [];
+    realMarks = as.map(a => {
+      const flagged = a.reports > 0;
+      const m = L.circleMarker([a.latitude, a.longitude], {
+        radius: flagged ? 7 : 5, fillColor: flagged ? "#E01B24" : "#FFFFFF",
+        fillOpacity: 0.95, stroke: false,
+      });
+      m.bindTooltip(
+        `<b>${esc(a.place)}</b><br>${esc(a.observatory)} ${esc(a.facility)}`
+        + `<br><span class="mono">${esc(a.id)}</span>`
+        + `<br>${a.reports} analyst fault report${a.reports === 1 ? "" : "s"} held`,
+        {direction:"top", offset:[0,-6]});
+      m._state = "OK";
+      return m;
+    });
+    stationLayer = L.layerGroup(realMarks).addTo(map);
+    setHint();
+    const legA = document.querySelector(".maplegend");
+    const html = `<div class="maplegend">
+      <span style="display:inline-flex;align-items:center;gap:5px;margin-right:11px">
+        <span style="width:9px;height:9px;border-radius:50%;background:#E01B24"></span>
+        has analyst fault reports</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;margin-right:11px">
+        <span style="width:7px;height:7px;border-radius:50%;background:#FFFFFF"></span>
+        none filed</span>
+      <span>US and Portuguese instruments &mdash; the validation set, not a monitored network</span>
+    </div>`;
+    if (legA) legA.outerHTML = html; else $("maps").insertAdjacentHTML("beforeend", html);
+    setTimeout(() => map.invalidateSize(), 40);
+    return;
+  }
+
   if (mapNetwork === "real"){
     const rs = (WDQMS && WDQMS.stations) ? WDQMS.stations : [];
     const key = mapColour === "health" ? null : mapColour;

@@ -16,6 +16,8 @@ Four substitutions:
     /*__DATA__*/null      the snapshot
     /*__WDQMS__*/null     real Indian stations and their WMO departures,
                           from `python -m dashboard.export_wdqms`
+    /*__ARM__*/null       the ARM validation instruments,
+                          from `python -m dashboard.export_arm_sites`
 """
 from __future__ import annotations
 import json
@@ -24,6 +26,7 @@ from pathlib import Path
 TPL = Path("dashboard/template.html")
 SNAP = Path("dashboard/snapshot.json")
 WDQMS = Path("dashboard/wdqms.json")
+ARM = Path("dashboard/arm_sites.json")
 VENDOR = Path("dashboard/vendor")
 OUT = Path("dashboard/console.html")
 
@@ -33,6 +36,7 @@ SUBS = [
     ("/*__BOUNDARY__*/null", VENDOR / "india_boundary.min.json", "boundary"),
     ("/*__DATA__*/null", SNAP, "snapshot"),
     ("/*__WDQMS__*/null", WDQMS, "WDQMS real-station departures"),
+    ("/*__ARM__*/null", ARM, "ARM validation instruments"),
 ]
 
 
