@@ -104,6 +104,62 @@ def region(lat: float, lon: float, in_india: bool) -> str:
     return "Central"
 
 
+# How far apart two stations can be and still be expected to see the same
+# weather. 250 km is roughly the synoptic scale for surface temperature and
+# pressure anomalies: closer than this, a real airmass feature moves both.
+NEAR_KM = 250.0
+
+
+def _km(a: dict, b: dict) -> float:
+    """Great-circle distance, in kilometres."""
+    import math
+    p1, p2 = math.radians(a["latitude"]), math.radians(b["latitude"])
+    dp = p2 - p1
+    dl = math.radians(b["longitude"] - a["longitude"])
+    h = (math.sin(dp / 2) ** 2
+         + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2)
+    return 2 * 6371.0 * math.asin(min(1.0, math.sqrt(h)))
+
+
+def add_isolation(stations: list[dict]) -> None:
+    """Is a flagged station alone in being flagged, or is its whole area?
+
+    THIS IS THE QUESTION THE MAP EXISTS TO ANSWER, and it is the project's own
+    argument applied spatially. A departure at one mast while every neighbour
+    sits quiet is evidence about that instrument. The same departure at twelve
+    masts across one region is evidence about the forecast background over that
+    region -- a front the model placed badly, a monsoon surge it ran early --
+    and sending a technician to twelve stations for it would be twelve wasted
+    journeys.
+
+    Nothing here is inferred beyond what the geometry gives: the count of
+    stations within NEAR_KM and how many of those are also flagged. The
+    interpretation is offered to a person, not acted on.
+    """
+    for a in stations:
+        near = [b for b in stations
+                if b is not a and b["in_india"] == a["in_india"]
+                and _km(a, b) <= NEAR_KM]
+        flagged = [b for b in near if b["health"]["state"] != "OK"]
+        a["near"] = {
+            "n": len(near),
+            "flagged": len(flagged),
+            # Only meaningful with enough neighbours to be a neighbourhood at
+            # all. Two stations agreeing is a coincidence, not a pattern.
+            "share": (round(len(flagged) / len(near), 2) if len(near) >= 3
+                      else None),
+        }
+        share = a["near"]["share"]
+        if a["health"]["state"] == "OK" or share is None:
+            a["near"]["verdict"] = None
+        elif share <= 0.34:
+            a["near"]["verdict"] = "isolated"
+        elif share >= 0.6:
+            a["near"]["verdict"] = "widespread"
+        else:
+            a["near"]["verdict"] = "mixed"
+
+
 def classify(dep: dict) -> dict:
     """Grade a station from its departures.
 
@@ -199,6 +255,8 @@ def main() -> None:
             rec["health"] = classify(rec["dep"])
             stations.append(rec)
 
+    add_isolation(stations)
+
     # Worst first. The list is read from the top by someone deciding where to
     # send a technician, so the ordering is the product, not a detail.
     stations.sort(key=lambda s: -s["health"]["severity"])
@@ -231,6 +289,14 @@ def main() -> None:
             r[1] += 1
     print("  by region: " + "  ".join(
         f"{k} {v[0]}({v[1]} flagged)" for k, v in sorted(reg.items())))
+    v = {}
+    for st in stations:
+        vd = st["near"].get("verdict")
+        if vd:
+            v[vd] = v.get(vd, 0) + 1
+    print("  of the flagged, spatially: " + "  ".join(
+        f"{k} {v.get(k, 0)}" for k in ("isolated", "mixed", "widespread"))
+        + "   (isolated = neighbours quiet, so likely the instrument)")
     conf = sum(1 for st in stations if st["health"]["confident"])
     print(f"  of the flagged, {conf} have the four centres in agreement")
     for key in ("temp", "rh", "pres"):

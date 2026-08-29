@@ -129,7 +129,12 @@ main{
   letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2);
 }
 .mapbox canvas{border:1px solid var(--line); border-radius:5px; cursor:pointer}
-#lmap{height:420px; border:1px solid var(--line); border-radius:5px; background:var(--surface-2)}
+/* Taller than it was. The map fits India by its LATITUDE span, so in a wide
+   short box the country sits centred inside a lot of slack longitude -- 57
+   degrees shown for a 29 degree country. Raising the height lets the fit reach
+   a closer zoom and cuts the slack roughly in half. The background is set from
+   JS per base style, so no colour is fixed here. */
+#lmap{height:520px; border:1px solid var(--line); border-radius:5px}
 .mapattrib{font-size:10px; color:var(--ink-3); margin-top:4px; text-align:right}
 .leaflet-container{font:inherit; background:var(--surface-2)}
 .leaflet-tooltip{font-family:"Archivo","Segoe UI",system-ui,sans-serif; font-size:11.5px}
@@ -343,6 +348,13 @@ body{padding-top:58px}
         <option value="regional">Fit to region</option>
       </select>
     </label>
+    <label class="ctl-lab">Base
+      <select id="mapstyle" aria-label="Map background">
+        <option value="plain" selected>Plain</option>
+        <option value="ink">Ink</option>
+        <option value="imagery">Imagery</option>
+      </select>
+    </label>
     <label class="ctl-lab">Network
       <select id="mapnetwork" aria-label="Which stations to plot">
         <option value="real" selected>Real &mdash; 346 IMD stations</option>
@@ -421,6 +433,27 @@ const WDQMS = /*__WDQMS__*/null;
 const ARM = /*__ARM__*/null;
 let mapNetwork = "real";
 let realMarks = [];
+let mapStyle = "plain";
+let baseLayers = [];
+
+// India, as a box. Used for the default view and for "All India", so the map
+// opens on the country rather than on a slab of ocean and half of Asia.
+const INDIA = [[6.5, 68.0], [36.5, 97.5]];
+
+// THE BASEMAP IS NOT THE POINT, which is why plain is the default.
+//
+// Satellite imagery tells a station watcher nothing about whether an instrument
+// is working. It is busy, it forces every dot to carry a casing to stay
+// legible, and it competes with the only thing on this map that matters. So the
+// default draws the country and nothing else, and imagery is there for the one
+// question it does answer -- what is physically around this mast.
+const STYLES = {
+  plain: {label:"Plain", tiles:false, ground:"#F7F2E7",
+          land:"#FCF9F2", line:"#171A1E", lineW:1.1, fill:true},
+  ink:   {label:"Ink",   tiles:false, ground:"#000000",
+          land:"#000000", line:"#FFFFFF", lineW:0.8, fill:false},
+  imagery:{label:"Imagery", tiles:true},
+};
 
 // Departures arrive in physical units, so one shared sigma scale would be
 // meaningless across channels: 3 K is an enormous temperature error and 3 %
@@ -533,7 +566,7 @@ $("state-filter").onchange = (e) => {
   render();
   // Fitting to every station spans 1,700 km and is indistinguishable from the
   // all-India view, so the filter has to move the map itself to mean anything.
-  if (stateFilter === "all") { if (map) map.setView([22.6, 80.0], 4); }
+  if (stateFilter === "all") { if (map) map.fitBounds(L.latLngBounds(INDIA), {padding:[10, 10]}); }
   else fitTo(visible.filter(s => s.latitude != null));
 };
 
@@ -573,7 +606,10 @@ function drawRailReal(){
           <span class="stripe" style="background:${REAL_STATE[x.health.state]}"></span>
           <span><span class="nm">${esc(x.name)}</span>
             <div class="meta">${esc(x.health.channel)} &middot;
-              ${x.health.severity}&times; tolerance${x.health.confident ? " &middot; centres agree" : ""}</div></span>
+              ${x.health.severity}&times; tolerance${x.health.confident ? " &middot; centres agree" : ""}${
+                x.near && x.near.verdict === "isolated" ? " &middot; <b>alone in its area</b>"
+                : x.near && x.near.verdict === "widespread" ? " &middot; area-wide, likely the model"
+                : ""}</div></span>
           <span class="chip" style="color:${REAL_STATE[x.health.state]};
             border-color:${REAL_STATE[x.health.state]}">${x.health.state}</span>
         </button>`).join("")
@@ -998,33 +1034,14 @@ function renderMaps(){
       // A wheel notch used to be a whole zoom level, which overshoots the
       // country in two clicks. Half-steps, and about twice the wheel distance
       // per level, so zooming is something you can aim.
-      zoomSnap: 0.5, zoomDelta: 0.5, wheelPxPerZoomLevel: 170,
-    }).setView([22.6, 80.0], 4);
+      // Quarter-step snapping so fitBounds can actually land on the country
+      // instead of rounding down to the next half level and showing 57 degrees
+      // of longitude for a 29 degree box.
+      zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 170,
+    }).fitBounds(L.latLngBounds(INDIA), {padding:[10, 10]});
     map._skyguardTiles = tilesOK;
 
-    if (tilesOK){
-      // Through our own proxy: same origin, disk-cached, so the map keeps
-      // drawing after the venue wifi dies.
-      L.tileLayer(API + TILE_TPL,
-                  {maxZoom:12, minZoom:3, crossOrigin:true, noWrap:true}).addTo(map);
-      boundaryLayer = L.tileLayer(API + BND_TPL,
-                  {maxZoom:12, minZoom:3, opacity:0.9, noWrap:true}).addTo(map);
-      $("mapattrib").innerHTML =
-        "Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; "
-        + "Boundary &copy; NCMRWF, Ministry of Earth Sciences";
-    } else {
-      // No tile server reachable -- the published artifact, or no network.
-      // The embedded boundary is the same NCMRWF layer, simplified, so even
-      // offline the border shown is the official one.
-      if (typeof BOUNDARY !== "undefined" && BOUNDARY){
-        boundaryLayer = L.geoJSON(BOUNDARY, {
-          style:{color:"#243FA8", weight:1, fill:true,
-                 fillColor:"#EDF1F7", fillOpacity:1}}).addTo(map);
-      }
-      $("mapattrib").innerHTML =
-        "Boundary &copy; NCMRWF, Ministry of Earth Sciences (simplified) "
-        + "&middot; no basemap: tiles need the API running";
-    }
+    applyBaseStyle();
     map.on("click", () => {});
   }
 
@@ -1218,6 +1235,48 @@ function renderMaps(){
   const leg = document.querySelector(".maplegend");
   if (leg) leg.outerHTML = legendHTML(); else $("maps").insertAdjacentHTML("beforeend", legendHTML());
   setTimeout(() => map.invalidateSize(), 40);
+}
+
+// Build whatever the chosen style needs, having torn down whatever was there.
+// Called on creation and on every style change; the station layer is untouched,
+// so switching base does not rebuild 346 markers.
+function applyBaseStyle(){
+  if (!map) return;
+  for (const l of baseLayers){ try { map.removeLayer(l); } catch (e) {} }
+  baseLayers = [];
+  boundaryLayer = null;
+
+  const st = STYLES[mapStyle] || STYLES.plain;
+  const el = $("lmap");
+  if (el) el.style.background = st.tiles ? "#000000" : st.ground;
+
+  if (st.tiles && tilesOK){
+    // Through our own proxy: same origin, disk-cached, so the map keeps drawing
+    // after the venue wifi dies.
+    const t = L.tileLayer(API + TILE_TPL,
+      {maxZoom:12, minZoom:3, crossOrigin:true, noWrap:true}).addTo(map);
+    boundaryLayer = L.tileLayer(API + BND_TPL,
+      {maxZoom:12, minZoom:3, opacity:0.9, noWrap:true}).addTo(map);
+    baseLayers = [t, boundaryLayer];
+    $("mapattrib").innerHTML =
+      "Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; "
+      + "Boundary &copy; NCMRWF, Ministry of Earth Sciences";
+    return;
+  }
+
+  // No tiles, by choice or because none are reachable. The embedded boundary is
+  // the same NCMRWF layer, simplified, so the border drawn is the official one
+  // either way.
+  if (typeof BOUNDARY !== "undefined" && BOUNDARY){
+    boundaryLayer = L.geoJSON(BOUNDARY, {
+      style:{color:st.line, weight:st.lineW, fill:!!st.fill,
+             fillColor:st.land, fillOpacity:st.fill ? 1 : 0}}).addTo(map);
+    baseLayers = [boundaryLayer];
+  }
+  $("mapattrib").innerHTML =
+    "Boundary &copy; NCMRWF, Ministry of Earth Sciences (simplified)"
+    + (st.tiles && !tilesOK
+        ? " &middot; imagery unavailable: tiles need the API running" : "");
 }
 
 function fitTo(group){
@@ -1430,9 +1489,10 @@ function start(){
         fitTo(DATA.stations.filter(s =>
           (stateFilter === "all" || s.state === stateFilter) && s.latitude != null));
     }
-    else if (map) map.setView([22.6, 80.0], 4);
+    else if (map) map.fitBounds(L.latLngBounds(INDIA), {padding:[10, 10]});
   };
   $("mapcolour").onchange = (e) => { mapColour = e.target.value; renderMaps(); };
+  $("mapstyle").onchange = (e) => { mapStyle = e.target.value; applyBaseStyle(); };
   $("mapnetwork").onchange = (e) => {
     mapNetwork = e.target.value;
     // Health applies to BOTH networks now: the real one is screened from its
