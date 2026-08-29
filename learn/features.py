@@ -46,7 +46,6 @@ FEATURES: tuple[str, ...] = (
     "z_mean_24",
     "bias_sigma",       # belief: offset in units of the sensor's own noise
     "drift_sigma_day",
-    "trust",
     "flat_frac_24",     # a stuck sensor repeats its last value
     "gap_frac_24",      # a dying sensor stops reporting before it stops lying
     "rail_near",        # ONLY the outer tenth of the instrument's range
@@ -73,7 +72,29 @@ FEATURES: tuple[str, ...] = (
 #              built around a reported fault, position in the window leaks the
 #              label.
 #
-# Both scored well. Neither would have survived contact with a new network.
+#   trust      REMOVED THIRD, and this one was found by SHAP rather than by
+#              suspicion. It was the model's most-used feature by a wide margin
+#              -- mean |SHAP| 1.85 against 0.52 for the next -- and it was being
+#              used BACKWARDS: trust averages 0.868 inside analyst-reported
+#              faults against 0.761 outside them, a correlation of +0.32 with
+#              the label. Higher trust was pushing the score toward FAULT.
+#
+#              The cause is the bias-absorption pathology this project has hit
+#              before: inside a sustained fault the belief's estimator converges
+#              onto the offset, the innovations shrink, and the Beta reputation
+#              RECOVERS. So trust was reporting "this station has been stable
+#              for a while", which in a corpus of long reported fault windows
+#              means "we are inside one".
+#
+#              Ablated under the same leave-one-station-out protocol: 0.505 with
+#              trust, 0.525 without it, 0.357 on trust alone. The model's
+#              favourite feature was making it worse.
+#
+#              It stays in the PRODUCT -- the board shows trust beside every
+#              item and it is meaningful to a person reading one station -- but
+#              it is not a model input.
+#
+# All three scored well. None would have survived contact with a new network.
 RAILS = {"temp": (-40.0, 60.0), "rh": (0.0, 105.0), "pres": (500.0, 1100.0),
          "volt": (0.0, 20.0), "ltemp": (-40.0, 80.0)}
 

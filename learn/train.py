@@ -217,6 +217,13 @@ def main() -> None:
     singles = []
     for name in ("bias_sigma", "abs_z", "z_max_24", "trust", "drift_sigma_day",
                  "hk_max_abs_z", "flat_frac_24", "gap_frac_24"):
+        # Skip anything no longer in the feature set. This list is a fixed set
+        # of interesting single channels, and a hard index into FEATURES made
+        # removing a feature crash the whole run AFTER training but BEFORE the
+        # save -- which looked like a silent failure to save rather than an
+        # error in a diagnostic.
+        if name not in FEATURES:
+            continue
         j = FEATURES.index(name)
         v = X[:, j]
         # Low trust is bad; for everything else large magnitude is bad.
