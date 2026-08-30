@@ -36,6 +36,7 @@ import { StationChannels } from '../components/StationChannels'
 import { MAP_BOX, fieldRange, paintField, rampCss } from '../lib/field'
 import L from 'leaflet'
 import { Async } from '../components/Async'
+import { LiveFeed } from '../components/LiveFeed'
 import { usePageTitle } from '../lib/title'
 
 type Net = 'sim' | 'wdqms' | 'arm'
@@ -416,7 +417,7 @@ export function NetworkRoute() {
 
       {net === 'sim' && sim.data && (
         <div className="simbar">
-          <button className="btn ghost" onClick={() => setPlaying((p) => !p)}>
+          <button type="button" className="btn ghost" onClick={() => setPlaying((p) => !p)}>
             {playing ? 'Pause' : 'Play'}
           </button>
           <input type="range" min={0} max={nSteps - 1} value={hour}
@@ -497,6 +498,19 @@ export function NetworkRoute() {
         </details>
       )}
 
+      {/* The live half, first, because it is the half that is happening now.
+          Everything below it is a record of a month that has already been
+          graded; this is a reading arriving and being judged. */}
+      {net === 'sim' && (
+        <details className="netsec" open>
+          <summary className="belowhead">
+            Live ingest
+            <span className="muted"> · readings through the real pipeline</span>
+          </summary>
+          <LiveFeed apiBase={import.meta.env.VITE_API_BASE ?? ''} />
+        </details>
+      )}
+
       {net === 'sim' && (
         <details className="netsec" open>
           <summary className="belowhead">
@@ -536,7 +550,7 @@ export function NetworkRoute() {
                       </span>
                     </summary>
                     {sorted.map(({ s, band }) => (
-                      <button key={s.id}
+                      <button type="button" key={s.id}
                         className={'stn' + (s.id === selected ? ' on' : '')}
                         onClick={() => setSelected(s.id)}>
                         <span className="spine" style={{ background: HUE[band] ?? 'var(--rule)' }} />

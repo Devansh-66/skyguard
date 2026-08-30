@@ -270,6 +270,49 @@ def work_queue() -> dict:
     }
 
 
+def _model_opinion(df, z, beliefs, sensor: str, i: int) -> dict:
+    """Score one row with the deployable model, or say plainly why not.
+
+    Deployable, not the fourteen-feature model: three of that one's inputs are
+    logger voltage and logger temperature, which an AWS under PS26073 does not
+    report. Scoring ARM with features India will never have would flatter the
+    number and mislead anyone reading it.
+    """
+    try:
+        from learn.features import row_features
+        from api.model import _load
+
+        bundle = _load("deployable")
+        feats = row_features(df, z, beliefs, sensor, i)
+        names = bundle["features"]
+        x = np.array([[float(feats.get(f, np.nan)) for f in names]], dtype=float)
+        p = float(bundle["model"].predict_proba(x)[0, 1])
+        out = {
+            "probability": p,
+            "threshold": float(bundle["threshold"]),
+            "model": "deployable",
+            "caveat": ("Ranking aid. 1.22x the base rate out of fold, and it "
+                       "never reaches 80% precision at usable recall. It orders "
+                       "this queue; it does not decide anything in it."),
+        }
+        try:
+            import shap
+            sv = shap.TreeExplainer(bundle["model"]).shap_values(x)
+            vals = np.asarray(sv[1] if isinstance(sv, list) else sv).reshape(-1)
+            order = np.argsort(-np.abs(vals))[:6]
+            out["contributions"] = [
+                {"feature": names[k],
+                 "value": None if not np.isfinite(x[0, k]) else float(x[0, k]),
+                 "shap": float(vals[k])} for k in order]
+        except Exception as e:
+            out["contributions_error"] = f"{type(e).__name__}"
+        return out
+    except Exception as e:
+        # A missing model is a build step, not a bug, and the item is still
+        # worth reading without it.
+        return {"available": False, "why": f"{type(e).__name__}: {e}"}
+
+
 @router.get("/api/queue/{item_id:path}")
 def item(item_id: str) -> dict:
     """The evidence behind one queue item: checkers, belief, and the series."""
@@ -324,9 +367,21 @@ def item(item_id: str) -> dict:
     verdicts = [c(ctx) for c in PANEL]
     dec = adjudicate(verdicts, DoubleFaultMatrix(DFM_PATH))
 
+    # THE LEARNED MODEL'S OPINION, beside the panel's rather than instead of it.
+    #
+    # The panel is six hand-written checkers and an adjudication; the model is a
+    # gradient booster trained on nine ARM instruments. They answer the same
+    # question by different means, so showing both lets a reader see where they
+    # agree -- and, more usefully, where they do not.
+    #
+    # It scores the SAME hour the panel was evaluated at, or the comparison is
+    # between two different moments and means nothing.
+    model = _model_opinion(df, z, beliefs, it["sensor"], i)
+
     return {
         **it,
         "at": df.timestamp[i].isoformat(),
+        "model": model,
         "panel_note": ("The panel below is this ONE hour -- the moment the "
                        "evidence was strongest. The severity and drift above "
                        "are the accumulated belief over the whole record, which "

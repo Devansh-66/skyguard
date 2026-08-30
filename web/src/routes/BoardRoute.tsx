@@ -15,7 +15,7 @@
  * Rank is severity weighted by weight of evidence; reproducing that formula
  * here would give two rankings that quietly drift apart.
  */
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { usePageTitle } from '../lib/title'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Link } from 'react-router-dom'
@@ -35,6 +35,15 @@ export function BoardRoute() {
   const navigate = useNavigate()
   const q = useQueue()
   const sim = useSimMap()
+  /* WHICH HALF OF THE BOARD TO SHOW.
+   *
+   * The two groups rest on different evidence and rank by different numbers --
+   * ARM by severity in sigma against faults a human confirmed, the simulated
+   * network by duration against faults we injected. Both on screen at once is
+   * right for a survey and wrong for working: scrolling past 16 American masts
+   * to reach the Indian stations, every time, is the kind of friction that
+   * makes people stop using a queue. */
+  const [show, setShow] = useState<'all' | 'arm' | 'india'>('all')
   const items = q.data?.items
 
   // Land on the worst item rather than an empty pane. `replace` keeps this out
@@ -60,6 +69,15 @@ export function BoardRoute() {
                   worst first within each group.
                 </p>
               </header>
+
+              <label className="board-filter">
+                Show
+                <select value={show} onChange={(e) => setShow(e.target.value as never)}>
+                  <option value="all">Both networks</option>
+                  <option value="india">Simulated — India</option>
+                  <option value="arm">ARM — analyst-confirmed</option>
+                </select>
+              </label>
 
               <div className="board-score">
                 <Score v={data.scorecard.analyst_named} k="named by analysts" />
@@ -89,6 +107,7 @@ export function BoardRoute() {
                 * sigma, and nothing in the simulated export carries a sigma.
                 * Ranking them together would mean inventing a common number.
                 * The group heading says which evidence each half rests on. */}
+              {show !== 'india' && (<>
               <div className="group-head">
                 ARM instruments · {data.items.length} · analyst-confirmed faults
               </div>
@@ -98,6 +117,7 @@ export function BoardRoute() {
                   return (
                     <li key={it.id}>
                       <button
+                        type="button"
                         className={'card' + (active ? ' active' : '')}
                         onClick={() => navigate('/board/' + it.id)}
                         aria-current={active ? 'true' : undefined}
@@ -130,9 +150,11 @@ export function BoardRoute() {
                   )
                 })}
               </ul>
+              </>)}
 
+              {show !== 'arm' && (
               <SimItems sim={sim.data} selected={selected}
-                        onPick={(id) => navigate('/board/' + id)} />
+                        onPick={(id) => navigate('/board/' + id)} />)}
             </aside>
 
             <section className="board-detail">
@@ -249,7 +271,7 @@ function SimItems({ sim, selected, onPick }: {
           const active = it.id === selected
           return (
             <li key={it.id}>
-              <button className={'card' + (active ? ' active' : '')}
+              <button type="button" className={'card' + (active ? ' active' : '')}
                       onClick={() => onPick(it.id)}
                       aria-current={active ? 'true' : undefined}>
                 <span className={'spine ' + (it.band === 'FAULT' ? 'bad' : 'sus')}

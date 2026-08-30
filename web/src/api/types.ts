@@ -107,6 +107,22 @@ export interface QueueItemDetail extends QueueItem {
   explain: string
   series: Series
   analyst_note: string
+  /** What the learned model makes of the same hour the panel was judged at.
+   *  Absent, or `available: false`, when the model has not been trained. */
+  model?: ModelOpinion
+}
+
+/** The gradient booster's opinion, kept structurally separate from the panel's
+ *  so nothing can quietly merge a probability with a verdict. */
+export interface ModelOpinion {
+  available?: false
+  why?: string
+  probability?: number
+  threshold?: number
+  model?: string
+  caveat?: string
+  contributions?: { feature: string; value: number | null; shap: number }[]
+  contributions_error?: string
 }
 
 /** Parallel arrays, not an array of objects: these run to thousands of hourly

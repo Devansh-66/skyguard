@@ -165,7 +165,9 @@ async def _run(station_id: str | None, per_second: float, limit: int) -> None:
         raise
     finally:
         _state["running"] = False
-        with contextlib.suppress(Exception):
+        # Same reasoning: this runs during cancellation, and a broadcast that
+        # fails here must not replace the CancelledError with its own.
+        with contextlib.suppress(asyncio.CancelledError, Exception):
             await HUB.publish({"type": "feeder", "running": False, "sent": sent})
 
 
@@ -193,7 +195,11 @@ async def stop_replay() -> dict:
     _state["running"] = False
     if _feeder is not None:
         _feeder.cancel()
-        with contextlib.suppress(Exception):
+        # asyncio.CancelledError inherits from BaseException, NOT Exception, so
+        # suppress(Exception) does not catch it and awaiting a task you just
+        # cancelled re-raises straight through the endpoint. /api/live/stop
+        # returned 500 while stopping the feed perfectly well.
+        with contextlib.suppress(asyncio.CancelledError, Exception):
             await _feeder
         _feeder = None
     return {"stopped": True, "sent": _state["sent"]}

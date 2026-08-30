@@ -6,6 +6,7 @@
  * LAST because it is the answer key -- putting it first turns every reading of
  * this panel into confirmation of a label already seen.
  */
+import type { QueueItemDetail } from '../api/types'
 import { useQueueItem } from '../api/queries'
 import { siteInfo } from '../api/sites'
 import { Async } from './Async'
@@ -49,6 +50,10 @@ export function ItemDetail({ id }: { id: string }) {
             <Callout tone="sus" title="This estimate is weakened by its own reference">
               {it.reference.warning}
             </Callout>
+          )}
+
+          {it.model?.probability != null && (
+            <ModelOpinionBlock m={it.model} action={it.action} />
           )}
 
           <h3>What we believe about this instrument</h3>
@@ -127,5 +132,80 @@ export function ItemDetail({ id }: { id: string }) {
         )
       }}
     </Async>
+  )
+}
+
+/** The learned model's opinion, beside the panel's rather than instead of it.
+ *
+ * Two things are deliberately awkward here and both are the point.
+ *
+ * The probability is shown against its THRESHOLD, not on its own, because 0.29
+ * means nothing until you know the model only calls something faulty above
+ * 0.97. And where the model and the queue disagree the disagreement is stated
+ * out loud: they answer the same question by different means, and a reader who
+ * cannot see them diverge will assume they never do.
+ */
+function ModelOpinionBlock({ m, action }: {
+  m: NonNullable<QueueItemDetail['model']>
+  action: string
+}) {
+  const p = m.probability ?? 0
+  const thr = m.threshold ?? 1
+  const modelSays = p >= thr
+  const queueSays = action === 'DISPATCH'
+  const agree = modelSays === queueSays
+
+  return (
+    <section className="modelop">
+      <h3>What the learned model makes of it</h3>
+      <div className="fields">
+        <Field label="Probability" value={p.toFixed(3)} />
+        <Field label="Its threshold" value={thr.toFixed(3)} />
+        <Field label="Model says" value={modelSays ? 'faulty' : 'not faulty'} />
+        <Field label="Queue says" value={action} />
+      </div>
+
+      {!agree && (
+        <Callout tone="sus" title="The model and the queue disagree here">
+          The panel reached {action} from six hand-written checks; the model
+          scored {p.toFixed(3)} against a threshold of {thr.toFixed(3)}. Neither
+          is the answer. The panel is what this system acts on, and the model is
+          a second opinion trained on nine instruments — which is exactly the
+          amount of authority it has earned.
+        </Callout>
+      )}
+
+      {m.contributions && m.contributions.length > 0 && (
+        <>
+          <p className="muted small">
+            Exact Shapley values from the tree ensemble, not a surrogate&rsquo;s
+            approximation. Positive pushes towards faulty.
+          </p>
+          <div className="tablewrap">
+            <table className="shaptab">
+              <thead>
+                <tr><th>Feature</th><th>Value</th><th>Contribution</th></tr>
+              </thead>
+              <tbody>
+                {m.contributions.map((c) => (
+                  <tr key={c.feature}>
+                    <td className="mono">{c.feature}</td>
+                    <td className="mono num">
+                      {c.value == null ? '—' : c.value.toFixed(3)}
+                    </td>
+                    <td className="mono num"
+                        style={{ color: c.shap >= 0 ? 'var(--oxide)' : 'var(--ink-3)' }}>
+                      {c.shap >= 0 ? '+' : ''}{c.shap.toFixed(3)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      <p className="muted small">{m.caveat}</p>
+    </section>
   )
 }
