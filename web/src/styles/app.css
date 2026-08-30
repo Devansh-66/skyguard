@@ -629,3 +629,18 @@ details.netsec:not([open]) { padding-bottom: 4px; }
 .verdict-chip.ok { color: var(--ink-3); }
 .verdict-chip.watch { color: #1D6FE0; }
 .verdict-chip.fault { color: var(--signal-red); }
+
+/* Corpus-level caveats: shown once at the foot of the list, not repeated on
+   every sensor a reader opens. */
+.corpus-note { margin: 18px 0 8px; font-size: 12.5px; color: var(--ink-2); }
+.corpus-note > summary {
+  cursor: pointer; list-style: none;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-3);
+  padding: 7px 0; border-top: 1px solid var(--rule);
+}
+.corpus-note > summary::-webkit-details-marker { display: none; }
+.corpus-note > summary::before { content: "+ "; color: var(--ink-4); }
+.corpus-note[open] > summary::before { content: "\2212 "; }
+.corpus-note strong { display: block; margin-top: 10px; font-size: 12.5px; }
+.corpus-note p { margin: 3px 0 0; color: var(--ink-2); }

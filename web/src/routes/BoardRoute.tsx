@@ -153,19 +153,32 @@ export function BoardRoute() {
               </>)}
 
               {show !== 'arm' && (
-              <SimItems sim={sim.data} selected={selected}
-                        onPick={(id) => navigate('/board/' + id)} />)}
+                <SimItems sim={sim.data} selected={selected}
+                          onPick={(id) => navigate('/board/' + id)} />
+              )}
+
+              {/* THESE TWO DESCRIBE THE CORPUS, NOT THE ITEM.
+                *
+                * They used to sit at the top of the detail pane, so every
+                * sensor a reader opened repeated the same two paragraphs about
+                * the dataset -- and pushed the charts, the only thing that
+                * shows what actually happened, two thousand pixels down the
+                * scroll. A caveat that is true of all sixteen items is a
+                * property of the board and belongs on the board, once. */}
+              <details className="corpus-note">
+                <summary>About these figures</summary>
+                {data.action_note && (
+                  <>
+                    <strong>Why every item says DISPATCH</strong>
+                    <p>{data.action_note}</p>
+                  </>
+                )}
+                <strong>How to read the precision figure</strong>
+                <p>{data.scorecard.caveat}</p>
+              </details>
             </aside>
 
             <section className="board-detail">
-              {data.action_note && (
-                <Callout tone="neutral" title="Why every item carries the same action">
-                  {data.action_note}
-                </Callout>
-              )}
-              <Callout tone="sus" title="How to read the precision figure">
-                {data.scorecard.caveat}
-              </Callout>
               {/* A card that opens nothing is not a board item, so the
                   simulated sensors get a detail pane too -- their own, because
                   the evidence is different in kind. An ARM item is backed by a

@@ -52,9 +52,8 @@ export function ItemDetail({ id }: { id: string }) {
             </Callout>
           )}
 
-          {it.model?.probability != null && (
-            <ModelOpinionBlock m={it.model} action={it.action} />
-          )}
+          <h3>The record</h3>
+          <BeliefChart series={it.series} unit={it.unit} label={it.label} />
 
           <h3>What we believe about this instrument</h3>
           <div className="fields">
@@ -116,8 +115,9 @@ export function ItemDetail({ id }: { id: string }) {
             {it.note ? ' — ' + it.note : null}
           </p>
 
-          <h3>The record</h3>
-          <BeliefChart series={it.series} unit={it.unit} label={it.label} />
+          {it.model?.probability != null && (
+            <ModelOpinionBlock m={it.model} action={it.action} />
+          )}
 
           <h3>What the analyst wrote</h3>
           <p className="muted small">
