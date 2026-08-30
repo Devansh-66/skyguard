@@ -18,6 +18,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { get } from './client'
 import type { CatalogResponse, QueueItemDetail, QueueResponse } from './types'
+import type { ArmMap, SimMap, WdqmsMap } from './mapTypes'
 
 const ARCHIVE_STALE_MS = 5 * 60 * 1000
 
@@ -25,6 +26,8 @@ export const keys = {
   queue: ['queue'] as const,
   queueItem: (id: string) => ['queue', id] as const,
   catalog: ['ai', 'catalog'] as const,
+  map: (name: string) => ['map', name] as const,
+  tiles: ['tiles', 'status'] as const,
 }
 
 export function useQueue() {
@@ -60,3 +63,59 @@ export function useCatalog() {
   })
 }
 
+
+/* The map datasets. These are build artefacts, not live readings -- an export
+ * step produces them and nothing changes them in between -- so they are held
+ * for the whole session rather than refetched. The console inlines the same
+ * files; see api/mapdata.py for why the two frontends differ there.
+ */
+const BUILD_ARTEFACT = { staleTime: Infinity, gcTime: Infinity } as const
+
+export function useSimMap() {
+  return useQuery({
+    queryKey: keys.map('sim'),
+    queryFn: ({ signal }) => get<SimMap>('/api/map/sim', signal),
+    ...BUILD_ARTEFACT,
+  })
+}
+
+export function useWdqmsMap() {
+  return useQuery({
+    queryKey: keys.map('wdqms'),
+    queryFn: ({ signal }) => get<WdqmsMap>('/api/map/wdqms', signal),
+    ...BUILD_ARTEFACT,
+  })
+}
+
+export function useArmMap() {
+  return useQuery({
+    queryKey: keys.map('arm'),
+    queryFn: ({ signal }) => get<ArmMap>('/api/map/arm', signal),
+    ...BUILD_ARTEFACT,
+  })
+}
+
+export function useStatesGeo() {
+  return useQuery({
+    queryKey: keys.map('states'),
+    queryFn: ({ signal }) => get<unknown>('/api/map/states', signal),
+    ...BUILD_ARTEFACT,
+  })
+}
+
+/** The tile service's own status: it names the fingerprinted tile URL, which
+ *  must never be built by hand -- that is how a browser ends up caching an
+ *  obsolete basemap at a URL that did not change. */
+export function useTileStatus() {
+  return useQuery({
+    queryKey: keys.tiles,
+    queryFn: ({ signal }) => get<{
+      available: boolean
+      tile_template: string
+      boundary_template: string
+      attribution: string
+      max_zoom: number
+    }>('/api/tiles/status', signal),
+    staleTime: ARCHIVE_STALE_MS,
+  })
+}

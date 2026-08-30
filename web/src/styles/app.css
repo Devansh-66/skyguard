@@ -261,3 +261,66 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
   .sheet { padding-left: 18px; padding-right: 18px; }
   .topbar { padding: 0 16px; }
 }
+
+/* ---------------- network map ---------------- */
+
+.mapctl {
+  display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+  margin: 18px 0 10px; font-size: 12px; color: var(--ink-3);
+}
+.mapctl label { display: flex; align-items: center; gap: 6px; }
+.mapctl select {
+  font: inherit; font-size: 12px; padding: 3px 6px;
+  background: var(--paper-2); color: var(--ink);
+  border: 1px solid var(--rule-edge); border-radius: var(--radius-sm);
+}
+.mapctl .cbx { gap: 5px; }
+
+.mapwrap { border: 1px solid var(--rule-edge); }
+/* Explicit height, never aspect-ratio: a ratio plus a min-height makes the
+ * HEIGHT definite and the browser derives the width from it, and a Leaflet map
+ * built into a zero-sized box fits its bounds to NaN. */
+.netmap { width: 100%; height: clamp(420px, 52vh, 720px); background: #04060A; }
+.leaflet-container { font-family: var(--sans); }
+
+.simbar { display: flex; align-items: center; gap: 12px; margin: 10px 0 4px; flex-wrap: wrap; }
+.simbar input[type=range] { flex: 1 1 260px; min-width: 200px; accent-color: #E01B24; }
+.simbar .mono { font-size: 12px; }
+
+.netbelow {
+  display: grid; grid-template-columns: minmax(240px, 320px) minmax(320px, 1fr) minmax(220px, 300px);
+  gap: 26px; margin-top: 20px; align-items: start;
+}
+.netrail { max-height: 520px; overflow-y: auto; }
+.netrail details { border-bottom: 1px solid var(--rule-soft); }
+.netrail summary {
+  list-style: none; cursor: pointer; display: flex; gap: 8px; padding: 6px 2px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-2);
+}
+.netrail summary::-webkit-details-marker { display: none; }
+.netrail summary::before { content: "+"; color: var(--ink-3); width: 9px; }
+.netrail details[open] summary::before { content: "\2212"; }
+.netrail summary .state-count { margin-left: auto; text-transform: none; letter-spacing: 0; }
+.netrail .stn {
+  display: flex; width: 100%; text-align: left; cursor: pointer; padding: 0;
+  background: none; border: none; border-bottom: 1px solid var(--rule-minor);
+  align-items: stretch;
+}
+.netrail .stn:hover, .netrail .stn.on { background: var(--surface-2); }
+.netrail .spine { width: 3px; flex: none; }
+
+.chan { margin-bottom: 12px; }
+.chan-head { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 3px; }
+.chansvg { display: block; width: 100%; height: 84px; border: 1px solid var(--rule); }
+
+.alertrow {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  border: 1px solid var(--rule-edge); border-left-width: 3px;
+  background: var(--paper-2); margin-bottom: 6px; font-size: 12.5px;
+}
+.alertname { background: none; border: none; padding: 0; cursor: pointer; font: inherit; text-align: left; }
+.alertname:hover { text-decoration: underline; }
+.btn.tiny { padding: 3px 9px; font-size: 11px; margin-left: auto; }
+
+@media (max-width: 1100px) { .netbelow { grid-template-columns: 1fr; } }

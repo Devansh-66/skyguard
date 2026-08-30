@@ -10,8 +10,14 @@
  * the top bar is not on it and the way back is the browser's back button.
  */
 import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { Suspense, lazy } from 'react'
 import { BoardRoute } from './routes/BoardRoute'
 import { HomeRoute } from './routes/HomeRoute'
+
+/* Leaflet is ~160 kB and only this route needs it. Code-split so opening the
+ * maintenance board does not wait for a mapping library it will not use. */
+const NetworkRoute = lazy(() =>
+  import('./routes/NetworkRoute').then((m) => ({ default: m.NetworkRoute })))
 
 
 export default function App() {
@@ -24,7 +30,7 @@ export default function App() {
         </Link>
         <nav className="links">
           <NavLink to="/board">Maintenance</NavLink>
-          <a href="/console/console.html">Network map</a>
+          <NavLink to="/network">Network</NavLink>
         </nav>
       </header>
 
@@ -33,6 +39,10 @@ export default function App() {
           <Route path="/" element={<HomeRoute />} />
           <Route path="/board" element={<BoardRoute />} />
           <Route path="/board/*" element={<BoardRoute />} />
+          <Route path="/network" element={
+            <Suspense fallback={<p className="notfound muted">Loading the map…</p>}>
+              <NetworkRoute />
+            </Suspense>} />
           {/* The board used to live at /queue. Anyone holding an old link is
               sent on rather than shown a dead end. */}
           <Route path="/queue" element={<Navigate to="/board" replace />} />

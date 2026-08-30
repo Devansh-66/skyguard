@@ -126,6 +126,11 @@ app.include_router(ingest_router)
 app.include_router(ai_router)
 app.include_router(queue_router)
 
+# The map datasets the React app fetches instead of inlining. See api/mapdata.py
+# for why the two frontends differ on this.
+from api.mapdata import router as mapdata_router  # noqa: E402
+app.include_router(mapdata_router)
+
 # Serve the console from the API itself. Same origin, so the browser's fetch
 # needs no CORS grant at all -- and a demo is one command and one URL instead
 # of a static server, a port, and an origin list that has to match.
