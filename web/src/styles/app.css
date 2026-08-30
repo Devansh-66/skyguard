@@ -550,3 +550,14 @@ details.netsec > summary::before {
 details.netsec:not([open]) > summary::before { content: "+"; }
 details.netsec > summary:hover { color: var(--ink); }
 details.netsec:not([open]) { padding-bottom: 4px; }
+
+
+/* A heading that exists for the document outline but not for the eye. Used
+   where the design deliberately shows no page title: the heading still has to
+   be there, or a screen reader has nothing to announce and no way to skip to
+   the content. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  border: 0;
+}

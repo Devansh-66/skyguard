@@ -202,3 +202,26 @@ class and a layout class must never share a name.
 It is worth noting how this was caught: `textContent` returns the raw string and
 hid it completely. Only `innerText`, which reflects `text-transform`, showed it.
 Verify rendered text with `innerText`.
+
+## Building from a fresh clone
+
+Two things the server needs are generated and not in the repository: the
+React bundle in `web/dist`, and the simulated network in
+`dashboard/sim_map.json`. Without them the app 404s and the network page
+comes up empty, which looks like a bug and is a missing build step.
+
+```bash
+python -m scripts.build_site
+```
+
+That simulates the network, injects and grades the faults, and builds the
+frontend — about eighty seconds, almost all of it in the grader. Then serve
+both from one process:
+
+```bash
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+`dashboard/wdqms.json` — the real IMD station list everything else is derived
+from — **is** committed, because rebuilding it needs a fetch from WMO and a
+build host may not have one.

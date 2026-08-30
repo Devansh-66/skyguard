@@ -19,6 +19,7 @@
  * meantime: a section that says "coming soon" is worse than no section.
  */
 import { Link } from 'react-router-dom'
+import { usePageTitle } from '../lib/title'
 import { useQueue, useQueueItem } from '../api/queries'
 import { siteName } from '../api/sites'
 import { Barograph } from '../components/Barograph'
@@ -27,6 +28,7 @@ import { extent, inSigma, include, stamp } from '../components/chart'
 const BIAS_TOLERANCE = 2
 
 export function HomeRoute() {
+  usePageTitle(undefined)
   const q = useQueue()
   const d = q.data
   const worst = d?.items[0]

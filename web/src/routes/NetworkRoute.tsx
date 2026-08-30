@@ -36,6 +36,7 @@ import { StationChannels } from '../components/StationChannels'
 import { MAP_BOX, fieldRange, paintField, rampCss } from '../lib/field'
 import L from 'leaflet'
 import { Async } from '../components/Async'
+import { usePageTitle } from '../lib/title'
 
 type Net = 'sim' | 'wdqms' | 'arm'
 type BaseKey = 'imagery' | 'muted' | 'dark'
@@ -84,7 +85,10 @@ function TilePaneFilter({ filter }: { filter: string }) {
   const map = useMap()
   useEffect(() => {
     const pane = map.getPane('tilePane')
-    if (pane) pane.style.filter = filter
+    if (pane) {
+      pane.style.filter = filter
+      pane.setAttribute('aria-hidden', 'true')
+    }
   }, [map, filter])
   return null
 }
@@ -162,6 +166,7 @@ function Extent({ view, flagged }: {
 }
 
 export function NetworkRoute() {
+  usePageTitle('Network')
   const tiles = useTileStatus()
   const sim = useSimMap()
   const wdqms = useWdqmsMap()
@@ -254,10 +259,13 @@ export function NetworkRoute() {
 
   return (
     <div className="sheet network">
-      {/* No page title. The top bar already says which page this is, and a
-          page-sized heading repeating it pushed the map -- the actual content --
-          below the fold on a laptop. What the network IS belongs on the control
-          row beside the selector that changes it. */}
+      {/* No VISIBLE page title: the top bar already says which page this is,
+          and a page-sized heading repeating it pushed the map -- the actual
+          content -- below the fold on a laptop.
+          The heading still has to exist. A document with no h1 gives a screen
+          reader nothing to announce and no way to jump to the content, and
+          removing the visible one had quietly removed the only one. */}
+      <h1 className="sr-only">Network</h1>
 
       <div className="mapctl">
         <label>Network

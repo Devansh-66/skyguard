@@ -16,6 +16,7 @@
  * here would give two rankings that quietly drift apart.
  */
 import { useEffect } from 'react'
+import { usePageTitle } from '../lib/title'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 import { useQueue, useSimMap } from '../api/queries'
@@ -29,6 +30,7 @@ import { Callout } from '../components/Callout'
 import { ItemDetail } from '../components/ItemDetail'
 
 export function BoardRoute() {
+  usePageTitle('Maintenance board')
   const selected = useParams()['*'] || ''
   const navigate = useNavigate()
   const q = useQueue()
