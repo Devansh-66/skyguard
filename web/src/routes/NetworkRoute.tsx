@@ -387,6 +387,7 @@ export function NetworkRoute() {
             {playing ? 'Pause' : 'Play'}
           </button>
           <input type="range" min={0} max={nSteps - 1} value={hour}
+                 aria-label="Hour of the replay"
                  onChange={(e) => setHour(+e.target.value)} />
           <span className="mono">{timeLabel(sim.data, hour)}</span>
           <span className="mono muted">
@@ -410,14 +411,69 @@ export function NetworkRoute() {
         </div>
       )}
 
+      {/* NOT THREE COLUMNS.
+        *
+        * Rail, station and alerts side by side gave each of them about 260px,
+        * and none of the three can do its job in 260px: a month-long trace
+        * becomes a smudge, an alert wraps onto four lines, and the state list
+        * was the only one that did not mind. So the page reads DOWN instead,
+        * full width, one question per section -- which is also how the rest of
+        * this site is built. The two that are really tables are drawn as
+        * tables, and the station index flows across the width in text columns
+        * rather than being penned into a panel. */}
+
       {net === 'sim' && (
-        <div className="netbelow">
-          <section>
-            <div className="belowhead">
-              All stations · {flagged.length} flagged of {graded.length}
-              {sim.data && <span className="mono muted"> · {timeLabel(sim.data, hour)}</span>}
-            </div>
-            <div className="netrail">
+        <section className="netsec">
+          <div className="belowhead">
+            {chosen ? 'Selected station' : 'No station selected'}
+            {sim.data && <span className="mono muted"> · {timeLabel(sim.data, hour)}</span>}
+          </div>
+          {!chosen || !sim.data
+            ? <p className="muted small">Click a station on the map, or a row in the
+                index below, to see its three channels across the whole month.</p>
+            : (<>
+                <div className="stnhead">
+                  <h2>{chosen.name}</h2>
+                  {/* Where the station IS, before what it is doing: 32 C is
+                      unremarkable in Chennai and alarming at 3000 m. */}
+                  <span className="mono muted">
+                    {chosen.id} · {chosen.state} · {chosen.elev} m ·{' '}
+                    {Math.abs(chosen.lat).toFixed(2)}{chosen.lat < 0 ? 'S' : 'N'}{' '}
+                    {Math.abs(chosen.lon).toFixed(2)}{chosen.lon < 0 ? 'W' : 'E'}
+                  </span>
+                  <span className="small muted stnnote">
+                    {chosen.fault
+                      ? `Injected: ${chosen.fault.kind} on ${chosen.fault.channel}, `
+                        + `from hour ${chosen.fault.onset_hour}. Shown beside the `
+                        + `verdict, never used to reach it.`
+                      : 'No fault was injected here. Anything shaded is this '
+                        + 'project being wrong.'}
+                  </span>
+                </div>
+                <StationChannels sim={sim.data} s={chosen} hour={hour} />
+              </>)}
+        </section>
+      )}
+
+      {net === 'sim' && (
+        <section className="netsec">
+          <div className="belowhead">
+            Alerts · {flagged.filter((r) => !acked.has(r.s.id + ':' + r.band)).length} open
+          </div>
+          <AlertList sim={sim.data} rows={flagged} hour={hour} acked={acked} onAck={(k) => {
+            const next = new Set(acked)
+            if (next.has(k)) next.delete(k); else next.add(k)
+            setAcked(next)
+          }} onSelect={setSelected} />
+        </section>
+      )}
+
+      {net === 'sim' && (
+        <section className="netsec">
+          <div className="belowhead">
+            Station index · {flagged.length} flagged of {graded.length}
+          </div>
+          <div className="netrail">
               {byState.map(([state, rows]) => {
                 const bad = rows.filter((r) => r.band === 'WATCH' || r.band === 'FAULT').length
                 const isOpen = open.has(state)
@@ -460,49 +516,8 @@ export function NetworkRoute() {
                   </details>
                 )
               })}
-            </div>
-          </section>
-
-          <section>
-            <div className="belowhead">
-              {chosen ? chosen.name : 'Selected station'}
-            </div>
-            {!chosen || !sim.data
-              ? <p className="muted small">Click a station on the map, or a row in the
-                  list, to see its three channels across the whole month.</p>
-              : (<>
-                  {/* Where the station IS, before what it is doing. The charts
-                      below are unreadable without it: 32 C is unremarkable in
-                      Chennai and alarming at 3000 m in Ladakh. */}
-                  <div className="inspector mono">
-                    {chosen.id}<br />
-                    {chosen.state} · {chosen.elev} m ·{' '}
-                    {Math.abs(chosen.lat).toFixed(2)}{chosen.lat < 0 ? 'S' : 'N'}{' '}
-                    {Math.abs(chosen.lon).toFixed(2)}{chosen.lon < 0 ? 'W' : 'E'}
-                  </div>
-                  <p className="small muted">
-                    {chosen.fault
-                      ? `Injected: ${chosen.fault.kind} on ${chosen.fault.channel}, `
-                        + `from hour ${chosen.fault.onset_hour}. Shown beside the `
-                        + `verdict, never used to reach it.`
-                      : 'No fault was injected into this station. Anything shaded '
-                        + 'below is this project being wrong.'}
-                  </p>
-                  <StationChannels sim={sim.data} s={chosen} hour={hour} />
-                </>)}
-          </section>
-
-          <section>
-            <div className="belowhead">
-              Alerts · {flagged.filter((r) => !acked.has(r.s.id + ':' + r.band)).length} open
-            </div>
-            <AlertList sim={sim.data} rows={flagged} hour={hour} acked={acked} onAck={(k) => {
-              const next = new Set(acked)
-              if (next.has(k)) next.delete(k); else next.add(k)
-              setAcked(next)
-            }} onSelect={setSelected} />
-          </section>
-        </div>
+          </div>
+        </section>
       )}
 
       {net === 'sim' && sim.data && (
@@ -583,6 +598,7 @@ function StationChannels({ sim, s, hour }: {
 
   return (
     <>
+      <div className="chanrow">
       {CH.map((ch) => {
         const vals = Array.from({ length: nf }, (_, i) => readingAt(sim, s, ch, i))
         const fin = vals.filter((v): v is number => v != null)
@@ -626,7 +642,10 @@ function StationChannels({ sim, s, hour }: {
                 {now == null ? 'no data' : now.toFixed(1) + ' ' + UNIT[ch]}
               </span>
             </div>
-            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="chansvg">
+            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="chansvg"
+                 role="img"
+                 aria-label={`${NAME[ch]} at ${s.name} over 30 days, `
+                   + `${lo.toFixed(1)} to ${hi.toFixed(1)} ${UNIT[ch]}`}>
               <rect width={W} height={H} className="chan-stock" />
               {/* Chart-paper ruling, so a trace is read against something. */}
               {[0.25, 0.5, 0.75].map((f) => (
@@ -640,6 +659,7 @@ function StationChannels({ sim, s, hour }: {
           </div>
         )
       })}
+      </div>
       <p className="small muted">
         Shading is this project's own verdict, not the injected truth.
         {s.fault
@@ -679,37 +699,54 @@ function AlertList({ sim, rows, hour, acked, onAck, onSelect }: {
   const quiet = rows.filter((r) => acked.has(r.s.id + ':' + r.band))
   const when = sim ? timeLabel(sim, hour) : '—'
 
-  const item = (r: { s: SimStation; band: Band }, n: number, isAck: boolean) => (
-    <div className="alertrow" key={r.s.id + r.band}
-         style={{ borderLeftColor: HUE[r.band] ?? 'var(--rule)' }}>
-      <div className="alerthead mono">{n} · {when}</div>
-      <div className="alertline">
+  const row = (r: { s: SimStation; band: Band }, n: number, isAck: boolean) => (
+    <tr key={r.s.id + r.band} className={isAck ? 'ackd' : undefined}>
+      <td className="num">{n}</td>
+      <td className="mono when">{when}</td>
+      <td>
         <button className="alertname" onClick={() => onSelect(r.s.id)}>{r.s.name}</button>
+      </td>
+      <td className="mono muted">{r.s.state}</td>
+      <td className="mono">{firedChannel(r.s, r.band, hour)}</td>
+      <td>
         <span className="badge" style={{ color: HUE[r.band]!, borderColor: HUE[r.band]! }}>
           {BAND_LABEL[r.band]}
         </span>
-      </div>
-      <div className="alertmeta mono">
-        {r.s.state} · {firedChannel(r.s, r.band, hour)}
-      </div>
-      <button className="btn ghost tiny" onClick={() => onAck(r.s.id + ':' + r.band)}>
-        {isAck ? 'Reopen' : 'Acknowledge'}
-      </button>
-    </div>
+      </td>
+      <td className="act">
+        <button className="btn ghost tiny" onClick={() => onAck(r.s.id + ':' + r.band)}>
+          {isAck ? 'Reopen' : 'Acknowledge'}
+        </button>
+      </td>
+    </tr>
   )
+
+  if (!rows.length) {
+    return <p className="muted small">Nothing flagged at this hour. An alert closes
+      by itself when the station returns to OK.</p>
+  }
 
   return (
     <>
-      {open.length ? open.map((r, i) => item(r, i + 1, false))
-        : <p className="muted small">Nothing open at this hour. An alert closes by
-            itself when the station returns to OK.</p>}
-      {quiet.length > 0 && (
-        <>
-          <div className="belowhead" style={{ marginTop: 14 }}>Acknowledged · {quiet.length}</div>
-          {quiet.map((r, i) => item(r, i + 1, true))}
-        </>
-      )}
+      {/* A TABLE, because this is a table: every alert has the same six facts
+          and the reader is comparing them down the column. As stacked cards
+          they could only be read one at a time. */}
+      <div className="tabwrap">
+        <table className="alerttab">
+          <thead>
+            <tr>
+              <th className="num">#</th><th>Raised</th><th>Station</th>
+              <th>State</th><th>Channel</th><th>Grade</th><th />
+            </tr>
+          </thead>
+          <tbody>
+            {open.map((r, i) => row(r, i + 1, false))}
+            {quiet.map((r, i) => row(r, open.length + i + 1, true))}
+          </tbody>
+        </table>
+      </div>
       <p className="small muted">
+        {quiet.length > 0 && `${quiet.length} acknowledged, shown greyed. `}
         Acknowledgement is held in this tab only — no store, no assignment, no
         work order. A station escalating from watch to fault re-opens rather
         than staying silenced.

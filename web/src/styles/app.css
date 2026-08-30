@@ -287,23 +287,15 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
 .simbar input[type=range] { flex: 1 1 260px; min-width: 200px; accent-color: #E01B24; }
 .simbar .mono { font-size: 12px; }
 
-/* THREE COLUMNS, AND THEY HOLD.
+/* The page reads DOWN, not across.
  *
- * The old rule collapsed everything to one column below 1100px, which is a
- * common laptop once a browser's own chrome is taken off. Stacked, the page
- * became map, then a long list, then the station, then the alerts -- four
- * screens of scrolling to compare two things that are meant to be read
- * together. auto-fit keeps as many columns as actually fit and drops them one
- * at a time instead of all at once. */
-.netbelow {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 26px 30px; margin-top: 20px; align-items: start;
-}
-/* NO INNER SCROLLBAR. A scrolling box inside a scrolling page traps the wheel:
-   the reader scrolls, hits the list, and the page stops moving for no reason
-   they can see. The list is 36 rows collapsed and the page can carry it. */
-.netrail { }
+ * Rail, station and alerts side by side gave each about 260px and none of them
+ * could work in it -- a month-long trace became a smudge and an alert wrapped
+ * onto four lines. Full-width sections, one question each, in the order a
+ * watcher asks them: what is this station doing, what is wrong right now, and
+ * what else is out there. */
+.netsec { margin-top: 26px; }
+.netsec + .netsec { border-top: 1px solid var(--rule-soft); padding-top: 18px; }
 .netrail details { border-bottom: 1px solid var(--rule-soft); }
 .netrail summary {
   list-style: none; cursor: pointer; display: flex; gap: 8px; padding: 6px 2px;
@@ -379,3 +371,45 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
   vector-effect: non-scaling-stroke;
 }
 .chan-now { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 3 2; }
+
+
+/* THE STATION, FULL WIDTH. Three charts across rather than stacked in a
+   column: they share an x axis, and reading them together is the entire point
+   of showing all three. */
+.stnhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 12px; }
+.stnhead h2 { font-size: 20px; margin: 0; }
+.stnhead .stnnote { flex-basis: 100%; }
+.chanrow {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px 24px;
+}
+.chanrow .chan { margin: 0; }
+.chansvg { height: 108px; }
+
+/* Wide content scrolls inside its own box; the page body never does. */
+.tabwrap { overflow-x: auto; }
+.alerttab { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.alerttab th {
+  text-align: left; font-family: var(--mono); font-weight: 400;
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ink-3); padding: 0 14px 5px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.alerttab td { padding: 7px 14px 7px 0; border-bottom: 1px solid var(--rule-minor); vertical-align: middle; }
+.alerttab .num { width: 1%; color: var(--ink-3); font-family: var(--mono); }
+.alerttab .when { white-space: nowrap; font-size: 11px; color: var(--ink-3); }
+.alerttab .act { width: 1%; white-space: nowrap; }
+.alerttab tr.ackd td { opacity: .5; }
+.alerttab tr:hover td { background: var(--surface-2); }
+.alertname {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; color: var(--ink); text-align: left;
+  border-bottom: 1px solid var(--rule-edge);
+}
+.alertname:hover { border-bottom-color: var(--ink); }
+
+/* THE INDEX FLOWS ACROSS THE WIDTH. Thirty-six states in one narrow column was
+   a scroll; in text columns they fit on a screen, and a details element that
+   opens simply makes its column longer. */
+.netrail { column-width: 260px; column-gap: 34px; }
+.netrail details { break-inside: avoid; }
