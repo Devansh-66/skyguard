@@ -324,3 +324,14 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
 .btn.tiny { padding: 3px 9px; font-size: 11px; margin-left: auto; }
 
 @media (max-width: 1100px) { .netbelow { grid-template-columns: 1fr; } }
+
+/* The channel-field legend. Sits under the clock, only when a field base is
+   chosen; the ramp is the same function the canvas is painted with. */
+.fieldkey {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 8px; font-size: 11px; color: var(--ink-3);
+}
+.fieldramp {
+  flex: none; width: 190px; height: 9px;
+  border: 1px solid var(--rule-edge);
+}

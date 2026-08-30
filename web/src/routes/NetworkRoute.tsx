@@ -29,10 +29,13 @@ import {
 } from '../api/queries'
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
 import { bandAt, frameOf, readingAt, reported, timeLabel } from '../lib/sim'
+import { MAP_BOX, fieldRange, paintField, rampCss } from '../lib/field'
+import L from 'leaflet'
 import { Async } from '../components/Async'
 
 type Net = 'sim' | 'wdqms' | 'arm'
 type BaseKey = 'imagery' | 'muted' | 'dark'
+  | 'field_temp' | 'field_rh' | 'field_pres'
 type Channel = 'health' | 'temp' | 'rh' | 'pres'
 
 /* Only two of these are colours. A station with nothing wrong carries no hue at
@@ -82,10 +85,25 @@ function why(band: Band): string | undefined {
   return band === 'NODATA' ? UNGRADED_WHY : undefined
 }
 
-const BASES: Record<BaseKey, { label: string; filter: string; ok: string; okOpacity: number }> = {
+type BaseDef = {
+  label: string; filter: string; ok: string; okOpacity: number
+  /** Set on the three channel fields; absent on the plain bases. */
+  field?: 'temp' | 'rh' | 'pres'
+}
+
+/* The base is a FILTER over the tiles plus, for three of them, an interpolated
+ * field painted on top. The channel maps used to be three small panels beside
+ * the main one; folding them in here is what let the map go full width, and it
+ * is the same question asked of the same ground rather than four grounds. */
+const BASES: Record<BaseKey, BaseDef> = {
   imagery: { label: 'Imagery', filter: 'none', ok: '#FFFFFF', okOpacity: 0.6 },
   muted: { label: 'Muted', filter: 'grayscale(1) brightness(1.08) contrast(0.82)', ok: '#171A1E', okOpacity: 0.42 },
   dark: { label: 'Dark', filter: 'grayscale(1) brightness(0.42) contrast(1.15)', ok: '#FFFFFF', okOpacity: 0.5 },
+  // The fields sit ON TOP of a darkened basemap rather than replacing it, so
+  // coastline and terrain are still there to place a station against.
+  field_temp: { label: 'Temperature field', field: 'temp', filter: 'grayscale(1) brightness(0.30)', ok: '#FFFFFF', okOpacity: 0.55 },
+  field_rh: { label: 'Humidity field', field: 'rh', filter: 'grayscale(1) brightness(0.30)', ok: '#FFFFFF', okOpacity: 0.55 },
+  field_pres: { label: 'Pressure field (MSL)', field: 'pres', filter: 'grayscale(1) brightness(0.30)', ok: '#FFFFFF', okOpacity: 0.55 },
 }
 
 /** India, for the opening view. The map shows the world; this is where it
@@ -101,6 +119,39 @@ function TilePaneFilter({ filter }: { filter: string }) {
     const pane = map.getPane('tilePane')
     if (pane) pane.style.filter = filter
   }, [map, filter])
+  return null
+}
+
+/** The field as the map's own background.
+ *
+ * An image overlay in a pane BELOW the markers and above the tiles, so the
+ * stations stay readable on top of it. Repainted whenever the clock moves; the
+ * geometry index behind it is computed once and reused, which is the only
+ * reason scrubbing stays smooth. */
+function FieldOverlay(
+  { ch, rows, frame }:
+  { ch: 'temp' | 'rh' | 'pres' | undefined; rows: SimStation[]; frame: number },
+) {
+  const map = useMap()
+  const layer = useRef<L.ImageOverlay | null>(null)
+  useEffect(() => {
+    if (layer.current) { map.removeLayer(layer.current); layer.current = null }
+    if (!ch || !rows.length) return
+    if (!map.getPane('fieldPane')) {
+      map.createPane('fieldPane')
+      map.getPane('fieldPane')!.style.zIndex = '250'
+    }
+    const url = paintField(ch, rows, frame)
+    if (!url) return
+    layer.current = L.imageOverlay(
+      url,
+      [[MAP_BOX.lat0, MAP_BOX.lon0], [MAP_BOX.lat1, MAP_BOX.lon1]],
+      { pane: 'fieldPane', opacity: 0.92, interactive: false },
+    ).addTo(map)
+    return () => {
+      if (layer.current) { map.removeLayer(layer.current); layer.current = null }
+    }
+  }, [map, ch, rows, frame])
   return null
 }
 
@@ -218,6 +269,9 @@ export function NetworkRoute() {
                           className="netmap">
               <FitIndiaOnce />
               <TilePaneFilter filter={b.filter} />
+              <FieldOverlay ch={b.field}
+                            rows={net === 'sim' && sim.data ? sim.data.stations : []}
+                            frame={sim.data ? frameOf(sim.data, hour) : 0} />
               {t.available && (
                 <>
                   <TileLayer url={t.tile_template} maxZoom={t.max_zoom}
@@ -301,6 +355,20 @@ export function NetworkRoute() {
           <span className="mono muted">
             {flagged.filter((r) => r.band === 'FAULT').length} fault ·{' '}
             {flagged.filter((r) => r.band === 'WATCH').length} watch · hour {hour + 1}/{nSteps}
+          </span>
+        </div>
+      )}
+
+      {/* A field with no scale is decoration. The ends are the channel's own
+          encoding range, which is what the ramp is stretched across. */}
+      {b.field && sim.data && (
+        <div className="fieldkey">
+          <span className="mono">{fieldRange(sim.data, b.field).lo} {fieldRange(sim.data, b.field).unit}</span>
+          <span className="fieldramp" style={{ background: rampCss(b.field) }} />
+          <span className="mono">{fieldRange(sim.data, b.field).hi} {fieldRange(sim.data, b.field).unit}</span>
+          <span className="small muted">
+            {BASES[base].label} — interpolated from 344 stations by inverse
+            distance weighting. The surface is drawn; only the dots are measured.
           </span>
         </div>
       )}
