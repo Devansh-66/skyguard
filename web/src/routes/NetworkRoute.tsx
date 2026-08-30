@@ -151,7 +151,19 @@ function CtrlWheelZoom() {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault()
         e.stopPropagation()
-        map.setZoom(map.getZoom() - Math.sign(e.deltaY) * 0.5)
+        /* A WHOLE LEVEL, and zoomIn/zoomOut rather than arithmetic on setZoom.
+         *
+         * This moved half a level, which stopped working the moment zoomSnap
+         * became 1 -- and stopped working in ONE DIRECTION ONLY, which is why
+         * it read as "zoom out is broken" rather than "zoom is broken". From
+         * level 4, in wants 4.5 and out wants 3.5; Math.round takes halves
+         * upward, so both land on 4 going out and 5 going in. Zooming in
+         * worked by luck and zooming out could never move at all.
+         *
+         * Half-steps and integer snapping cannot both be right. The snapping
+         * is what animates the tiles, so the step gives way. */
+        if (e.deltaY < 0) map.zoomIn(1)
+        else map.zoomOut(1)
         return
       }
       // Not a zoom: scroll the page by hand, because the container will not
@@ -353,7 +365,7 @@ export function NetworkRoute() {
               * moves over ready pixels instead of revealing grey and filling it
               * in. updateWhenZooming stops the layer redrawing mid-gesture. */}
             <MapContainer center={[22.5, 82]} zoom={4} scrollWheelZoom={false}
-                          zoomSnap={1} zoomDelta={0.5} zoomAnimation
+                          zoomSnap={1} zoomDelta={1} zoomAnimation
                           markerZoomAnimation fadeAnimation
                           className="netmap">
               <CtrlWheelZoom />
