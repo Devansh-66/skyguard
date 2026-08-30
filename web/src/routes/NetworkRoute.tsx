@@ -40,9 +40,7 @@ import { usePageTitle } from '../lib/title'
 
 type Net = 'sim' | 'wdqms' | 'arm'
 type BaseKey = 'imagery' | 'muted' | 'dark'
-  | 'field_temp' | 'field_rh' | 'field_pres'
 type Channel = 'health' | 'temp' | 'rh' | 'pres'
-type View = 'india' | 'flagged'
 
 /** How many of these carry no grade at all.
  *
@@ -53,25 +51,16 @@ function ungradedCount(rows: { band: Band }[]): number {
   return rows.filter((r) => r.band === 'NODATA').length
 }
 
-type BaseDef = {
-  label: string; filter: string; ok: string; okOpacity: number
-  /** Set on the three channel fields; absent on the plain bases. */
-  field?: 'temp' | 'rh' | 'pres'
-}
+type BaseDef = { label: string; filter: string; ok: string; okOpacity: number }
 
-/* The base is a FILTER over the tiles plus, for three of them, an interpolated
- * field painted on top. The channel maps used to be three small panels beside
- * the main one; folding them in here is what let the map go full width, and it
- * is the same question asked of the same ground rather than four grounds. */
+/* The base is a FILTER over the tiles. It used to also carry the three channel
+ * fields, which put "what am I looking at" in two dropdowns at once: Base said
+ * temperature and Channel said humidity and the map showed a mixture. One
+ * question, one control -- Base is the ground, Channel is the measurement. */
 const BASES: Record<BaseKey, BaseDef> = {
   imagery: { label: 'Imagery', filter: 'none', ok: '#FFFFFF', okOpacity: 0.6 },
   muted: { label: 'Muted', filter: 'grayscale(1) brightness(1.08) contrast(0.82)', ok: '#171A1E', okOpacity: 0.42 },
   dark: { label: 'Dark', filter: 'grayscale(1) brightness(0.42) contrast(1.15)', ok: '#FFFFFF', okOpacity: 0.5 },
-  // The fields sit ON TOP of a darkened basemap rather than replacing it, so
-  // coastline and terrain are still there to place a station against.
-  field_temp: { label: 'Temperature field', field: 'temp', filter: 'grayscale(1) brightness(0.30)', ok: '#FFFFFF', okOpacity: 0.55 },
-  field_rh: { label: 'Humidity field', field: 'rh', filter: 'grayscale(1) brightness(0.30)', ok: '#FFFFFF', okOpacity: 0.55 },
-  field_pres: { label: 'Pressure field (MSL)', field: 'pres', filter: 'grayscale(1) brightness(0.30)', ok: '#FFFFFF', okOpacity: 0.55 },
 }
 
 /** India, for the opening view. The map shows the world; this is where it
@@ -100,8 +89,9 @@ function TilePaneFilter({ filter }: { filter: string }) {
  * geometry index behind it is computed once and reused, which is the only
  * reason scrubbing stays smooth. */
 function FieldOverlay(
-  { ch, rows, frame }:
-  { ch: 'temp' | 'rh' | 'pres' | undefined; rows: SimStation[]; frame: number },
+  { ch, rows, frame, clip }:
+  { ch: 'temp' | 'rh' | 'pres' | undefined; rows: SimStation[]; frame: number
+    clip?: unknown },
 ) {
   const map = useMap()
   const layer = useRef<L.ImageOverlay | null>(null)
@@ -112,7 +102,7 @@ function FieldOverlay(
       map.createPane('fieldPane')
       map.getPane('fieldPane')!.style.zIndex = '250'
     }
-    const url = paintField(ch, rows, frame)
+    const url = paintField(ch, rows, frame, clip)
     if (!url) return
     layer.current = L.imageOverlay(
       url,
@@ -122,48 +112,59 @@ function FieldOverlay(
     return () => {
       if (layer.current) { map.removeLayer(layer.current); layer.current = null }
     }
-  }, [map, ch, rows, frame])
+  }, [map, ch, rows, frame, clip])
   return null
 }
 
-/** Where the map looks.
+/** Opens on India and then leaves the map alone.
  *
- * "All India" is the opening view and the one that keeps the country in
- * proportion. "Fit to flagged" answers the other question a watcher has -- how
- * spread out is the trouble -- and it deliberately does nothing when nothing is
- * flagged, because zooming to an empty set lands the map in the ocean. */
-/** Ctrl (or Cmd) plus the wheel zooms; the wheel alone scrolls the page. */
+ * There was a "fit to flagged" option here. It zoomed to the bounding box of
+ * whatever was flagged, which sounds useful and was not: with the recalibrated
+ * bands that is often nothing at all, sometimes one station, and the map either
+ * refused to move or threw itself at a single dot in Assam. A control whose
+ * behaviour depends on how many faults happen to exist right now is a control
+ * nobody can predict, and the map already answers "where" by being a map.
+ */
+function Extent() {
+  const map = useMap()
+  useEffect(() => { map.fitBounds(INDIA, { padding: [24, 24] }) }, [map])
+  return null
+}
+
+/** Ctrl (or Cmd) plus the wheel zooms. The wheel alone scrolls the PAGE.
+ *
+ * Turning Leaflet's own scrollWheelZoom off was not enough: the container still
+ * ate the event, so scrolling over the map neither zoomed nor scrolled and the
+ * page simply stopped dead under the cursor. That is worse than the trap it was
+ * meant to fix -- a map that steals the scroll at least does something.
+ *
+ * Leaflet sets touch-action:none on its container to own gestures, and that is
+ * what swallows the wheel. The listener below runs in the CAPTURE phase, so it
+ * sees the event before Leaflet does, and it only ever calls preventDefault for
+ * a real zoom. Everything else is left alone and reaches the document.
+ */
 function CtrlWheelZoom() {
   const map = useMap()
   useEffect(() => {
     const el = map.getContainer()
     const onWheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return
-      e.preventDefault()
-      map.setZoom(map.getZoom() - Math.sign(e.deltaY) * 0.5)
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault()
+        e.stopPropagation()
+        map.setZoom(map.getZoom() - Math.sign(e.deltaY) * 0.5)
+        return
+      }
+      // Not a zoom: scroll the page by hand, because the container will not
+      // let the event through on its own.
+      e.stopPropagation()
+      window.scrollBy({ top: e.deltaY, behavior: 'auto' })
     }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
+    el.addEventListener('wheel', onWheel, { passive: false, capture: true })
+    return () => el.removeEventListener('wheel', onWheel, true)
   }, [map])
   return null
 }
 
-function Extent({ view, flagged }: {
-  view: View; flagged: [number, number][]
-}) {
-  const map = useMap()
-  useEffect(() => {
-    if (view === 'india' || flagged.length === 0) {
-      map.fitBounds(INDIA, { padding: [24, 24] })
-      return
-    }
-    map.fitBounds(L.latLngBounds(flagged.map(([a, b]) => L.latLng(a, b))),
-                  { padding: [48, 48], maxZoom: 7 })
-    // Only when the CHOICE changes, never on every clock tick: refitting as
-    // stations flag and clear would make the map lurch while it is being read.
-  }, [map, view])
-  return null
-}
 
 export function NetworkRoute() {
   usePageTitle('Network')
@@ -178,7 +179,6 @@ export function NetworkRoute() {
   const [base, setBase] = useState<BaseKey>('imagery')
   const [channel, setChannel] = useState<Channel>('health')
   const [showStates, setShowStates] = useState(false)
-  const [view, setView] = useState<View>('india')
   /* HOW FAR THE CLOCK MOVES, and HOW MUCH CHART IS SHOWN. Both were fixed
    * constants -- an hour per tick and the whole month on every axis -- which
    * are reasonable defaults and terrible rules. A drift is invisible at
@@ -203,6 +203,16 @@ export function NetworkRoute() {
   }, [playing, nSteps, stepMin, sim.data])
 
   const b = BASES[base]
+  /* THE CHANNEL IS THE MEASUREMENT, and now it shows the measurement.
+   *
+   * Picking Temperature used to recolour the dots by the temperature grade and
+   * nothing else. With the bands recalibrated to 6 and 8 sigma that is one dot
+   * in three hundred and forty-four, so the control looked broken -- it was
+   * working perfectly and had almost nothing to say. Selecting a channel now
+   * also paints that channel's field, which is the data itself rather than a
+   * verdict about it, and always changes the whole map. */
+  const field: 'temp' | 'rh' | 'pres' | undefined =
+    channel === 'health' ? undefined : channel
 
   /* Graded once per hour, not once per marker: 344 stations times a lookup per
    * render is the difference between scrubbing and stuttering. Worst last so a
@@ -282,12 +292,6 @@ export function NetworkRoute() {
               <option key={k} value={k}>{v.label}</option>)}
           </select>
         </label>
-        <label>View
-          <select value={view} onChange={(e) => setView(e.target.value as View)}>
-            <option value="india">All India</option>
-            <option value="flagged">Fit to flagged</option>
-          </select>
-        </label>
         {net === 'sim' && (
           <label>Channel
             <select value={channel} onChange={(e) => setChannel(e.target.value as Channel)}>
@@ -335,19 +339,34 @@ export function NetworkRoute() {
               * scrolls down, the cursor crosses the map, the page stops and
               * the map zooms out instead. Ctrl/Cmd and the wheel still zooms,
               * the +/- buttons still work, and drag still pans. */}
+            {/* WHY THESE OPTIONS, EACH ONE MEASURED
+              *
+              * zoomSnap was 0.25, to make zooming feel less abrupt. Leaflet
+              * turns OFF zoom animation whenever zoom levels are fractional, so
+              * the cure was the cause of the tile-popping: every zoom redrew
+              * the map in one jump instead of gliding, which is exactly the
+              * difference between this and a map that feels like Google's.
+              * Integer snap with a half-step delta keeps the zoom gentle AND
+              * animated.
+              *
+              * keepBuffer loads a ring of tiles beyond the viewport so panning
+              * moves over ready pixels instead of revealing grey and filling it
+              * in. updateWhenZooming stops the layer redrawing mid-gesture. */}
             <MapContainer center={[22.5, 82]} zoom={4} scrollWheelZoom={false}
-                          zoomSnap={0.25} zoomDelta={0.5} wheelPxPerZoomLevel={170}
+                          zoomSnap={1} zoomDelta={0.5} zoomAnimation
+                          markerZoomAnimation fadeAnimation
                           className="netmap">
               <CtrlWheelZoom />
-              <Extent view={view}
-                      flagged={flagged.map((r) => [r.s.lat, r.s.lon] as [number, number])} />
+              <Extent />
               <TilePaneFilter filter={b.filter} />
-              <FieldOverlay ch={b.field}
+              <FieldOverlay ch={field}
                             rows={net === 'sim' && sim.data ? sim.data.stations : []}
-                            frame={sim.data ? frameOf(sim.data, hour) : 0} />
+                            frame={sim.data ? frameOf(sim.data, hour) : 0}
+                            clip={boundary.data} />
               {t.available && (
                 <>
                   <TileLayer url={t.tile_template} maxZoom={t.max_zoom}
+                             keepBuffer={4} updateWhenZooming={false}
                              attribution={t.attribution} />
                   {/* The official boundary from NCMRWF, not drawn by us: the
                       depiction of a national border is not something an
@@ -446,14 +465,15 @@ export function NetworkRoute() {
 
       {/* A field with no scale is decoration. The ends are the channel's own
           encoding range, which is what the ramp is stretched across. */}
-      {b.field && sim.data && (
+      {field && sim.data && (
         <div className="fieldkey">
-          <span className="mono">{fieldRange(sim.data, b.field).lo} {fieldRange(sim.data, b.field).unit}</span>
-          <span className="fieldramp" style={{ background: rampCss(b.field) }} />
-          <span className="mono">{fieldRange(sim.data, b.field).hi} {fieldRange(sim.data, b.field).unit}</span>
+          <span className="mono">{fieldRange(sim.data, field).lo} {fieldRange(sim.data, field).unit}</span>
+          <span className="fieldramp" style={{ background: rampCss(field) }} />
+          <span className="mono">{fieldRange(sim.data, field).hi} {fieldRange(sim.data, field).unit}</span>
           <span className="small muted">
-            {BASES[base].label} — interpolated from 344 stations by inverse
-            distance weighting. The surface is drawn; only the dots are measured.
+            Interpolated from 344 stations by inverse distance weighting,
+            clipped to the coastline. The surface is drawn; only the dots are
+            measured.
           </span>
         </div>
       )}

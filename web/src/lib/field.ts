@@ -91,8 +91,57 @@ export function fieldIndex(rows: SimStation[]) {
  * channel's fixed range -- rather than in units. The ramp only needs a
  * position, converting 15,000 cells to degrees would change nothing on screen,
  * and the encoded band is where the missing marker lives. */
+/** Turn a GeoJSON polygon set into a canvas path in grid coordinates. */
+type Geom = { type: string; coordinates: unknown }
+
+function clipPath(geo: unknown): Path2D | null {
+  /* GeoJSON arrives in three shapes and this only handled one of them.
+   * india_boundary.min.json is a bare Feature, not a FeatureCollection, so the
+   * `features` lookup came back undefined, the clip was skipped, and the field
+   * kept painting its rectangle -- silently, because a missing clip is not an
+   * error, it is just no clip. */
+  const g = geo as { type?: string; features?: { geometry?: Geom }[]; geometry?: Geom }
+  const geoms: Geom[] =
+    g?.features?.length ? g.features.map((f) => f.geometry).filter(Boolean) as Geom[]
+      : g?.geometry ? [g.geometry]
+        : g?.type && 'coordinates' in (g as object) ? [g as unknown as Geom]
+          : []
+  if (!geoms.length) return null
+  const path = new Path2D()
+  const px = (lon: number) => ((lon - MAP_BOX.lon0) / (MAP_BOX.lon1 - MAP_BOX.lon0)) * FIELD_W
+  const py = (lat: number) => ((MAP_BOX.lat1 - lat) / (MAP_BOX.lat1 - MAP_BOX.lat0)) * FIELD_H
+  const ring = (r: number[][]) => {
+    r.forEach(([lon, lat], i) => (i ? path.lineTo(px(lon), py(lat)) : path.moveTo(px(lon), py(lat))))
+    path.closePath()
+  }
+  for (const geom of geoms) {
+    const c = geom.coordinates as never
+    if (geom.type === 'Polygon') (c as number[][][]).forEach(ring)
+    else if (geom.type === 'MultiPolygon') {
+      (c as number[][][][]).forEach((poly) => poly.forEach(ring))
+    }
+  }
+  return path
+}
+
+/** One field, as a data URL ready for an image overlay.
+ *
+ * CLIPPED TO THE COASTLINE, not left as a rectangle.
+ *
+ * The field used to paint the whole grid, so it arrived on the map as a hard
+ * rectangle sitting over India with corners in the Arabian Sea and western
+ * China. That box was not a boundary of the data, it was the boundary of the
+ * loop that drew it -- and it read as the map being broken.
+ *
+ * Clipping to the vendored NCMRWF outline fixes both halves of that. The
+ * rectangle is gone, and what remains is honest: this surface is interpolated
+ * from Indian stations, so India is exactly where it means anything. Painting
+ * it over Tibet would be inventing weather from a station six hundred
+ * kilometres away.
+ */
 export function paintField(
   ch: 'temp' | 'rh' | 'pres', rows: SimStation[], frame: number,
+  clip?: unknown,
 ): string | null {
   if (!rows.length) return null
   const { idx, wt } = fieldIndex(rows)
@@ -107,6 +156,10 @@ export function paintField(
   cv.width = FIELD_W; cv.height = FIELD_H
   const ctx = cv.getContext('2d')
   if (!ctx) return null
+  if (clip) {
+    const path = clipPath(clip)
+    if (path) ctx.clip(path)
+  }
   const img = ctx.createImageData(FIELD_W, FIELD_H)
   const d = img.data
   for (let c = 0; c < FIELD_W * FIELD_H; c++) {
@@ -125,7 +178,17 @@ export function paintField(
     const col = rampAt(ch, acc / wsum)
     d[p] = col[0]; d[p + 1] = col[1]; d[p + 2] = col[2]; d[p + 3] = 255
   }
-  ctx.putImageData(img, 0, 0)
+  /* putImageData IGNORES the clip region -- it writes raw pixels straight into
+   * the buffer and no clip, transform or composite applies. Painting the field
+   * onto an offscreen canvas first and then drawing THAT through the clip is
+   * what makes the outline actually cut the image. This is the single most
+   * common way a canvas clip silently does nothing. */
+  const off = document.createElement('canvas')
+  off.width = FIELD_W; off.height = FIELD_H
+  const octx = off.getContext('2d')
+  if (!octx) return null
+  octx.putImageData(img, 0, 0)
+  ctx.drawImage(off, 0, 0)
   return cv.toDataURL()
 }
 
