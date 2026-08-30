@@ -26,6 +26,8 @@ from api.tiles import router as tiles_router
 from api.ingest import router as ingest_router
 from api.ai import router as ai_router
 from api.queue import router as queue_router
+from api.model import router as model_router
+from api.live import router as live_router
 
 ENGINE: Engine | None = None
 READY = False
@@ -155,6 +157,8 @@ app.include_router(queue_router)
 # for why the two frontends differ on this.
 from api.mapdata import router as mapdata_router  # noqa: E402
 app.include_router(mapdata_router)
+app.include_router(model_router)
+app.include_router(live_router)
 
 # The static console used to be mounted here at /console. It is gone: the React
 # app reached parity with it -- map, clock, station list, channel fields, alerts

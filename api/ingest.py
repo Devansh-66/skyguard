@@ -203,8 +203,32 @@ def ingest(r: Reading) -> dict:
         q.append(rec)
         n = len(q)
 
-    return {"ok": True, "accepted": accepted, "station": r.station,
-            "server_flags": server_flags, "buffered": n}
+    verdict = {"ok": True, "accepted": accepted, "station": r.station,
+               "server_flags": server_flags, "buffered": n}
+
+    # PUSH IT, so a reading arriving is something anyone watching can see.
+    #
+    # Fire-and-forget on purpose: a browser that has gone away, or a socket
+    # that blocks, must not make an ingest fail. The reading is already
+    # recorded by the time this runs, and losing the broadcast loses a moment
+    # rather than a measurement.
+    try:
+        import asyncio
+
+        from api.live import HUB
+        loop = asyncio.get_running_loop()
+        loop.create_task(HUB.publish({
+            "type": "reading", "t": rec["t"], "station": r.station,
+            "temp": r.temp, "rh": r.rh, "pres": r.pres,
+            "node_flags": list(r.flags), "server_flags": server_flags,
+            "accepted": accepted, "verdict": verdict, "source": "ingest",
+        }))
+    except RuntimeError:
+        # No running loop: called from a worker thread or a test. Nothing to
+        # push to, and nothing to complain about.
+        pass
+
+    return verdict
 
 
 @router.get("/api/ingest/recent")
