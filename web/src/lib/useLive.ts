@@ -30,6 +30,8 @@ interface GradeMessage {
   expected: number
   baseline: number
   baseline_needed: number
+  /** Record frames since this band began, or null while it is ok. */
+  open_frames: number | null
 }
 
 export type Band = 'learning' | 'ok' | 'watch' | 'fault'
@@ -63,6 +65,7 @@ export interface LiveState {
     expected: number
     baseline: number
     baselineNeeded: number
+    openFrames: number | null
   } | null
 }
 
@@ -123,6 +126,7 @@ function connect() {
         grade: {
           z: g.z, band: g.band, expected: g.expected,
           baseline: g.baseline, baselineNeeded: g.baseline_needed,
+          openFrames: g.open_frames,
         },
       })
       return

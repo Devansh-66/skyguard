@@ -240,9 +240,15 @@ export function NetworkRoute() {
    * fault on it belongs where every other fault is listed. Put first because
    * it is the only entry that is happening now -- everything else in this
    * ledger is a record of a month already graded. */
-  /** How long the node has been in this band, in its own words. */
-  const nodeOpenLabel = live.grade && live.grade.band !== 'ok'
-    ? `${Math.max(1, Math.round(live.frame - (live.grade.baseline || 0)))} frames`
+  /** How long the node has been in this band, in the SAME UNIT the rest of
+   *  this table uses.
+   *
+   *  It said "209 frames" beside rows saying "6 h", which is two units for one
+   *  quantity -- and the number was wrong as well, counted from the end of the
+   *  baseline rather than from the onset of the fault. A frame is half an hour
+   *  of record, so the conversion is the honest one. */
+  const nodeOpenLabel = live.grade?.openFrames != null
+    ? `${Math.max(1, Math.round(live.grade.openFrames / 2))} h`
     : null
 
   const ledgerWithNode = useMemo(() => {

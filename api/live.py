@@ -160,18 +160,26 @@ _fault: dict = {"kind": "none", "since": 0, "amplitude": 0.0}
 
 FAULTS = ("none", "drift", "stuck", "spike", "offset", "dropout")
 
-# Readings per simulated half-hour. At two readings a second this advances the
-# weather about one simulated day per two minutes -- slow enough that the
-# baseline is nearly flat over the span of a demo, which is the only condition
-# under which a slow drift is visible as a drift.
-FRAMES_PER_READING = 60
+# ONE READING, ONE FRAME.
+#
+# This was 60, on the theory that a slow frame advance kept the diurnal cycle
+# still so a drift could be seen against it. That reasoning was wrong. The
+# grader compares the reading with the NEIGHBOURS' estimate at the same frame,
+# so the daily cycle is in both terms and cancels in the residual -- the test
+# that seemed to show otherwise was measuring raw temperature, not the
+# residual, and measured the sunrise.
+#
+# What 60 did cost was real: the node covered thirty minutes of record every
+# thirty seconds, so crossing the month took twelve HOURS and the pen barely
+# left the first day of a thirty-day axis. At one frame per reading the same
+# sweep takes twelve minutes, which is what a recorder looks like.
+FRAMES_PER_READING = 1
 
-# What one reading REPRESENTS in simulated time. A frame is thirty simulated
-# minutes and sixty readings cover one, so each reading stands for half a
-# minute. The server needs this to judge rate of change: without it, it times
-# the gap with a wall clock and measures the demo's speed rather than the
-# weather's.
-SIM_MINUTES_PER_READING = 30.0 / FRAMES_PER_READING
+# What one reading represents: a frame is thirty simulated minutes, and one
+# reading now covers one. The server needs this to judge rate of change, and
+# without it, it times the gap with a wall clock and measures the demo's speed
+# rather than the weather's.
+SIM_MINUTES_PER_READING = 30.0
 
 
 def _neighbours(sim: dict, lat: float, lon: float, k: int = 6):
@@ -283,7 +291,8 @@ _resid: list[float] = []
 _last_frame = [0]
 
 _standing: dict = {"band": "learning", "z": 0.0, "since": None,
-                   "readings": 0, "expected": None, "last": None}
+                   "since_frame": None, "readings": 0,
+                   "expected": None, "last": None}
 
 
 def _grade_live(reported: float, expected: float) -> tuple[float, str]:
@@ -383,14 +392,23 @@ async def _run(per_second: float, limit: int) -> None:
                 if band != _standing["band"]:
                     # Date the condition from where it STARTED, not from where
                     # we became confident about it -- the same rule the alert
-                    # ledger uses for the simulated network.
-                    _standing["since"] = time.time() if band in ("watch", "fault") else None
+                    # ledger uses for the simulated network. Kept in BOTH
+                    # clocks: wall time for the board, record frames for the
+                    # ledger, because those two surfaces measure in different
+                    # units and each should be given its own rather than
+                    # converting one into the other on screen.
+                    live = band in ("watch", "fault")
+                    _standing["since"] = time.time() if live else None
+                    _standing["since_frame"] = frame if live else None
                 _standing.update(band=band, z=z, readings=sent,
                                  expected=exp[0], last=temp)
+                open_frames = (frame - _standing["since_frame"]
+                               if _standing["since_frame"] is not None else None)
                 await HUB.publish({
                     "type": "grade", "t": time.time(), "frame": frame,
                     "station": LIVE_STATION["name"],
                     "z": round(z, 2), "band": band,
+                    "open_frames": open_frames,
                     "expected": round(exp[0], 2),
                     "baseline": min(len(_resid), BASELINE_N),
                     "baseline_needed": BASELINE_N,
@@ -447,7 +465,7 @@ async def set_fault(kind: str = Query("none")) -> dict:
     # reading -- so the band was reset to "learning" every reading, the band
     # always "changed", and the clock on how long a fault had been open
     # restarted continuously. It read 0.0 seconds after twenty.
-    _standing.update(band="learning", z=0.0, since=None)
+    _standing.update(band="learning", z=0.0, since=None, since_frame=None)
     if kind == "none":
         # Repairing the node clears the learned baseline. Keeping residuals
         # gathered while it was broken would teach it that broken is normal --
