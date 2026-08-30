@@ -19,8 +19,24 @@ should not be confused in the writeup.
 
 ## 1. Backend — Hugging Face Space
 
-Free Spaces give 2 vCPU and 16 GB, which is far more than this needs. Create a
-**Docker** Space and give its `README.md` this front matter:
+**Read this before creating anything: the SDK depends on the account plan.**
+
+| Plan | What it can create for free |
+| --- | --- |
+| Free personal | Static Spaces, and up to 2 ZeroGPU Gradio Spaces |
+| PRO | Docker and Gradio Spaces on `cpu-basic` (2 vCPU / 16 GB) |
+
+`cpu-basic` costs nothing per hour but is gated behind a paid plan, so "the
+free tier gives 16 GB" is only true with PRO. Run `hf auth whoami` and read the
+`isPro` and `canPay` flags before choosing.
+
+### If PRO — Docker Space
+
+```bash
+hf repos create <user>/skyguard-api --type space --space-sdk docker --public
+```
+
+Push this repository to it; the root `Dockerfile` builds it. Space front matter:
 
 ```yaml
 ---
@@ -30,38 +46,49 @@ colorFrom: blue
 colorTo: gray
 sdk: docker
 app_port: 7860
+short_description: AWS sensor fault detection API
 ---
 ```
 
-Push this repository to it. The `Dockerfile` at the root builds the simulated
-network at image build time — about eighty seconds — so the Space does not
-spend that on every cold start.
+### If free — Gradio Space on ZeroGPU, running the same FastAPI app
 
-Then set one Space secret:
+This is not a GPU workload. ZeroGPU is simply the only free way to get a Python
+Space, and the documented pattern is a no-op `@spaces.GPU` function (the SDK
+requires at least one) with all real work outside it — so no GPU is ever
+requested and no quota is burned.
+
+```bash
+hf repos create <user>/skyguard-api --type space --space-sdk gradio --flavor zero-a10g --public
+```
+
+A **Static Space** is free for everyone but can only serve the frozen export:
+no ingest, no detector. A link, not the system.
+
+### Then, either way
 
 ```
-SKYGUARD_ORIGINS = https://<your-frontend>.vercel.app,https://<your-frontend>.pages.dev
+SKYGUARD_ORIGINS = https://<frontend>.vercel.app,https://<frontend>.pages.dev
 ```
 
-Without it the browser will fetch successfully and then throw the response
-away, which looks like a broken API and is actually a missing CORS origin.
+Without it the browser fetches successfully and throws the response away, which
+looks like a broken API and is a missing CORS origin.
 
 ### What the image does not contain
 
-The 138 MB ARM netCDF archive. Building the maintenance board reads 591 files
-to produce 200 kB of answer, and that answer cannot change: the archive is
-closed and the analyst reports are written. So `dashboard/queue.json` and
-`dashboard/queue_items.json` ship instead, regenerated on a machine that has
-the archive with:
+Neither the 138 MB ARM netCDF archive nor the 455 MB `data/` directory. The ARM
+board is served from `dashboard/queue.json` and `queue_items.json` — 204 kB of
+answer standing in for a closed archive — and the CSV replay behind
+`/api/stations`, `/api/alerts` and `/api/clock` is simply not loaded, so those
+three return 503 and nothing else notices. The dashboard calls none of them.
+
+Regenerate the frozen queue on a machine that has the archive:
 
 ```bash
 python -m scripts.export_queue
 ```
 
-The API detects the archive's absence and serves those, marking the response
-`"source": "precomputed"`. **The simulated network is not frozen this way** —
-it is graded on every request, and it is the path live readings will arrive on
-over MQTT.
+**The simulated network is not frozen this way.** It is graded on every request,
+and it is the path live readings will arrive on over MQTT.
 
 ## 2. Frontend — Vercel or Cloudflare Pages
 
