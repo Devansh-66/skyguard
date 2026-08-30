@@ -26,7 +26,8 @@
 import { GeoJSON, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  useArmMap, useBoundaryGeo, useLiveStation, useSimMap, useStatesGeo,
+  useArmMap, useBoundaryGeo, useLiveSeries, useLiveStation, useSimMap,
+  useStatesGeo,
   useTileStatus, useWdqmsMap,
 } from '../api/queries'
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
@@ -142,6 +143,7 @@ export function NetworkRoute() {
   const states = useStatesGeo()
   const boundary = useBoundaryGeo()
   const node = useLiveStation()
+  const nodeSeries = useLiveSeries()
   const live = useLive(import.meta.env.VITE_API_BASE ?? '')
 
   const [net, setNet] = useState<Net>('sim')
@@ -170,6 +172,27 @@ export function NetworkRoute() {
       () => setHour((h) => (h + by) % nSteps), 90)
     return () => { if (timer.current) window.clearInterval(timer.current) }
   }, [playing, nSteps, stepMin, sim.data])
+
+  /* THE NODE'S RECORD, with what it has reported live written over the top.
+   *
+   * The series is its history -- the same thirty days every other station has,
+   * so its chart is a chart and not a stub on an empty axis. The live readings
+   * replace individual frames as they arrive, which is where an injected fault
+   * shows up. History underneath, what is happening now on top, one line. */
+  const nodeHistory = useMemo(() => {
+    const base = nodeSeries.data?.values
+    if (!base) return live.byFrame
+    const merge = (h: number[], l: (number | null)[]) => {
+      const out: (number | null)[] = h.slice()
+      l.forEach((v, i) => { if (v != null) out[i] = v })
+      return out
+    }
+    return {
+      temp: merge(base.temp, live.byFrame.temp),
+      rh: merge(base.rh, live.byFrame.rh),
+      pres: merge(base.pres, live.byFrame.pres),
+    }
+  }, [nodeSeries.data, live.byFrame])
 
   const b = BASES[base]
   /* Whether the live node's last reading failed the screen. Kept next to the
@@ -626,8 +649,8 @@ export function NetworkRoute() {
                   s={nodeStation!}
                   hour={hour}
                   windowH={windowH}
-                  live={{ byFrame: live.byFrame, grades: live.grades,
-                          upto: live.frame }} />
+                  live={{ byFrame: nodeHistory, grades: live.grades,
+                          upto: (nodeSeries.data?.n_fields ?? 1) - 1 }} />
 
                 <p className="small muted">
                   Readings arrive at <code>/api/ingest</code>, are screened

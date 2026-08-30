@@ -146,6 +146,20 @@ export function useLiveStanding() {
   })
 }
 
+/** The live node's own thirty-day record, so its chart is a station's chart
+ *  and not a stub. Live readings overwrite frames on top of this. */
+export function useLiveSeries() {
+  return useQuery({
+    queryKey: ['live', 'series'] as const,
+    queryFn: ({ signal }) => get<{
+      n_fields: number
+      values: { temp: number[]; rh: number[]; pres: number[] }
+    }>('/api/live/series', signal),
+    staleTime: Infinity,
+    retry: false,
+  })
+}
+
 export function useStatesGeo() {
   return useQuery({
     queryKey: keys.map('states'),
