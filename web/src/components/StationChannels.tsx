@@ -141,15 +141,8 @@ export function StationChannels({ sim, s, hour, windowH = 0 }: {
         // A reading with no grade is not a missing reading.
         const ungraded = band === 'NODATA' && now != null
         return (
-          /* EACH CHANNEL FOLDS AWAY.
-           *
-           * Three charts is the right default -- they share an axis and are
-           * meant to be read together -- but a reader chasing one drifting
-           * barometer does not want two thermometers in the way. Open by
-           * default, because a page of collapsed headings hides the content
-           * behind a click nobody knows to make. */
-          <details className="chan" key={ch} open>
-            <summary className="chan-head">
+          <div className="chan" key={ch}>
+            <div className="chan-head">
               <strong>{NAME[ch]}</strong>
               {band !== 'OK' && (
                 <span className="badge" title={why(band)}
@@ -165,7 +158,7 @@ export function StationChannels({ sim, s, hour, windowH = 0 }: {
               <span className="chan-now-val mono">
                 {now == null ? 'no data' : now.toFixed(1) + ' ' + UNIT[ch]}
               </span>
-            </summary>
+            </div>
             <svg viewBox={`0 0 ${W} ${H}`} className="chansvg" role="img"
                  aria-label={`${NAME[ch]} at ${s.name} over 30 days, `
                    + `${rawLo.toFixed(1)} to ${rawHi.toFixed(1)} ${UNIT[ch]}`}>
@@ -215,7 +208,7 @@ export function StationChannels({ sim, s, hour, windowH = 0 }: {
               ))}
               <rect x={L} y={T} width={W - L - R} height={H - T - B} className="chan-frame" />
             </svg>
-          </details>
+          </div>
         )
       })}
       </div>

@@ -534,14 +534,19 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
 .chan-onset { stroke: var(--signal-red); stroke-width: 1; stroke-dasharray: 5 3; opacity: .8; }
 .chan-onset-t { fill: var(--signal-red); font-size: 8px; letter-spacing: .06em; }
 
-/* Each channel folds away. Open by default: a page of collapsed headings hides
-   the content behind a click nobody knows to make. */
-details.chan > summary { list-style: none; cursor: pointer; }
-details.chan > summary::-webkit-details-marker { display: none; }
-details.chan > summary::before {
-  content: "\2212"; font-family: var(--mono); color: var(--ink-4);
-  width: 11px; display: inline-block; flex: none;
-}
-details.chan:not([open]) > summary::before { content: "+"; }
-details.chan > summary:hover { color: var(--ink); }
 .chan-range { color: var(--ink-4); font-size: 10.5px; margin-left: 4px; }
+
+/* SECTIONS FOLD, not individual charts. The page is three long panels stacked
+   and a reader working on one scrolls past the other two every time; folding
+   one chart does not help with that, folding its section does. Open by
+   default -- a page of collapsed headings hides its own content behind a click
+   nobody knows to make. */
+details.netsec > summary { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 6px; }
+details.netsec > summary::-webkit-details-marker { display: none; }
+details.netsec > summary::before {
+  content: "\2212"; font-family: var(--mono); color: var(--ink-4);
+  width: 13px; flex: none;
+}
+details.netsec:not([open]) > summary::before { content: "+"; }
+details.netsec > summary:hover { color: var(--ink); }
+details.netsec:not([open]) { padding-bottom: 4px; }

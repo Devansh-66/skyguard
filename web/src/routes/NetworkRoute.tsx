@@ -451,8 +451,21 @@ export function NetworkRoute() {
         * tables, and the station index flows across the width in text columns
         * rather than being penned into a panel. */}
 
+      {/* WHOLE SECTIONS FOLD, NOT INDIVIDUAL CHARTS.
+        *
+        * The page is three long panels stacked -- a station, an alert ledger,
+        * an index of 344 stations -- and a reader working on one of them has to
+        * scroll past the other two every time. Folding a single chart does not
+        * help with that; folding the section it lives in does.
+        *
+        * All three open by default. A page of collapsed headings hides its own
+        * content behind a click nobody knows to make. */}
+
       {net === 'sim' && (
-        <section className="netsec">
+        <details className="netsec" open>
+          <summary className="belowhead">
+            {chosen ? chosen.name : 'Selected station'}
+          </summary>
           {!chosen || !sim.data
             ? <p className="muted small">Pick a station on the map or in the index below.</p>
             : (<>
@@ -460,7 +473,6 @@ export function NetworkRoute() {
                     Name, where it is, and whether a fault was planted here --
                     everything else was prose the reader had already read. */}
                 <div className="stnhead">
-                  <h2>{chosen.name}</h2>
                   <span className="mono muted">
                     {chosen.state} · {chosen.elev} m ·{' '}
                     {Math.abs(chosen.lat).toFixed(2)}{chosen.lat < 0 ? 'S' : 'N'}{' '}
@@ -475,25 +487,26 @@ export function NetworkRoute() {
                 </div>
                 <StationChannels sim={sim.data} s={chosen} hour={hour} windowH={windowH} />
               </>)}
-        </section>
+        </details>
       )}
 
       {net === 'sim' && (
-        <section className="netsec">
-          <div className="belowhead">
-            Alerts · {ledger.filter((a) => a.status === 'OPEN').length} open
-            of {ledger.length} raised so far
-          </div>
+        <details className="netsec" open>
+          <summary className="belowhead">
+            Alerts
+            <span className="muted"> · {ledger.filter((a) => a.status === 'OPEN').length} open
+            of {ledger.length} raised so far</span>
+          </summary>
           <AlertList sim={sim.data} rows={ledger} hour={hour} onSelect={setSelected} />
-        </section>
+        </details>
       )}
 
       {net === 'sim' && (
-        <section className="netsec">
-          <div className="belowhead">
+        <details className="netsec" open>
+          <summary className="belowhead">
             Station index
             <span className="muted"> · {graded.length} stations, {flagged.length} flagged now</span>
-          </div>
+          </summary>
           <div className="netrail">
               {byState.map(([state, rows]) => {
                 const bad = rows.filter((r) => r.band === 'WATCH' || r.band === 'FAULT').length
@@ -538,7 +551,7 @@ export function NetworkRoute() {
                 )
               })}
           </div>
-        </section>
+        </details>
       )}
 
       {net === 'sim' && sim.data && (
