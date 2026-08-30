@@ -176,6 +176,8 @@ main{
 .strip{width:100%; height:22px; border:1px solid var(--rule)}
 .simchan{width:100%; height:96px; border:1px solid var(--rule); display:block}
 .chan-foot{font-size:9.5px; color:var(--ink-3); margin-top:3px}
+.alert-top{display:flex; align-items:baseline; gap:8px; justify-content:space-between}
+.ackbtn{margin-top:6px; font-size:11px; padding:3px 10px}
 .stn.on{background:var(--surface-2); outline:1px solid var(--line)}
 .chmaps{display:grid; grid-template-columns:repeat(3, minmax(220px, 1fr));
         gap:16px; margin-top:0}
@@ -597,6 +599,11 @@ let realMarks = [];
 // coast, above a city.
 let mapStyle = "imagery";
 let currentReal = null;
+// Which rail groups the reader has opened, and which alerts they have
+// acknowledged. Both belong to the person, not to the data, so both survive a
+// redraw.
+const railOpen = new Set();
+const acked = new Set();
 let baseLayers = [];
 
 // India, as a box. Used for the default view and for "All India", so the map
@@ -877,11 +884,14 @@ function drawRailSim(){
   // what needs attention.
   const by = {};
   for (const r of rows) (by[r.s.state] ||= []).push(r);
-  const order = Object.keys(by).sort((a, b) => {
-    const fa = by[a].filter(r => r.band !== "OK" && r.band !== "NODATA").length;
-    const fb = by[b].filter(r => r.band !== "OK" && r.band !== "NODATA").length;
-    return (fb - fa) || a.localeCompare(b);
-  });
+  // ALPHABETICAL, ALWAYS.
+  //
+  // Ordering the states by how many are flagged looked sensible and was
+  // unusable: the counts change every hour as the clock runs, so the whole list
+  // reordered underneath the cursor and whichever group you had open moved.
+  // A list you are reading must not rearrange itself while you read it. Worst
+  // first is still the rule INSIDE each group, where the membership is fixed.
+  const order = Object.keys(by).sort((a, b) => a.localeCompare(b));
   const flagged = rows.filter(r => r.band === "WATCH" || r.band === "FAULT").length;
 
   $("rail").innerHTML =
@@ -893,7 +903,11 @@ function drawRailSim(){
           (REAL_ORDER[b.band] || 0) - (REAL_ORDER[a.band] || 0)
           || a.s.name.localeCompare(b.s.name));
         const bad = g.filter(r => r.band === "WATCH" || r.band === "FAULT").length;
-        return `<details class="reg"${bad ? " open" : ""}>
+        // Which groups are open is the READER's decision, not the data's. It
+        // used to be recomputed from the flag count every frame, so groups
+        // sprang open and snapped shut as the clock moved.
+        const open = railOpen.has(area);
+        return `<details class="reg"${open ? " open" : ""}>
           <summary><span>${esc(area)}</span>
             <span class="state-count mono">${bad ? bad + " of " + g.length
               : "all " + g.length + " clear"}</span></summary>`
@@ -910,6 +924,12 @@ function drawRailSim(){
             </button>`).join("") + `</details>`;
       }).join("");
 
+  $("rail").querySelectorAll("details.reg").forEach(d => {
+    const name = d.querySelector("summary span").textContent;
+    d.addEventListener("toggle", () => {
+      if (d.open) railOpen.add(name); else railOpen.delete(name);
+    });
+  });
   $("rail").querySelectorAll(".stn").forEach(b => b.onclick = () => {
     currentReal = b.dataset.id;
     setDetail();
@@ -936,9 +956,78 @@ function renderSimPanes(){
              never saw it.` : "No fault was injected into this station."}</div>`;
   }
   const al = $("alerts");
-  if (al) al.innerHTML = `<div class="regnote">This network is simulated, so
-    there is no alert queue behind it. The maintenance board runs on the real
-    ARM instruments.</div>`;
+  if (al){ al.innerHTML = simAlertsHTML(); bindSimAlerts(); }
+}
+
+/* THE ALERT LIST, AND WHAT "CLOSING" MEANS HERE.
+ *
+ * The pane was empty because a placeholder was sitting in it, not because
+ * anything had been resolved. There was no alert lifecycle at all: alerts were
+ * recomputed from scratch every render and nothing was ever opened or closed.
+ *
+ * What exists now is the honest minimum, and its limits are on screen:
+ *
+ *   OPEN         a station flagged AT THIS HOUR. It appears when the grade
+ *                crosses into watch or fault and disappears on its own when the
+ *                station returns to OK -- which is a real closure, because the
+ *                condition ended, not because anyone dealt with it.
+ *   ACKNOWLEDGED someone has seen it. It stays open and stops shouting. The
+ *                acknowledgement is keyed to the station AND its band, so a
+ *                station escalating from watch to fault re-opens rather than
+ *                staying silenced under an old acknowledgement.
+ *
+ * What does NOT exist: persistence, assignment, a ticket, or any record that
+ * outlives this browser tab. Acknowledgement is in memory. A real deployment
+ * needs a store and a work-order id, and pretending otherwise on screen would
+ * be worse than the empty pane was.
+ */
+function simAlertsHTML(){
+  const key = mapColour === "health" ? "health" : mapColour;
+  const rows = simRows()
+    .map(s => ({s, band: simBand(s, key, simStep)}))
+    .filter(r => r.band === "WATCH" || r.band === "FAULT")
+    .sort((a, b) => (REAL_ORDER[b.band] - REAL_ORDER[a.band])
+                    || a.s.name.localeCompare(b.s.name));
+  const open = rows.filter(r => !acked.has(r.s.id + ":" + r.band));
+  const quiet = rows.filter(r => acked.has(r.s.id + ":" + r.band));
+
+  const item = (r, isAck) => `
+    <div class="alert" style="border-left-color:${REAL_STATE[r.band]}">
+      <div class="alert-top">
+        <span class="lab">${esc(r.s.name)}</span>
+        <span class="verdict" style="color:${REAL_STATE[r.band]};
+          border:1px solid ${REAL_STATE[r.band]}">${r.band}</span>
+      </div>
+      <div class="meta">${esc(r.s.state)} &middot; ${esc(key === "health"
+        ? "worst channel" : key)}${r.s.fault
+        ? " &middot; injected " + esc(r.s.fault.kind) : ""}</div>
+      <button class="ctl ghost ackbtn" data-k="${esc(r.s.id + ":" + r.band)}"
+        data-id="${esc(r.s.id)}" data-lat="${r.s.lat}" data-lon="${r.s.lon}"
+        data-on="${isAck ? 1 : 0}">${isAck ? "Reopen" : "Acknowledge"}</button>
+    </div>`;
+
+  return `<div class="state-head"><span>Open</span>
+      <span class="state-count mono">${open.length} &middot; ${esc(simTimeLabel(simStep))}</span></div>`
+    + (open.length ? open.map(r => item(r, false)).join("")
+       : `<div class="reg-empty">Nothing open at this hour. An alert closes by
+          itself when the station returns to OK.</div>`)
+    + (quiet.length ? `<div class="state-head"><span>Acknowledged</span>
+         <span class="state-count mono">${quiet.length}</span></div>`
+         + quiet.map(r => item(r, true)).join("") : "")
+    + `<div class="regnote">Acknowledgement is held in this tab only &mdash;
+       there is no store, no assignment and no work order behind it. A station
+       escalating from watch to fault re-opens rather than staying silenced.</div>`;
+}
+
+function bindSimAlerts(){
+  document.querySelectorAll(".ackbtn").forEach(b => b.onclick = () => {
+    const k = b.dataset.k;
+    if (b.dataset.on === "1") acked.delete(k); else acked.add(k);
+    currentReal = b.dataset.id;
+    setDetail();
+    renderSimPanes();
+    if (map) map.setView([+b.dataset.lat, +b.dataset.lon], 7);
+  });
 }
 
 function drawRailReal(){
@@ -2350,8 +2439,11 @@ function drawStates(st){
   stateLayer = L.geoJSON(STATES, {
     pane: "basemap",
     interactive: false,
-    style: {color: st.tiles ? "#FFFFFF" : st.line, weight: 0.6,
-            opacity: st.tiles ? 0.5 : 0.45, fill: false},
+    // Visible, not decorative. At weight 0.6 and 45% these were technically
+    // drawn and practically invisible over satellite imagery -- the layer was
+    // reported as "not applying" when it was applying and could not be seen.
+    style: {color: "#FFFFFF", weight: 1.2, opacity: 0.85, fill: false,
+            lineJoin: "round"},
   }).addTo(map);
 }
 
