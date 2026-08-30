@@ -287,11 +287,23 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
 .simbar input[type=range] { flex: 1 1 260px; min-width: 200px; accent-color: #E01B24; }
 .simbar .mono { font-size: 12px; }
 
+/* THREE COLUMNS, AND THEY HOLD.
+ *
+ * The old rule collapsed everything to one column below 1100px, which is a
+ * common laptop once a browser's own chrome is taken off. Stacked, the page
+ * became map, then a long list, then the station, then the alerts -- four
+ * screens of scrolling to compare two things that are meant to be read
+ * together. auto-fit keeps as many columns as actually fit and drops them one
+ * at a time instead of all at once. */
 .netbelow {
-  display: grid; grid-template-columns: minmax(240px, 320px) minmax(320px, 1fr) minmax(220px, 300px);
-  gap: 26px; margin-top: 20px; align-items: start;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 26px 30px; margin-top: 20px; align-items: start;
 }
-.netrail { max-height: 520px; overflow-y: auto; }
+/* NO INNER SCROLLBAR. A scrolling box inside a scrolling page traps the wheel:
+   the reader scrolls, hits the list, and the page stops moving for no reason
+   they can see. The list is 36 rows collapsed and the page can carry it. */
+.netrail { }
 .netrail details { border-bottom: 1px solid var(--rule-soft); }
 .netrail summary {
   list-style: none; cursor: pointer; display: flex; gap: 8px; padding: 6px 2px;
@@ -323,7 +335,9 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
 .alertname:hover { text-decoration: underline; }
 .btn.tiny { padding: 3px 9px; font-size: 11px; margin-left: auto; }
 
-@media (max-width: 1100px) { .netbelow { grid-template-columns: 1fr; } }
+/* The clock's own line, so the counts never wrap under the slider. */
+.simbar { flex-wrap: wrap; }
+.simbar input[type=range] { flex: 1 1 260px; min-width: 180px; }
 
 /* The channel-field legend. Sits under the clock, only when a field base is
    chosen; the ramp is the same function the canvas is painted with. */
@@ -351,3 +365,17 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
 .netfoot { margin-top: 30px; border-top: 1px solid var(--rule); padding-top: 16px; }
 .wrongtab { border-collapse: collapse; font-size: 11px; margin-bottom: 10px; }
 .wrongtab td { padding: 3px 14px 3px 0; border-bottom: 1px solid var(--rule-minor); }
+
+/* The station channel charts. Same materials as the board's barograph: ruled
+   stock, an ink pen, and every verdict a wash laid over it. They arrived from
+   the console still carrying its dark ground, which on chart paper read as
+   three black rectangles cut out of the page. */
+.chan-stock { fill: var(--paper-2); }
+.chan-rule { stroke: var(--rule-minor); stroke-width: .5; }
+.chan-frame { fill: none; stroke: var(--rule-edge); stroke-width: 1; }
+.chan-pen {
+  fill: none; stroke: var(--ink); stroke-width: 1.15;
+  stroke-linejoin: round; stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.chan-now { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 3 2; }

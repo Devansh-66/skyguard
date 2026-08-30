@@ -233,7 +233,17 @@ export function NetworkRoute() {
   }, [graded])
 
   const flagged = graded.filter((r) => r.band === 'WATCH' || r.band === 'FAULT')
-  const chosen = sim.data?.stations.find((s) => s.id === selected) ?? null
+  /* THE PAGE OPENED WITH NO GRAPH ON IT.
+   *
+   * Nothing was selected until the reader clicked, so the middle column held an
+   * instruction where the charts belong -- and the instruction is only readable
+   * by someone who already knows what it is offering. Falling back to the worst
+   * station at this hour puts a real trace on screen immediately, and it is the
+   * one worth looking at rather than an arbitrary first row. */
+  const fallback = graded.length
+    ? [...graded].sort((a, c) => BAND_ORDER[c.band] - BAND_ORDER[a.band])[0].s.id
+    : null
+  const chosen = sim.data?.stations.find((s) => s.id === (selected ?? fallback)) ?? null
 
   return (
     <div className="sheet network">
@@ -594,7 +604,7 @@ function StationChannels({ sim, s, hour }: {
           const g = bandAt(s, ch, Math.min(i * every, s.g.length - 1))
           if (g === 'WATCH' || g === 'FAULT') {
             bands.push(<rect key={i} x={x(i)} y={0} width={Math.max(W / nf, 1.2)} height={H}
-                             fill={HUE[g]!} opacity={g === 'FAULT' ? 0.2 : 0.12} />)
+                             fill={HUE[g]!} opacity={g === 'FAULT' ? 0.26 : 0.16} />)
           }
         }
         const now = vals[cur]
@@ -617,12 +627,15 @@ function StationChannels({ sim, s, hour }: {
               </span>
             </div>
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="chansvg">
-              <rect width={W} height={H} fill="var(--surface)" />
+              <rect width={W} height={H} className="chan-stock" />
+              {/* Chart-paper ruling, so a trace is read against something. */}
+              {[0.25, 0.5, 0.75].map((f) => (
+                <line key={f} x1={0} x2={W} y1={H * f} y2={H * f} className="chan-rule" />
+              ))}
               {bands}
-              <path d={d.trim()} fill="none" stroke="var(--ink)" strokeWidth={1.1}
-                    vectorEffect="non-scaling-stroke" />
-              <line x1={x(cur)} x2={x(cur)} y1={0} y2={H} stroke="var(--ink)"
-                    strokeWidth={1} strokeDasharray="3 2" />
+              <path d={d.trim()} className="chan-pen" />
+              <line x1={x(cur)} x2={x(cur)} y1={0} y2={H} className="chan-now" />
+              <rect width={W} height={H} className="chan-frame" />
             </svg>
           </div>
         )
