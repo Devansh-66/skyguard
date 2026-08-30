@@ -146,10 +146,13 @@ main{
 /* ONE map. The three channel panels became base options in the same selector
    as the imagery, so there is a single country on screen at a usable size
    rather than four at four sizes. */
-#maps{display:grid; grid-template-columns:minmax(360px, 620px) minmax(260px, 1fr);
-      gap:22px; align-items:start}
-.maplegendbar{grid-column:1 / -1}
-.mapbox{grid-column:1; min-width:0}
+/* FULL WIDTH. The map is the whole world with India centred in it, so it gets
+   the whole strip; the clock, legend and station panels go underneath. A world
+   map squeezed into 620px was showing the Pacific at the size of a postage
+   stamp. */
+#maps{display:grid; grid-template-columns:1fr; gap:14px; align-items:start}
+.maplegendbar{grid-column:1 / -1; order:3}
+.mapbox{grid-column:1 / -1; min-width:0}
 /* No channel panels on the simulated network -- ten stations already have real
    charts under the map, per station and per channel, so a three-up overview of
    ten dots would repeat what is already there better. The map takes the room
@@ -173,6 +176,11 @@ main{
 .strip{width:100%; height:22px; border:1px solid var(--rule)}
 .chmaps{display:grid; grid-template-columns:repeat(3, minmax(220px, 1fr));
         gap:16px; margin-top:0}
+/* An empty panel row must not hold a grid column open. The simulated network
+   draws no channel panels -- its channels are BASES now -- so this container is
+   empty there, and it was still taking 692px of a 1541px strip and squeezing
+   the map to 54% of the width it was supposed to fill. */
+.chmaps:empty{display:none}
 .chmap{margin:0; min-width:0}
 .chmap figcaption{
   font-family:"Roboto Mono",ui-monospace,monospace; font-size:9.5px;
@@ -212,7 +220,17 @@ main{
 /* min-height as well as the ratio: the ratio alone gives a zero-height element
    until the grid has resolved a width, and a Leaflet map built into a zero box
    fits its bounds to NaN. */
-#lmap{aspect-ratio:300 / 339; min-height:420px;
+/* A wide box now, because the subject is a world map rather than one country.
+   min-height still matters: the height comes from the ratio, and a Leaflet map
+   built into a zero-height box fits its bounds to NaN. */
+/* Explicit width and height, NOT aspect-ratio.
+   aspect-ratio plus min-height made the HEIGHT the definite dimension, so the
+   browser derived the width from it -- 460 x 21/9 = 1073px inside a 1585px
+   strip. The map looked capped for no visible reason. A width of 100% and a
+   clamped height cannot be read backwards, and an explicit height also keeps
+   the container from ever being zero-sized at construction, which is what made
+   fitBounds return NaN earlier. */
+#lmap{width:100%; height:clamp(420px, 48vh, 700px);
       border:1px solid var(--line); border-radius:5px}
 .mapside{
   display:flex; flex-direction:column; gap:10px; padding-top:2px;
@@ -450,8 +468,8 @@ body{padding-top:58px}
     <label class="ctl-lab">Base
       <select id="mapstyle" aria-label="Map background">
         <option value="imagery" selected>Imagery</option>
-        <option value="plain">Plain</option>
-        <option value="ink">Ink</option>
+        <option value="muted">Muted</option>
+        <option value="dark">Dark</option>
         <option value="field_temp">Temperature field</option>
         <option value="field_rh">Humidity field</option>
         <option value="field_pres">Pressure field (MSL)</option>
@@ -594,30 +612,33 @@ const INDIA = [[6.5, 68.0], [36.5, 97.5]];
 // 346 stations disappeared the moment anyone chose the plain background. A
 // neutral has to be dark on a light ground and light on a dark one; only the
 // two colours that MEAN something, blue and red, stay fixed.
+// THE BASE IS A FILTER OVER THE WHOLE MAP, NOT A DIFFERENT GEOMETRY.
+//
+// The previous version swapped the imagery for a drawn India, so choosing any
+// base but Imagery left one country floating on an empty ground -- everything
+// outside the border simply vanished, because a national boundary is the only
+// geometry vendored here and there is no world coastline to draw. That is not a
+// base map, it is a cut-out.
+//
+// Now every base keeps the satellite tiles and applies a CSS filter to the tile
+// pane. The whole world stays on screen and treated the same way, which is what
+// a base is for. Ink is gone: it was the worst offender, an India-shaped hole
+// in a black rectangle.
 const STYLES = {
-  plain: {label:"Plain", tiles:false, ground:"#F7F2E7",
-          land:"#FCF9F2", line:"#171A1E", lineW:1.1, fill:true,
-          ok:"#171A1E", okOpacity:0.30},
-  ink:   {label:"Ink",   tiles:false, ground:"#000000",
-          land:"#000000", line:"#FFFFFF", lineW:0.8, fill:false,
-          ok:"#FFFFFF", okOpacity:0.42},
-  imagery:{label:"Imagery", tiles:true, ok:"#FFFFFF", okOpacity:0.60},
-  // THE CHANNEL FIELDS ARE BASES, NOT SEPARATE MAPS.
-  //
-  // Three small panels beside a big one meant reading the same country four
-  // times at four sizes, and the small ones were never big enough to reason
-  // from. A field is what the map is DRAWN ON -- the same thing a satellite
-  // basemap is -- so it belongs in the same selector, at full size, with the
-  // stations on top of it where they have always been.
-  field_temp:{label:"Temperature field", tiles:false, field:"temp",
-              ground:"#0E1014", land:"#0E1014", line:"#FFFFFF", lineW:0.9,
-              fill:false, ok:"#FFFFFF", okOpacity:0.55},
-  field_rh:  {label:"Humidity field", tiles:false, field:"rh",
-              ground:"#0E1014", land:"#0E1014", line:"#FFFFFF", lineW:0.9,
-              fill:false, ok:"#FFFFFF", okOpacity:0.55},
-  field_pres:{label:"Pressure field (MSL)", tiles:false, field:"pres",
-              ground:"#0E1014", land:"#0E1014", line:"#FFFFFF", lineW:0.9,
-              fill:false, ok:"#FFFFFF", okOpacity:0.55},
+  imagery: {label:"Imagery", filter:"none",
+            ok:"#FFFFFF", okOpacity:0.60},
+  muted:   {label:"Muted", filter:"grayscale(1) brightness(1.08) contrast(0.82)",
+            ok:"#171A1E", okOpacity:0.42},
+  dark:    {label:"Dark", filter:"grayscale(1) brightness(0.42) contrast(1.15)",
+            ok:"#FFFFFF", okOpacity:0.50},
+  // The channel fields sit ON TOP of a darkened basemap rather than replacing
+  // it, so coastline and terrain are still there to place a station against.
+  field_temp:{label:"Temperature field", field:"temp",
+              filter:"grayscale(1) brightness(0.30)", ok:"#FFFFFF", okOpacity:0.55},
+  field_rh:  {label:"Humidity field", field:"rh",
+              filter:"grayscale(1) brightness(0.30)", ok:"#FFFFFF", okOpacity:0.55},
+  field_pres:{label:"Pressure field (MSL)", field:"pres",
+              filter:"grayscale(1) brightness(0.30)", ok:"#FFFFFF", okOpacity:0.55},
 };
 let fieldOverlay = null;
 
@@ -1900,19 +1921,11 @@ function renderMaps(){
     map = L.map("lmap", {
       zoomControl:true, attributionControl:false,
       zoomAnimation:false, fadeAnimation:false,
-      // The world repeated infinitely: panning east past the dateline just kept
-      // drawing India again, forever, because Leaflet wraps longitude by
-      // default. Verified before the fix by setting the view to longitude 440
-      // and finding twelve tiles still rendering. maxBounds stops the drag at
-      // the edge; noWrap on the tile layers stops the copies existing at all.
-      // The box is generous enough to include MAITRI and BHARATI, since the
-      // rail can fly the map to them.
-      // Wide enough to hold every layer this console can show: the Indian
-      // network, India's two Antarctic bases, and the ARM masts in Alaska and
-      // the Azores. Narrower bounds would silently refuse to fly to a station
-      // the rail offers.
-      maxBounds: L.latLngBounds([[-80, -170], [80, 110]]),
-      maxBoundsViscosity: 0.85,
+      // NO maxBounds and NO noWrap, deliberately, reversing an earlier
+      // decision. Bounding the drag was right when the map was a cut-out of
+      // India; now that the base is the whole world it only stops the user
+      // panning, and the wrap that once looked like a bug is what keeps the
+      // Pacific from being a wall. India is centred on load instead.
       // A wheel notch used to be a whole zoom level, which overshoots the
       // country in two clicks. Half-steps, and about twice the wheel distance
       // per level, so zooming is something you can aim.
@@ -2193,6 +2206,7 @@ function renderMaps(){
 // national boundary underneath remains NCMRWF's.
 function drawStates(st){
   if (!showStates || typeof STATES === "undefined" || !STATES) return;
+  st = st || STYLES[mapStyle] || STYLES.imagery;
   if (!map.getPane("basemap")){
     map.createPane("basemap");
     map.getPane("basemap").style.zIndex = 250;
@@ -2210,83 +2224,58 @@ function applyBaseStyle(){
   for (const l of baseLayers){ try { map.removeLayer(l); } catch (e) {} }
   baseLayers = [];
   boundaryLayer = null;
-
   if (stateLayer){ try { map.removeLayer(stateLayer); } catch (e) {} stateLayer = null; }
 
-  const st = STYLES[mapStyle] || STYLES.plain;
-  if (map.getPane("scrim"))
-    map.getPane("scrim").style.opacity = st.tiles ? String(IMAGERY_SCRIM) : "0";
+  const st = STYLES[mapStyle] || STYLES.imagery;
   const el = $("lmap");
-  if (el) el.style.background = st.tiles ? "#000000" : st.ground;
+  if (el) el.style.background = "#04060A";
 
-  if (st.tiles && tilesOK){
+  if (tilesOK){
     // Through our own proxy: same origin, disk-cached, so the map keeps drawing
-    // after the venue wifi dies.
-    const t = L.tileLayer(API + TILE_TPL,
-      {maxZoom:12, minZoom:3, crossOrigin:true, noWrap:true}).addTo(map);
+    // after the venue wifi dies. NO noWrap: the world is allowed to repeat, so
+    // panning east or west never runs off the edge into grey.
+    const tl = L.tileLayer(API + TILE_TPL,
+      {maxZoom:12, minZoom:2, crossOrigin:true}).addTo(map);
     boundaryLayer = L.tileLayer(API + BND_TPL,
-      {maxZoom:12, minZoom:3, opacity:0.9, noWrap:true}).addTo(map);
-    // The scrim: one dark sheet between the imagery and the stations. Without
-    // it a white dot over cloud and a white dot over desert are different
-    // marks, and the eye has to relearn the legend in every part of the country.
-    if (!map.getPane("scrim")){
-      map.createPane("scrim");
-      const sp = map.getPane("scrim");
-      sp.style.zIndex = 240;
-      sp.style.pointerEvents = "none";
-      sp.style.background = "#05070C";
-    }
-    map.getPane("scrim").style.opacity = String(IMAGERY_SCRIM);
-    baseLayers = [t, boundaryLayer];
-    drawStates(st);
+      {maxZoom:12, minZoom:2, opacity:0.9}).addTo(map);
+    baseLayers = [tl, boundaryLayer];
     $("mapattrib").innerHTML =
-      "Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; "
+      (st.field ? `${esc(st.label)} interpolated from 344 stations by IDW`
+                  + (st.field === "pres" ? ", reduced to mean sea level" : "")
+                  + " &middot; <b>simulated readings</b> &middot; " : "")
+      + "Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; "
       + "Boundary &copy; NCMRWF, Ministry of Earth Sciences"
       + (showStates ? " &middot; state outlines: Datameet, indicative only" : "");
-    return;
+  } else {
+    // No tile server. The embedded NCMRWF boundary is all the geometry there
+    // is, so this is the one case where only India can be drawn -- and the
+    // attribution says so rather than leaving it looking like a design choice.
+    if (typeof BOUNDARY !== "undefined" && BOUNDARY){
+      if (!map.getPane("basemap")){
+        map.createPane("basemap");
+        map.getPane("basemap").style.zIndex = 250;
+      }
+      boundaryLayer = L.geoJSON(BOUNDARY, {pane:"basemap",
+        style:{color:"#FFFFFF", weight:1, fill:true,
+               fillColor:"#16181D", fillOpacity:1}}).addTo(map);
+      baseLayers = [boundaryLayer];
+    }
+    $("mapattrib").innerHTML =
+      "No basemap: the tile service is unreachable, so only the NCMRWF "
+      + "boundary can be drawn &middot; Boundary &copy; NCMRWF, "
+      + "Ministry of Earth Sciences (simplified)";
   }
 
-  // No tiles, by choice or because none are reachable. The embedded boundary is
-  // the same NCMRWF layer, simplified, so the border drawn is the official one
-  // either way.
-  if (typeof BOUNDARY !== "undefined" && BOUNDARY){
-    // ITS OWN PANE, BELOW THE STATIONS. Leaflet paints vector layers in the
-    // order they were added, all into one SVG group, so re-adding the boundary
-    // after the markers exist put a filled polygon on top of all 346 dots and
-    // they vanished. It looked like the stations had been dropped; they were
-    // still in the DOM, underneath the country. A dedicated pane at a lower
-    // z-index makes the ordering structural instead of a matter of which
-    // function happened to run last.
-    if (!map.getPane("basemap")){
-      map.createPane("basemap");
-      map.getPane("basemap").style.zIndex = 250;   // tiles 200, overlays 400
-    }
-    boundaryLayer = L.geoJSON(BOUNDARY, {
-      pane: "basemap",
-      style:{color:st.line, weight:st.lineW, fill:!!st.fill,
-             fillColor:st.land, fillOpacity:st.fill ? 1 : 0}}).addTo(map);
-    baseLayers = [boundaryLayer];
-  }
+  // The filter is applied to the TILE PANE, so it covers the entire basemap
+  // rather than one country, and lifts off the station markers, which live in
+  // the overlay pane above it.
+  const tp = map.getPane("tilePane");
+  if (tp) tp.style.filter = st.filter || "none";
+
   drawStates(st);
   updateFieldOverlay();
-  $("mapattrib").innerHTML =
-    (st.field
-      ? (mapNetwork === "sim344"
-          ? `${esc(STYLES[mapStyle].label)} interpolated from 344 stations by IDW`
-            + (st.field === "pres" ? ", reduced to mean sea level" : "")
-            + " &middot; <b>simulated readings</b> &middot; "
-          : "Field bases need the simulated network &mdash; choose it above &middot; ")
-      : "")
-    + "Boundary &copy; NCMRWF, Ministry of Earth Sciences (simplified)"
-    + (showStates ? " &middot; state outlines: Datameet, indicative only" : "")
-    + (st.tiles && !tilesOK
-        ? " &middot; imagery unavailable: tiles need the API running" : "");
 }
 
-// Fit to the country as DRAWN, which includes the Andaman and Nicobar islands
-// and Lakshadweep. A hand-typed mainland box leaves the map centred on
-// something that is not quite India and looks off by a few degrees, because the
-// territory it omits is real and is on the map.
 function fitIndia(){
   if (!map) return;
   // A ZERO-SIZED CONTAINER MAKES fitBounds RETURN NaN, and Leaflet then throws
@@ -2313,7 +2302,10 @@ function fitIndia(){
           && isFinite(g.getWest()) && isFinite(g.getEast())) b = g;
     }
   } catch (e) { /* keep the typed box */ }
-  map.fitBounds(b, {padding:[8, 8]});
+  // Fit to INDIA even though the map shows the world: the country is the
+  // subject, the rest is context, and this is what puts it in the middle
+  // without fencing the user in.
+  map.fitBounds(b, {padding:[24, 24]});
 }
 
 function fitTo(group){
