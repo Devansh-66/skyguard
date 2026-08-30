@@ -47,15 +47,34 @@ export function StationChannels({ sim, s, hour }: {
         const x = (i: number) => L + (i / Math.max(nf - 1, 1)) * (W - L - R)
         const y = (v: number) => T + ((hi - v) / (hi - lo)) * (H - T - B)
 
+        /* THE PEN DRAWS UP TO NOW, AND NO FURTHER.
+         *
+         * This used to print the whole month at once and slide a dashed line
+         * across it, which is a finished chart with a cursor on it -- not a
+         * recorder. A barograph does not know what Thursday looks like on
+         * Tuesday. Drawing only as far as the clock has reached is what makes
+         * running the clock mean anything: the trace grows, a drift appears as
+         * it develops rather than being visible from the first frame, and the
+         * shaded verdict arrives at the moment this project would have raised
+         * it.
+         *
+         * The SCALE is still computed over the whole record. Rescaling to
+         * what has been drawn so far would make the axis jump on every tick
+         * and the trace would writhe in place instead of extending. The paper
+         * is ruled before the pen touches it. */
         let d = '', pen = false
-        vals.forEach((v, i) => {
-          if (v == null) { pen = false; return }   // the pen lifts at gaps
+        for (let i = 0; i <= cur && i < nf; i++) {
+          const v = vals[i]
+          if (v == null) { pen = false; continue }   // the pen lifts at gaps
           d += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1) + ' '
           pen = true
-        })
+        }
+        // Where the nib is sitting right now.
+        const tipY = vals[cur] != null ? y(vals[cur]!) : null
 
+        // Shading only over paper the pen has passed, for the same reason.
         const bands = []
-        for (let i = 0; i < nf; i++) {
+        for (let i = 0; i <= cur && i < nf; i++) {
           const g = bandAt(s, ch, Math.min(i * every, s.g.length - 1))
           if (g === 'WATCH' || g === 'FAULT') {
             bands.push(<rect key={i} x={x(i)} y={T} width={Math.max((W - L - R) / nf, 1.2)}
@@ -103,7 +122,11 @@ export function StationChannels({ sim, s, hour }: {
               ))}
               {bands}
               <path d={d.trim()} className="chan-pen" />
+              {/* The nib, and the edge of the drawn record. */}
               <line x1={x(cur)} x2={x(cur)} y1={T} y2={H - B} className="chan-now" />
+              {tipY != null && (
+                <circle cx={x(cur)} cy={tipY} r={3} className="chan-nib" />
+              )}
               {dates.map((f, i) => (
                 <text key={f} x={x(f)} y={H - 6} className="chan-axis"
                       textAnchor={i === 0 ? 'start' : i === 2 ? 'end' : 'middle'}>

@@ -102,7 +102,7 @@ section.plate { margin-top: 45px; }
 /* ---------------- the ledger ---------------- */
 
 .ledger {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
   margin-top: 45px; border: 1px solid var(--rule-edge); background: var(--paper-2);
 }
 .cell {
@@ -116,7 +116,7 @@ section.plate { margin-top: 45px; }
 
 /* ---------------- the three notes ---------------- */
 
-.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 36px; }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(255px, 100%), 1fr)); gap: 36px; }
 .note > .engraved { color: var(--oxide); }
 .note h3 { font-family: var(--display); font-size: 18px; font-weight: 600; letter-spacing: -.022em; margin: 7px 0 7px; }
 .note p { font-size: 13.5px; color: var(--ink-2); margin: 0; }
@@ -234,7 +234,7 @@ section.plate { margin-top: 45px; }
 .callout.accent { border-left-color: var(--indigo); background: var(--indigo-wash); }
 .callout.neutral { border-left-color: var(--ink-4); }
 
-.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); border: 1px solid var(--rule-edge); background: var(--paper-2); }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(185px, 100%), 1fr)); border: 1px solid var(--rule-edge); background: var(--paper-2); }
 .field { padding: 9px 12px; display: flex; justify-content: space-between; gap: 8px; border-right: 1px solid var(--rule-minor); border-bottom: 1px solid var(--rule-minor); }
 .field-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); align-self: center; }
 .field-value { font-weight: 500; font-size: 13px; }
@@ -382,7 +382,7 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
 /* Two across at most, never three. Three fitted, and fitting is not the same
    as readable: each chart lost half its width and the traces closed up. */
 .chanrow {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
   gap: 22px 28px;
 }
 .chanrow .chan { margin: 0; }
@@ -484,3 +484,15 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
 .alertbox td { padding: 6px 14px 6px 10px; }
 .alertbox .empty { padding: 14px; }
 .card-action.done { color: var(--ink-3); border-color: var(--rule-edge); }
+
+/* The pen's nib: where the record ends and the clock is standing. */
+.chan-nib { fill: var(--ink); }
+
+/* A closed alert stays in the ledger, greyed. It is the record that this
+   station was wrong for eleven hours on the 3rd; deleting it on recovery meant
+   the page could only ever answer "what is wrong this second". */
+.alerttab tr.closed td { color: var(--ink-3); }
+.alerttab tr.closed .stncell { color: var(--ink-3); }
+.alerttab .status { white-space: nowrap; font-size: 11px; }
+.st-open { color: var(--oxide); }
+.st-closed { color: var(--ink-3); }

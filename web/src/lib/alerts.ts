@@ -119,7 +119,27 @@ export function allAlerts(stations: SimStation[]): Alert[] {
     (b.band === 'FAULT' ? 1 : 0) - (a.band === 'FAULT' ? 1 : 0) || b.hours - a.hours)
 }
 
-/** The alerts open at a given hour: raised at or before it, not yet cleared. */
-export function openAt(alerts: Alert[], hour: number): Alert[] {
-  return alerts.filter((a) => a.from <= hour && (a.to === null || a.to > hour))
+/** Every alert raised by a given hour, oldest first, with its status AT that
+ *  hour.
+ *
+ *  The list is a LEDGER, not a live filter. An alert that closed is not
+ *  deleted: it is the record that this station was wrong for eleven hours on
+ *  the 3rd, and deleting it the moment it recovered meant the page could only
+ *  ever answer "what is wrong this second". A station that alerts and clears
+ *  four times is a different problem from one that alerts once, and only a
+ *  ledger shows that.
+ *
+ *  It appends: an alert enters when it is raised and never leaves, so the list
+ *  only grows as the clock runs. */
+export function ledgerAt(alerts: Alert[], hour: number): (Alert & {
+  status: 'OPEN' | 'CLOSED'; closedAt: number | null
+})[] {
+  return alerts
+    .filter((a) => a.from <= hour)
+    .map((a) => {
+      const closed = a.to !== null && a.to <= hour
+      return { ...a, status: (closed ? 'CLOSED' : 'OPEN') as 'OPEN' | 'CLOSED',
+               closedAt: closed ? a.to : null }
+    })
+    .sort((x, y) => x.from - y.from)
 }

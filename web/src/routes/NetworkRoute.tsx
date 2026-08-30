@@ -31,7 +31,7 @@ import {
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
 import { bandAt, frameOf, timeLabel } from '../lib/sim'
 import { BAND_LABEL, HUE, label, why } from '../lib/bands'
-import { type Alert, allAlerts, openAt } from '../lib/alerts'
+import { allAlerts, ledgerAt } from '../lib/alerts'
 import { StationChannels } from '../components/StationChannels'
 import { MAP_BOX, fieldRange, paintField, rampCss } from '../lib/field'
 import L from 'leaflet'
@@ -221,7 +221,7 @@ export function NetworkRoute() {
    * record -- it does not depend on where the clock is. */
   const alerts = useMemo(
     () => (sim.data ? allAlerts(sim.data.stations) : []), [sim.data])
-  const openNow = useMemo(() => openAt(alerts, hour), [alerts, hour])
+  const ledger = useMemo(() => ledgerAt(alerts, hour), [alerts, hour])
   /* THE OPENING STATION IS CHOSEN ONCE, AND THEN LEFT ALONE.
    *
    * The page needs a station selected on arrival, or the charts are replaced by
@@ -456,9 +456,10 @@ export function NetworkRoute() {
       {net === 'sim' && (
         <section className="netsec">
           <div className="belowhead">
-            Open alerts · {openNow.length}
+            Alerts · {ledger.filter((a) => a.status === 'OPEN').length} open
+            of {ledger.length} raised so far
           </div>
-          <AlertList sim={sim.data} rows={openNow} hour={hour} onSelect={setSelected} />
+          <AlertList sim={sim.data} rows={ledger} hour={hour} onSelect={setSelected} />
         </section>
       )}
 
@@ -516,62 +517,20 @@ export function NetworkRoute() {
 
       {net === 'sim' && sim.data && (
         <section className="netfoot">
-          <div className="belowhead">Where it is wrong, by state</div>
-          <WrongByState rows={graded} />
+          {/* The by-state table was here. It counted flags per state, which the
+              map already shows and the alert ledger already lists by state --
+              three answers to one question, and the least useful of them was
+              taking a section to itself. */}
           <p className="small muted">
-            {sim.data.note}
-          </p>
-          <p className="small muted">
-            Grades are this project's own verdict from neighbour differencing
-            against a fifteen-day baseline, not the injected truth. Health is the
-            worst of the three channels, never the mean. Ten stations — the
-            Andaman, Nicobar and Lakshadweep groups — have no neighbours within
-            250 km and cannot be graded at all.
+            Grades are this project's own verdict from neighbour differencing,
+            standardised against a trailing 15-day spread, not the injected
+            truth. Bands are 6σ and 8σ, calibrated against a fault-free control
+            run. Ten stations — the Andaman, Nicobar and Lakshadweep groups —
+            have no neighbours within 250 km and cannot be graded at all.
           </p>
         </section>
       )}
     </div>
-  )
-}
-
-/** How the flags are distributed across the country.
- *
- * The map answers "where", badly, for anything below about five stations: a
- * single red dot in Assam and a single red dot in Kerala look identical to a
- * cluster. This counts them. States with nothing wrong are omitted rather than
- * listed as zero -- thirty rows of zero hide the four that matter. */
-function WrongByState({ rows }: { rows: { s: SimStation; band: Band }[] }) {
-  const by = new Map<string, { fault: number; watch: number; n: number }>()
-  for (const r of rows) {
-    const k = r.s.state || 'Unassigned'
-    const e = by.get(k) ?? { fault: 0, watch: 0, n: 0 }
-    e.n++
-    if (r.band === 'FAULT') e.fault++
-    if (r.band === 'WATCH') e.watch++
-    by.set(k, e)
-  }
-  const hot = [...by.entries()].filter(([, e]) => e.fault || e.watch)
-    .sort((a, b) => (b[1].fault * 2 + b[1].watch) - (a[1].fault * 2 + a[1].watch))
-  if (!hot.length) {
-    return <p className="muted small">Nothing flagged anywhere at this hour.</p>
-  }
-  return (
-    <table className="wrongtab mono">
-      <tbody>
-        {hot.map(([state, e]) => (
-          <tr key={state}>
-            <td>{state}</td>
-            <td style={{ color: e.fault ? HUE.FAULT! : 'var(--ink-3)' }}>
-              {e.fault} fault
-            </td>
-            <td style={{ color: e.watch ? HUE.WATCH! : 'var(--ink-3)' }}>
-              {e.watch} watch
-            </td>
-            <td className="muted">of {e.n}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   )
 }
 
@@ -593,16 +552,16 @@ function WrongByState({ rows }: { rows: { s: SimStation; band: Band }[] }) {
  */
 function AlertList({ sim, rows, hour, onSelect }: {
   sim: SimMap | undefined
-  rows: Alert[]
+  rows: ReturnType<typeof ledgerAt>
   hour: number
   onSelect: (id: string) => void
 }) {
   const CH = { temp: 'temperature', rh: 'humidity', pres: 'pressure' }
   if (!rows.length) {
-    // Same box, empty. Collapsing it would move the page exactly as growing it
-    // does, which is the thing this box exists to stop.
+    // The same box, empty. Collapsing it would move the page exactly as
+    // growing it does, which is what this box exists to stop.
     return <div className="alertbox"><p className="muted small empty">
-      No alert is open at this hour.
+      No alert has been raised yet. Run the clock.
     </p></div>
   }
   return (
@@ -611,21 +570,23 @@ function AlertList({ sim, rows, hour, onSelect }: {
         <thead>
           <tr>
             <th>Raised</th><th>Station</th><th>State</th>
-            <th>Channel</th><th>Open for</th><th>Grade</th>
+            <th>Channel</th><th>Status</th><th>Grade</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((a) => (
-            <tr key={a.id} onClick={() => onSelect(a.s.id)} tabIndex={0}
+            <tr key={a.id} className={a.status === 'CLOSED' ? 'closed' : undefined}
+                onClick={() => onSelect(a.s.id)} tabIndex={0}
                 onKeyDown={(e) => { if (e.key === 'Enter') onSelect(a.s.id) }}>
               <td className="mono when">{sim ? timeLabel(sim, a.from) : '—'}</td>
               <td className="stncell">{a.s.name}</td>
               <td className="mono muted">{a.s.state}</td>
               <td className="mono">{CH[a.ch]}</td>
-              {/* How long it has been open AT THE CURRENT HOUR, not the length
-                  of the whole episode -- the rest of it is still in the future
-                  from where the clock is standing. */}
-              <td className="mono num">{hour - a.from + 1} h</td>
+              <td className="mono status">
+                {a.status === 'OPEN'
+                  ? <span className="st-open">open · {hour - a.from + 1} h</span>
+                  : <span className="st-closed">closed · {a.closedAt! - a.from} h</span>}
+              </td>
               <td>
                 <span className="badge" style={{ color: HUE[a.band]!, borderColor: HUE[a.band]! }}>
                   {BAND_LABEL[a.band]}
