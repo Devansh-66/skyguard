@@ -17,7 +17,9 @@
  */
 import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useQueue } from '../api/queries'
+import { useQueue, useSimMap } from '../api/queries'
+import { BAND, type Band, type SimStation } from '../api/mapTypes'
+import { Link } from 'react-router-dom'
 import { siteInfo } from '../api/sites'
 import { Async } from '../components/Async'
 import { Badge, severityTone } from '../components/Badge'
@@ -28,6 +30,7 @@ export function BoardRoute() {
   const selected = useParams()['*'] || ''
   const navigate = useNavigate()
   const q = useQueue()
+  const sim = useSimMap()
   const items = q.data?.items
 
   // Land on the worst item rather than an empty pane. `replace` keeps this out
@@ -66,6 +69,24 @@ export function BoardRoute() {
                 />
               </div>
 
+              {/* THE SIMULATED NETWORK BELONGS ON THE BOARD TOO.
+                *
+                * The board only ever showed the ARM instruments -- nine masts
+                * in the US with faults a human analyst confirmed. That is the
+                * evidence half of the product. The other half is the 344
+                * Indian locations, and it existed only on the map, so this
+                * page silently claimed the whole system watched nine sensors.
+                *
+                * It is kept SEPARATE rather than ranked in with the ARM items.
+                * Those are confirmed faults on real hardware; these are
+                * injected faults on generated readings, and merging them into
+                * one queue would put a synthetic incident in front of a
+                * technician as if it were work. */}
+              <SimSummary sim={sim.data} />
+
+              <div className="belowhead" style={{ marginTop: 18 }}>
+                ARM instruments · analyst-confirmed
+              </div>
               <ul className="cards">
                 {data.items.map((it) => {
                   const active = it.id === selected
@@ -134,5 +155,54 @@ function Score({ v, k }: { v: number | string; k: string }) {
       <span className="score-v num">{v}</span>
       <span className="score-k">{k}</span>
     </div>
+  )
+}
+
+/** The simulated Indian network, summarised: how many stations ever went bad
+ *  over the month, and the worst of them.
+ *
+ *  Worst-over-the-window rather than at one hour, because the board has no
+ *  clock and "flagged right now" would depend on an hour nobody chose. */
+function SimSummary({ sim }: { sim: ReturnType<typeof useSimMap>['data'] }) {
+  if (!sim) return null
+
+  const worst = (st: SimStation): { band: Band; hours: number } => {
+    let band: Band = 'NODATA'
+    let hours = 0
+    for (const c of st.g) {
+      const b = BAND[c]
+      if (b === 'FAULT' || b === 'WATCH') hours++
+      if (b === 'FAULT') band = 'FAULT'
+      else if (b === 'WATCH' && band !== 'FAULT') band = 'WATCH'
+      else if (b === 'OK' && band === 'NODATA') band = 'OK'
+    }
+    return { band, hours }
+  }
+
+  const rows = sim.stations.map((s) => ({ s, ...worst(s) }))
+    .filter((r) => r.band === 'FAULT' || r.band === 'WATCH')
+    .sort((a, b) => b.hours - a.hours)
+  const faults = rows.filter((r) => r.band === 'FAULT').length
+
+  return (
+    <section className="simsum">
+      <div className="belowhead">Simulated network · India</div>
+      <p className="muted small">
+        {rows.length} of {sim.stations.length} stations were flagged at some
+        point over the 30 days; {faults} reached fault. Injected faults on
+        generated readings — not work orders.
+      </p>
+      <ul className="simlist">
+        {rows.slice(0, 8).map((r) => (
+          <li key={r.s.id}>
+            <span className={'spine ' + (r.band === 'FAULT' ? 'bad' : 'warn')} aria-hidden="true" />
+            <span className="simname">{r.s.name}</span>
+            <span className="mono muted">{r.s.state}</span>
+            <span className="mono num">{r.hours} h</span>
+          </li>
+        ))}
+      </ul>
+      <Link to="/network" className="btn ghost tiny">Open the network map</Link>
+    </section>
   )
 }

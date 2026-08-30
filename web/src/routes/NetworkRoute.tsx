@@ -163,6 +163,22 @@ function FieldOverlay(
  * proportion. "Fit to flagged" answers the other question a watcher has -- how
  * spread out is the trouble -- and it deliberately does nothing when nothing is
  * flagged, because zooming to an empty set lands the map in the ocean. */
+/** Ctrl (or Cmd) plus the wheel zooms; the wheel alone scrolls the page. */
+function CtrlWheelZoom() {
+  const map = useMap()
+  useEffect(() => {
+    const el = map.getContainer()
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return
+      e.preventDefault()
+      map.setZoom(map.getZoom() - Math.sign(e.deltaY) * 0.5)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [map])
+  return null
+}
+
 function Extent({ view, flagged }: {
   view: View; flagged: [number, number][]
 }) {
@@ -195,10 +211,9 @@ export function NetworkRoute() {
   const [hour, setHour] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
-  // Both of these belong to the reader, not to the data, so neither is derived
-  // from it and neither resets when the clock moves.
+  // Which state groups are expanded. This belongs to the reader, not to the
+  // data, so it is not derived from it and does not reset when the clock moves.
   const [open, setOpen] = useState<Set<string>>(new Set())
-  const [acked, setAcked] = useState<Set<string>>(new Set())
 
   const nSteps = sim.data?.n_steps ?? 1
   const timer = useRef<number | null>(null)
@@ -247,18 +262,10 @@ export function NetworkRoute() {
 
   return (
     <div className="sheet network">
-      <header className="masthead">
-        <div>
-          <h1 className="wordmark">Network</h1>
-          <p className="masthead-sub">
-            {net === 'sim'
-              ? 'Simulated readings at 344 real IMD locations, 30 days at 15 minutes.'
-              : net === 'wdqms'
-                ? "Real stations operated by India, graded from WMO's quality monitoring."
-                : 'The nine ARM instruments the detector was measured against.'}
-          </p>
-        </div>
-      </header>
+      {/* No page title. The top bar already says which page this is, and a
+          page-sized heading repeating it pushed the map -- the actual content --
+          below the fold on a laptop. What the network IS belongs on the control
+          row beside the selector that changes it. */}
 
       <div className="mapctl">
         <label>Network
@@ -290,6 +297,11 @@ export function NetworkRoute() {
             </select>
           </label>
         )}
+        <span className="ctxnote">
+          {net === 'sim' ? '344 IMD locations · 30 days · simulated'
+            : net === 'wdqms' ? 'Real IMD stations · WMO quality monitoring'
+              : '9 ARM instruments · validation'}
+        </span>
         <label className="cbx">
           <input type="checkbox" checked={showStates}
                  onChange={(e) => setShowStates(e.target.checked)} />
@@ -300,9 +312,16 @@ export function NetworkRoute() {
       <Async query={tiles}>
         {(t) => (
           <div className="mapwrap">
-            <MapContainer center={[22.5, 82]} zoom={4} scrollWheelZoom
+            {/* THE WHEEL SCROLLS THE PAGE, not the map.
+              *
+              * A full-width map with wheel zoom on is a trap: the reader
+              * scrolls down, the cursor crosses the map, the page stops and
+              * the map zooms out instead. Ctrl/Cmd and the wheel still zooms,
+              * the +/- buttons still work, and drag still pans. */}
+            <MapContainer center={[22.5, 82]} zoom={4} scrollWheelZoom={false}
                           zoomSnap={0.25} zoomDelta={0.5} wheelPxPerZoomLevel={170}
                           className="netmap">
+              <CtrlWheelZoom />
               <Extent view={view}
                       flagged={flagged.map((r) => [r.s.lat, r.s.lon] as [number, number])} />
               <TilePaneFilter filter={b.filter} />
@@ -424,31 +443,25 @@ export function NetworkRoute() {
 
       {net === 'sim' && (
         <section className="netsec">
-          <div className="belowhead">
-            {chosen ? 'Selected station' : 'No station selected'}
-            {sim.data && <span className="mono muted"> · {timeLabel(sim.data, hour)}</span>}
-          </div>
           {!chosen || !sim.data
-            ? <p className="muted small">Click a station on the map, or a row in the
-                index below, to see its three channels across the whole month.</p>
+            ? <p className="muted small">Pick a station on the map or in the index below.</p>
             : (<>
+                {/* One line, not a heading plus a meta block plus a paragraph.
+                    Name, where it is, and whether a fault was planted here --
+                    everything else was prose the reader had already read. */}
                 <div className="stnhead">
                   <h2>{chosen.name}</h2>
-                  {/* Where the station IS, before what it is doing: 32 C is
-                      unremarkable in Chennai and alarming at 3000 m. */}
                   <span className="mono muted">
-                    {chosen.id} · {chosen.state} · {chosen.elev} m ·{' '}
+                    {chosen.state} · {chosen.elev} m ·{' '}
                     {Math.abs(chosen.lat).toFixed(2)}{chosen.lat < 0 ? 'S' : 'N'}{' '}
                     {Math.abs(chosen.lon).toFixed(2)}{chosen.lon < 0 ? 'W' : 'E'}
                   </span>
-                  <span className="small muted stnnote">
-                    {chosen.fault
-                      ? `Injected: ${chosen.fault.kind} on ${chosen.fault.channel}, `
-                        + `from hour ${chosen.fault.onset_hour}. Shown beside the `
-                        + `verdict, never used to reach it.`
-                      : 'No fault was injected here. Anything shaded is this '
-                        + 'project being wrong.'}
-                  </span>
+                  {chosen.fault && (
+                    <span className="badge" style={{ color: 'var(--ink-2)' }}>
+                      injected {chosen.fault.kind} · {chosen.fault.channel} · h{chosen.fault.onset_hour}
+                    </span>
+                  )}
+                  {sim.data && <span className="mono muted stnclock">{timeLabel(sim.data, hour)}</span>}
                 </div>
                 <StationChannels sim={sim.data} s={chosen} hour={hour} />
               </>)}
@@ -458,13 +471,9 @@ export function NetworkRoute() {
       {net === 'sim' && (
         <section className="netsec">
           <div className="belowhead">
-            Alerts · {flagged.filter((r) => !acked.has(r.s.id + ':' + r.band)).length} open
+            Flagged now · {flagged.length}
           </div>
-          <AlertList sim={sim.data} rows={flagged} hour={hour} acked={acked} onAck={(k) => {
-            const next = new Set(acked)
-            if (next.has(k)) next.delete(k); else next.add(k)
-            setAcked(next)
-          }} onSelect={setSelected} />
+          <AlertList sim={sim.data} rows={flagged} hour={hour} onSelect={setSelected} />
         </section>
       )}
 
@@ -603,26 +612,44 @@ function StationChannels({ sim, s, hour }: {
         const vals = Array.from({ length: nf }, (_, i) => readingAt(sim, s, ch, i))
         const fin = vals.filter((v): v is number => v != null)
         if (!fin.length) return null
-        let lo = Math.min(...fin), hi = Math.max(...fin)
-        const pad = (hi - lo) * 0.12 || 1
-        lo -= pad; hi += pad
-        const W = 620, H = 84, P = 4
-        const x = (i: number) => P + (i / Math.max(nf - 1, 1)) * (W - 2 * P)
-        const y = (v: number) => P + ((hi - v) / (hi - lo)) * (H - 2 * P)
+        const rawLo = Math.min(...fin), rawHi = Math.max(...fin)
+        const pad = (rawHi - rawLo) * 0.1 || 1
+        const lo = rawLo - pad, hi = rawHi + pad
+
+        /* GEOMETRY. The chart used to be stretched with
+         * preserveAspectRatio="none", which is fine for a bare trace and
+         * impossible once there is text on it -- the labels would have been
+         * squashed by whatever width the column happened to be. It scales
+         * uniformly now, with a gutter for the axis. */
+        const W = 620, H = 150
+        const L = 46, R = 8, T = 8, B = 20          // gutters
+        const x = (i: number) => L + (i / Math.max(nf - 1, 1)) * (W - L - R)
+        const y = (v: number) => T + ((hi - v) / (hi - lo)) * (H - T - B)
+
         let d = '', pen = false
         vals.forEach((v, i) => {
-          if (v == null) { pen = false; return }
+          if (v == null) { pen = false; return }   // the pen lifts at gaps
           d += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1) + ' '
           pen = true
         })
+
         const bands = []
         for (let i = 0; i < nf; i++) {
           const g = bandAt(s, ch, Math.min(i * every, s.g.length - 1))
           if (g === 'WATCH' || g === 'FAULT') {
-            bands.push(<rect key={i} x={x(i)} y={0} width={Math.max(W / nf, 1.2)} height={H}
+            bands.push(<rect key={i} x={x(i)} y={T} width={Math.max((W - L - R) / nf, 1.2)}
+                             height={H - T - B}
                              fill={HUE[g]!} opacity={g === 'FAULT' ? 0.26 : 0.16} />)
           }
         }
+
+        // Three ticks: the two extremes the reader needs for scale, and a
+        // middle one so the trace can be read off without arithmetic.
+        const ticks = [hi, (hi + lo) / 2, lo]
+        const dates = [0, Math.floor(nf / 2), nf - 1]
+        const dayLabel = (frame: number) =>
+          timeLabel(sim, frame * every).slice(5, 10).replace('-', '/')
+
         const now = vals[cur]
         const band = bandAt(s, ch, hour)
         // A reading with no grade is not a missing reading.
@@ -631,30 +658,41 @@ function StationChannels({ sim, s, hour }: {
           <div className="chan" key={ch}>
             <div className="chan-head">
               <strong>{NAME[ch]}</strong>
-              <span className="mono muted">{UNIT[ch]}</span>
               {band !== 'OK' && (
                 <span className="badge" title={why(band)}
                       style={{ color: HUE[band] ?? 'var(--ink-3)',
                                borderColor: HUE[band] ?? 'var(--rule-edge)' }}>
                   {ungraded ? UNGRADED : BAND_LABEL[band]}
                 </span>)}
-              <span className="mono" style={{ marginLeft: 'auto' }}>
+              <span className="chan-now-val mono">
                 {now == null ? 'no data' : now.toFixed(1) + ' ' + UNIT[ch]}
               </span>
             </div>
-            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="chansvg"
-                 role="img"
+            <svg viewBox={`0 0 ${W} ${H}`} className="chansvg" role="img"
                  aria-label={`${NAME[ch]} at ${s.name} over 30 days, `
-                   + `${lo.toFixed(1)} to ${hi.toFixed(1)} ${UNIT[ch]}`}>
-              <rect width={W} height={H} className="chan-stock" />
-              {/* Chart-paper ruling, so a trace is read against something. */}
-              {[0.25, 0.5, 0.75].map((f) => (
-                <line key={f} x1={0} x2={W} y1={H * f} y2={H * f} className="chan-rule" />
+                   + `${rawLo.toFixed(1)} to ${rawHi.toFixed(1)} ${UNIT[ch]}`}>
+              <rect x={L} y={T} width={W - L - R} height={H - T - B} className="chan-stock" />
+              {ticks.map((v, i) => (
+                <g key={i}>
+                  <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} className="chan-rule" />
+                  <text x={L - 6} y={y(v) + 3} className="chan-axis" textAnchor="end">
+                    {v.toFixed(ch === 'pres' ? 0 : 1)}
+                  </text>
+                </g>
               ))}
               {bands}
               <path d={d.trim()} className="chan-pen" />
-              <line x1={x(cur)} x2={x(cur)} y1={0} y2={H} className="chan-now" />
-              <rect width={W} height={H} className="chan-frame" />
+              <line x1={x(cur)} x2={x(cur)} y1={T} y2={H - B} className="chan-now" />
+              {dates.map((f, i) => (
+                <text key={f} x={x(f)} y={H - 6} className="chan-axis"
+                      textAnchor={i === 0 ? 'start' : i === 2 ? 'end' : 'middle'}>
+                  {dayLabel(f)}
+                </text>
+              ))}
+              <text x={L - 6} y={T + 3} className="chan-axis chan-unit" textAnchor="end">
+                {UNIT[ch]}
+              </text>
+              <rect x={L} y={T} width={W - L - R} height={H - T - B} className="chan-frame" />
             </svg>
           </div>
         )
@@ -662,9 +700,6 @@ function StationChannels({ sim, s, hour }: {
       </div>
       <p className="small muted">
         Shading is this project's own verdict, not the injected truth.
-        {s.fault
-          ? ` Injected: ${s.fault.kind} on ${s.fault.channel} from hour ${s.fault.onset_hour} — shown for checking; the grader never saw it.`
-          : ' No fault was injected into this station.'}
       </p>
     </>
   )
@@ -687,71 +722,55 @@ function StationChannels({ sim, s, hour }: {
  *
  * There is no store behind any of this and the note at the bottom says so.
  */
-function AlertList({ sim, rows, hour, acked, onAck, onSelect }: {
+/* WHAT IS WRONG RIGHT NOW.
+ *
+ * The Acknowledge button is gone. It set a flag in one browser tab: no store,
+ * no assignment, no work order, and nothing downstream ever read it. A control
+ * that does nothing is worse than no control, because it teaches the operator
+ * that pressing things here has no effect -- and this list exists to be acted
+ * on. When there is a real queue behind it, acknowledgement can come back
+ * meaning something.
+ *
+ * What replaces it is the thing a watcher actually wanted: the row opens the
+ * station.
+ */
+function AlertList({ sim, rows, hour, onSelect }: {
   sim: SimMap | undefined
   rows: { s: SimStation; band: Band }[]
   hour: number
-  acked: Set<string>
-  onAck: (k: string) => void
   onSelect: (id: string) => void
 }) {
-  const open = rows.filter((r) => !acked.has(r.s.id + ':' + r.band))
-  const quiet = rows.filter((r) => acked.has(r.s.id + ':' + r.band))
-  const when = sim ? timeLabel(sim, hour) : '—'
-
-  const row = (r: { s: SimStation; band: Band }, n: number, isAck: boolean) => (
-    <tr key={r.s.id + r.band} className={isAck ? 'ackd' : undefined}>
-      <td className="num">{n}</td>
-      <td className="mono when">{when}</td>
-      <td>
-        <button className="alertname" onClick={() => onSelect(r.s.id)}>{r.s.name}</button>
-      </td>
-      <td className="mono muted">{r.s.state}</td>
-      <td className="mono">{firedChannel(r.s, r.band, hour)}</td>
-      <td>
-        <span className="badge" style={{ color: HUE[r.band]!, borderColor: HUE[r.band]! }}>
-          {BAND_LABEL[r.band]}
-        </span>
-      </td>
-      <td className="act">
-        <button className="btn ghost tiny" onClick={() => onAck(r.s.id + ':' + r.band)}>
-          {isAck ? 'Reopen' : 'Acknowledge'}
-        </button>
-      </td>
-    </tr>
-  )
-
   if (!rows.length) {
-    return <p className="muted small">Nothing flagged at this hour. An alert closes
-      by itself when the station returns to OK.</p>
+    return <p className="muted small">Nothing flagged at this hour.</p>
   }
-
+  const when = sim ? timeLabel(sim, hour) : '—'
   return (
-    <>
-      {/* A TABLE, because this is a table: every alert has the same six facts
-          and the reader is comparing them down the column. As stacked cards
-          they could only be read one at a time. */}
-      <div className="tabwrap">
-        <table className="alerttab">
-          <thead>
-            <tr>
-              <th className="num">#</th><th>Raised</th><th>Station</th>
-              <th>State</th><th>Channel</th><th>Grade</th><th />
+    <div className="tabwrap">
+      <table className="alerttab">
+        <thead>
+          <tr>
+            <th>Raised</th><th>Station</th><th>State</th>
+            <th>Channel</th><th>Grade</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.s.id + r.band} onClick={() => onSelect(r.s.id)} tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') onSelect(r.s.id) }}>
+              <td className="mono when">{when}</td>
+              <td className="stncell">{r.s.name}</td>
+              <td className="mono muted">{r.s.state}</td>
+              <td className="mono">{firedChannel(r.s, r.band, hour)}</td>
+              <td>
+                <span className="badge" style={{ color: HUE[r.band]!, borderColor: HUE[r.band]! }}>
+                  {BAND_LABEL[r.band]}
+                </span>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {open.map((r, i) => row(r, i + 1, false))}
-            {quiet.map((r, i) => row(r, open.length + i + 1, true))}
-          </tbody>
-        </table>
-      </div>
-      <p className="small muted">
-        {quiet.length > 0 && `${quiet.length} acknowledged, shown greyed. `}
-        Acknowledgement is held in this tab only — no store, no assignment, no
-        work order. A station escalating from watch to fault re-opens rather
-        than staying silenced.
-      </p>
-    </>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 

@@ -22,19 +22,24 @@
  *     every number is set in a mono with tabular figures.
  */
 :root {
-  /* ---- the paper ---- */
-  --paper: #F7F2E7;          /* chart stock */
-  --paper-2: #FCF9F2;        /* a fresh sheet: cards, panels */
-  --paper-edge: #EDE4D2;     /* where sheets overlap */
-  --rule-minor: rgba(146, 106, 78, 0.13);
-  --rule-major: rgba(146, 106, 78, 0.26);
-  --rule-edge: rgba(60, 44, 34, 0.16);
+  /* ---- the paper ----
+   * White. The cream stock was a nice idea about barograph paper and it tinted
+   * every screenshot, every chart and every map panel warm; on a projector it
+   * read as an off-calibration display rather than as a choice. The rules and
+   * greys are neutral now for the same reason -- they were brown, which is
+   * invisible until you put it next to white and then it is all you see. */
+  --paper: #FFFFFF;          /* the page */
+  --paper-2: #F6F7F8;        /* panels, chart stock, table heads */
+  --paper-edge: #E4E7EA;     /* where sheets overlap */
+  --rule-minor: rgba(23, 26, 30, 0.08);
+  --rule-major: rgba(23, 26, 30, 0.18);
+  --rule-edge: rgba(23, 26, 30, 0.14);
 
   /* ---- the ink ---- */
-  --ink: #171A1E;            /* the pen */
-  --ink-2: #4A4038;
-  --ink-3: #877B6C;
-  --ink-4: #A99C8B;
+  --ink: #14171A;            /* the pen */
+  --ink-2: #3D444B;
+  --ink-3: #6B747D;
+  --ink-4: #9AA2AA;
 
   /* ---- the marks that mean something ---- */
   --oxide: #A2361F;          /* out of tolerance. Used nowhere else. */
