@@ -174,6 +174,9 @@ main{
 .simclock{font-size:11.5px; color:var(--ink)}
 .simcount{font-size:11px; color:var(--ink-3)}
 .strip{width:100%; height:22px; border:1px solid var(--rule)}
+.simchan{width:100%; height:96px; border:1px solid var(--rule); display:block}
+.chan-foot{font-size:9.5px; color:var(--ink-3); margin-top:3px}
+.stn.on{background:var(--surface-2); outline:1px solid var(--line)}
 .chmaps{display:grid; grid-template-columns:repeat(3, minmax(220px, 1fr));
         gap:16px; margin-top:0}
 /* An empty panel row must not hold a grid column open. The simulated network
@@ -776,39 +779,166 @@ $("state-filter").onchange = (e) => {
 // The simulated network's rail: who is flagged AT THIS INSTANT, worst first.
 // It changes as the clock runs, which is the point -- a station that is clean
 // on day 3 and failing on day 22 appears when it fails.
+/* The selected simulated station's three channels, as real traces.
+ *
+ * The panes under the map were drawing the TEN-station snapshot no matter which
+ * network was selected, so switching to the 344-station network changed the map
+ * and left the graphs showing a different network entirely. They now follow the
+ * switch.
+ *
+ * The values come from the same quantised arrays the field maps use -- three
+ * hourly, 240 frames over the month -- so no extra payload was needed to make
+ * the graphs real. Behind each trace the hours this project GRADED as watch or
+ * fault are shaded, which is the point: the reading and the verdict on the
+ * reading, on one axis. */
+function simChannelsHTML(){
+  const s = simRows().find(x => x.id === currentReal);
+  if (!s) return `<div class="detail-empty">Select a station on the map, or in
+    the list on the left, to see its three channels here.</div>`;
+  const every = SIM.field_every || 3;
+  const nf = SIM.n_fields || 1;
+  const NM = {temp:"Temperature", rh:"Relative humidity", pres:"Pressure (MSL)"};
+  const U = {temp:"°C", rh:"%", pres:"hPa"};
+  const VK = {temp:"vt", rh:"vh", pres:"vp"};
+  const GK = {temp:"gt", rh:"gh", pres:"gp"};
+
+  return ["temp", "rh", "pres"].map(k => {
+    const [lo, hi] = SIM.range[k];
+    if (!s["_" + VK[k]]) s["_" + VK[k]] = b64bytes(s[VK[k]]);
+    const raw = s["_" + VK[k]];
+    const vals = [];
+    for (let i = 0; i < nf; i++){
+      const b = raw[i];
+      vals.push(b === 0 ? null : lo + (b - 1) / 254 * (hi - lo));
+    }
+    const fin = vals.filter(v => v !== null);
+    if (!fin.length) return "";
+    let vlo = Math.min(...fin), vhi = Math.max(...fin);
+    const pad = (vhi - vlo) * 0.12 || 1;
+    vlo -= pad; vhi += pad;
+
+    const W = 640, H = 96, P = 4;
+    const x = i => P + i / Math.max(nf - 1, 1) * (W - 2 * P);
+    const y = v => P + (vhi - v) / (vhi - vlo) * (H - 2 * P);
+
+    // Shade the graded hours behind the trace.
+    const bands = [];
+    for (let i = 0; i < nf; i++){
+      const g = SIM_BAND[s[GK[k]][Math.min(i * every, s[GK[k]].length - 1)]];
+      if (g === "WATCH" || g === "FAULT"){
+        bands.push(`<rect x="${x(i).toFixed(1)}" y="0"
+          width="${Math.max(W / nf, 1.2).toFixed(1)}" height="${H}"
+          fill="${REAL_STATE[g]}" opacity="${g === "FAULT" ? 0.20 : 0.12}"/>`);
+      }
+    }
+    let d = "", pen = false;
+    vals.forEach((v, i) => {
+      if (v === null){ pen = false; return; }
+      d += (pen ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1) + " ";
+      pen = true;
+    });
+    const cur = Math.min(Math.floor(simStep / every), nf - 1);
+    const now = vals[cur];
+
+    return `<div class="chan">
+      <div class="chan-head">
+        <h3 style="font-size:13px">${NM[k]}</h3>
+        <span class="unit mono">${U[k]}</span>
+        <span class="chip hc" style="border-color:${REAL_STATE[SIM_BAND[s[GK[k]][simStep]]] || "var(--ink-3)"};
+          color:${REAL_STATE[SIM_BAND[s[GK[k]][simStep]]] || "var(--ink-3)"}">${
+          SIM_BAND[s[GK[k]][simStep]]}</span>
+        <span class="mono" style="margin-left:auto;font-size:11px">${
+          now === null ? "no data" : now.toFixed(1) + " " + U[k]}</span>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="simchan">
+        <rect width="${W}" height="${H}" fill="var(--surface)"/>
+        ${bands.join("")}
+        <path d="${d.trim()}" fill="none" stroke="var(--ink)" stroke-width="1.1"
+          stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+        <line x1="${x(cur).toFixed(1)}" x2="${x(cur).toFixed(1)}" y1="0" y2="${H}"
+          stroke="var(--ink)" stroke-width="1" stroke-dasharray="3 2"/>
+      </svg>
+      <div class="chan-foot mono">${vlo.toFixed(1)} to ${vhi.toFixed(1)} ${U[k]}
+        &middot; 30 days &middot; shading is this project's own verdict, not the
+        injected truth</div>
+    </div>`;
+  }).join("");
+}
+
 function drawRailSim(){
   const key = mapColour === "health" ? "health" : mapColour;
-  const rows = simRows().map(s => ({s, band: simBand(s, key, simStep)}))
-                        .filter(r => r.band === "WATCH" || r.band === "FAULT");
-  rows.sort((a, b) => REAL_ORDER[b.band] - REAL_ORDER[a.band]
-                      || a.s.name.localeCompare(b.s.name));
+  const rows = simRows().map(s => ({s, band: simBand(s, key, simStep)}));
+  // EVERY station, grouped by state -- not only the flagged ones.
+  //
+  // A list of just what is wrong tells an operator nothing about coverage: a
+  // state with two flagged masts out of forty is a different situation from one
+  // with two out of three, and "flagged now" alone cannot show that. Flagged
+  // first inside each state, then the rest, so the top of every group is still
+  // what needs attention.
   const by = {};
   for (const r of rows) (by[r.s.state] ||= []).push(r);
-  const areas = Object.keys(by).sort((a, b) => by[b].length - by[a].length
-                                               || a.localeCompare(b));
+  const order = Object.keys(by).sort((a, b) => {
+    const fa = by[a].filter(r => r.band !== "OK" && r.band !== "NODATA").length;
+    const fb = by[b].filter(r => r.band !== "OK" && r.band !== "NODATA").length;
+    return (fb - fa) || a.localeCompare(b);
+  });
+  const flagged = rows.filter(r => r.band === "WATCH" || r.band === "FAULT").length;
+
   $("rail").innerHTML =
-    `<div class="state-head"><span>Flagged now</span>
-       <span class="state-count mono">${rows.length} of ${simRows().length}
+    `<div class="state-head"><span>All stations</span>
+       <span class="state-count mono">${flagged} flagged of ${rows.length}
        &middot; ${esc(simTimeLabel(simStep))}</span></div>`
-    + (rows.length ? areas.map(a => `<details class="reg" open>
-        <summary><span>${esc(a)}</span>
-          <span class="state-count mono">${by[a].length}</span></summary>`
-        + by[a].map(r => `
-          <button class="stn" data-id="${esc(r.s.id)}" data-lat="${r.s.lat}" data-lon="${r.s.lon}">
-            <span class="stripe" style="background:${REAL_STATE[r.band]}"></span>
-            <span><span class="nm">${esc(r.s.name)}</span>
-              <div class="meta">${r.s.elev} m${r.s.fault
-                ? " &middot; injected " + esc(r.s.fault.kind) : ""}</div></span>
-            <span class="chip" style="color:${REAL_STATE[r.band]};
-              border-color:${REAL_STATE[r.band]}">${r.band}</span>
-          </button>`).join("") + `</details>`).join("")
-      : `<div class="reg-empty">nothing flagged at this hour</div>`);
+    + order.map(area => {
+        const g = by[area].slice().sort((a, b) =>
+          (REAL_ORDER[b.band] || 0) - (REAL_ORDER[a.band] || 0)
+          || a.s.name.localeCompare(b.s.name));
+        const bad = g.filter(r => r.band === "WATCH" || r.band === "FAULT").length;
+        return `<details class="reg"${bad ? " open" : ""}>
+          <summary><span>${esc(area)}</span>
+            <span class="state-count mono">${bad ? bad + " of " + g.length
+              : "all " + g.length + " clear"}</span></summary>`
+          + g.map(r => `
+            <button class="stn${r.s.id === currentReal ? " on" : ""}"
+              data-id="${esc(r.s.id)}" data-lat="${r.s.lat}" data-lon="${r.s.lon}">
+              <span class="stripe" style="background:${
+                r.band === "OK" ? "var(--rule)" : REAL_STATE[r.band] || "var(--ink-3)"}"></span>
+              <span><span class="nm">${esc(r.s.name)}</span>
+                <div class="meta">${r.s.elev} m${r.s.fault
+                  ? " &middot; injected " + esc(r.s.fault.kind) : ""}</div></span>
+              ${r.band === "OK" ? "" : `<span class="chip" style="color:${REAL_STATE[r.band]};
+                border-color:${REAL_STATE[r.band]}">${r.band}</span>`}
+            </button>`).join("") + `</details>`;
+      }).join("");
 
   $("rail").querySelectorAll(".stn").forEach(b => b.onclick = () => {
     currentReal = b.dataset.id;
     setDetail();
+    renderSimPanes();
+    drawRail();
     if (map) map.setView([+b.dataset.lat, +b.dataset.lon], 7);
   });
+}
+
+/* The panes under the map, for the simulated network. */
+function renderSimPanes(){
+  const ch = $("channels");
+  if (ch) ch.innerHTML = simChannelsHTML();
+  const insp = $("inspector");
+  const s = simRows().find(x => x.id === currentReal);
+  if (insp){
+    insp.innerHTML = !s ? `<div class="detail-empty">No station selected.</div>`
+      : `<div class="sub mono">${esc(s.id)}</div>
+         <h5 style="margin:2px 0 6px">${esc(s.name)}</h5>
+         <div class="regnote">${esc(s.state)} &middot; ${s.elev} m &middot;
+           ${s.lat.toFixed(2)}N ${s.lon.toFixed(2)}E<br><br>
+           ${s.fault ? `<b>Injected: ${esc(s.fault.kind)} on ${esc(s.fault.channel)}
+             from hour ${s.fault.onset_hour}.</b> Shown for checking; the grader
+             never saw it.` : "No fault was injected into this station."}</div>`;
+  }
+  const al = $("alerts");
+  if (al) al.innerHTML = `<div class="regnote">This network is simulated, so
+    there is no alert queue behind it. The maintenance board runs on the real
+    ARM instruments.</div>`;
 }
 
 function drawRailReal(){
@@ -1981,7 +2111,12 @@ function renderMaps(){
             + `${esc(g.s.fault.channel)}, hour ${g.s.fault.onset_hour}</b>` : ""),
         {direction:"top", offset:[0,-5]});
       m._state = g.band;
-      m.on("click", () => { currentReal = g.s.id; setDetail(); });
+      m.on("click", () => {
+        currentReal = g.s.id;
+        setDetail();
+        renderSimPanes();
+        drawRail();
+      });
       return m;
     });
     stationLayer = L.layerGroup(realMarks).addTo(map);
@@ -1998,6 +2133,7 @@ function renderMaps(){
     setHint();
     setLegend(simBarHTML() + fieldScaleHTML() + simLegendHTML());
     bindSimBar();
+    renderSimPanes();
     // The rail lists who is flagged AT THIS HOUR, so it has to be redrawn with
     // the map. Without this the clock moved, the dots moved, and the list sat
     // still showing hour one -- three surfaces disagreeing about the time.
@@ -2317,6 +2453,14 @@ function fitTo(group){
 /* ------------------------------------------------------------------ render */
 function render(){
   drawRail();
+  // The panes below belong to whichever network is selected. Without this they
+  // kept drawing the ten-station snapshot while the map showed 344 stations --
+  // two different networks on one screen.
+  if (mapNetwork === "sim344"){
+    if (!$("mapstrip").dataset.hidden) renderMaps();
+    renderSimPanes();
+    return;
+  }
   if (!$("mapstrip").dataset.hidden) renderMaps();
   const s = DATA.stations.find(x => x.name === current);
   const mine = DATA.alerts.filter(a => a.station === current);
