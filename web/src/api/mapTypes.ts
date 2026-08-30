@@ -23,15 +23,15 @@ export interface SimStation {
   lat: number
   lon: number
   elev: number
-  /** Hourly grade, worst channel: one char per hour. "0" ok, "1" watch,
+  /** Grade of the worst channel, one char per STEP. "0" ok, "1" watch,
    *  "2" fault, "-" no data. */
   g: string
   /** The same, per channel. */
   gt: string
   gh: string
   gp: string
-  /** Readings, base64 uint8, three-hourly, scaled into `range`. 0 means
-   *  missing, so the usable band is 1..255. */
+  /** Readings, base64 uint8, every `field_every` steps, scaled into `range`.
+   *  0 means missing, so the usable band is 1..255. */
   vt: string
   vh: string
   vp: string
@@ -45,8 +45,11 @@ export interface SimMap {
   /** ISO timestamp of hour 0. */
   t0: string
   step_hours: number
+  /** Minutes per step. The record is indexed in steps, not hours. */
+  step_minutes: number
   n_steps: number
-  /** Hours between reading frames; grades are hourly, readings are not. */
+  /** STEPS between reading frames. Grades exist every step; readings are
+   *  shipped more sparsely because base64 bytes do not compress. */
   field_every: number
   n_fields: number
   range: Record<'temp' | 'rh' | 'pres', [number, number]>

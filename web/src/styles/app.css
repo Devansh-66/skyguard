@@ -297,15 +297,24 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
 .netsec { margin-top: 26px; }
 .netsec + .netsec { border-top: 1px solid var(--rule-soft); padding-top: 18px; }
 .netrail details { border-bottom: 1px solid var(--rule-soft); }
+/* THE STATION INDEX.
+ *
+ * It read "all 33 clear" on thirty-odd rows, which is the word "clear"
+ * thirty-odd times and one line that matters buried among them. A count of
+ * stations is worth having; a sentence saying nothing is wrong is not, because
+ * nothing being wrong is the default and the eye should slide over it. Only
+ * the exception is written out now: a red count when something is flagged, the
+ * word "ungraded" where the method cannot reach, and otherwise just how many
+ * stations the state has.
+ */
 .netrail summary {
-  list-style: none; cursor: pointer; display: flex; gap: 8px; padding: 6px 2px;
-  font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  list-style: none; cursor: pointer; display: flex; align-items: baseline;
+  gap: 8px; padding: 5px 2px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
   text-transform: uppercase; color: var(--ink-2);
+  border-bottom: 1px solid var(--rule-minor);
 }
-.netrail summary::-webkit-details-marker { display: none; }
-.netrail summary::before { content: "+"; color: var(--ink-3); width: 9px; }
-.netrail details[open] summary::before { content: "\2212"; }
-.netrail summary .state-count { margin-left: auto; text-transform: none; letter-spacing: 0; }
+.netrail summary:hover { color: var(--ink); background: var(--surface-2); }
 .netrail .stn {
   display: flex; width: 100%; text-align: left; cursor: pointer; padding: 0;
   background: none; border: none; border-bottom: 1px solid var(--rule-minor);
@@ -496,3 +505,16 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
 .alerttab .status { white-space: nowrap; font-size: 11px; }
 .st-open { color: var(--oxide); }
 .st-closed { color: var(--ink-3); }
+
+
+.netrail summary .state-count {
+  margin-left: auto; display: flex; align-items: baseline; gap: 7px;
+  text-transform: none; letter-spacing: 0;
+}
+.netrail .state-count .n { color: var(--ink-4); font-size: 10px; min-width: 18px; text-align: right; }
+.netrail .state-count .flagged {
+  color: var(--signal-red); font-weight: 500;
+  border-bottom: 2px solid var(--signal-red); line-height: 1.1;
+}
+.netrail .state-count .ungraded { color: var(--ink-4); font-style: normal; font-size: 9.5px; }
+.netrail details[open] > summary { color: var(--ink); border-bottom-color: var(--rule); }

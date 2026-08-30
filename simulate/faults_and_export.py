@@ -351,10 +351,18 @@ def main() -> None:
     # same way they do on WDQMS. One character per station per hour per channel
     # is about 250 kB each; the combined grade is derived in the browser as the
     # worst of the three rather than shipped a fourth time.
+    # AT THE SIMULATION'S OWN RESOLUTION, not resampled to the hour.
+    #
+    # These were subsampled to hourly, which meant the interface could only ever
+    # step an hour at a time and the charts were drawn from three-hourly points
+    # -- a resolution baked into the file rather than chosen by whoever is
+    # reading it. The record is 15-minute data; shipping it as such is what lets
+    # the clock offer 15, 30 or 60 minutes and lets a chart be drawn at any of
+    # them. A grade string is one character per step and compresses to almost
+    # nothing over the wire, because almost every character is "0".
     chars = np.array(list("012-"))
-    hourly = grade_i[::4]
-    n_h = hourly.shape[0]
-    rows = ["".join(chars[hourly[:, s]]) for s in range(n_st)]
+    n_h = grade_i.shape[0]
+    rows = ["".join(chars[grade_i[:, s]]) for s in range(n_st)]
 
     per_ch = {}
     for ci, ch in enumerate(CHANNELS):
@@ -362,19 +370,33 @@ def main() -> None:
         gi = np.where(np.isfinite(az),
                       np.where(az >= FAULT_SIGMA, 2,
                                np.where(az >= WATCH_SIGMA, 1, 0)), 3)
-        gh = gi[::4]
-        per_ch[ch] = ["".join(chars[gh[:, s]]) for s in range(n_st)]
+        per_ch[ch] = ["".join(chars[gi[:, s]]) for s in range(n_st)]
 
     # THE VALUES THEMSELVES, for the field maps.
     #
     # A temperature map is a continuous surface, not a scatter of coloured
     # points -- that is simply how the quantity is represented, and grades alone
     # cannot draw one. So each station's readings go out too, quantised to a
-    # byte against a fixed per-channel range and subsampled to three-hourly:
-    # 240 frames is plenty for a field that changes on a synoptic timescale, and
-    # it is a third of the payload of hourly.
+    # byte against a fixed per-channel range -- at the same resolution as the
+    # grades, so a shaded verdict lines up exactly with the reading that caused
+    # it. They used to be three-hourly against hourly grades, which put the
+    # shading up to ninety minutes away from its own cause.
     import base64
-    FIELD_EVERY = 3                      # hours between field frames
+    # WHAT RESOLUTION TO SHIP THE READINGS AT.
+    #
+    # Grades and readings cost completely different amounts. A grade string is
+    # one character per step and is almost entirely "0", so all four strings for
+    # the whole network gzip to a few kilobytes -- they can go at the full
+    # 15-minute resolution for nothing, and that is what lets the clock step at
+    # 15, 30 or 60 minutes.
+    #
+    # Readings are quantised bytes in base64, which is close to incompressible.
+    # At 15 minutes they are 3.8 MB on their own. Every halving of resolution
+    # halves that, and 30 minutes still puts 48 points across a day, which is
+    # more than a 600-pixel chart can show. So the two are shipped at different
+    # rates on purpose, and FIELD_EVERY says how many grade steps lie between
+    # reading frames.
+    FIELD_EVERY = 2                      # grade steps (15 min each) per frame
     # PRESSURE IS REDUCED TO SEA LEVEL FOR THE FIELD MAP, and only for the map.
     #
     # Station pressure spans 611 to 1022 hPa across this network, and almost all
@@ -391,7 +413,7 @@ def main() -> None:
     msl = data["pres"] * (1.0 - (0.0065 * elev)
                           / (data["temp"] + 0.0065 * elev + 273.15)) ** -5.257
     field_src = {"temp": data["temp"], "rh": data["rh"], "pres": msl}
-    field_step = FIELD_EVERY * (60 // STEP_MIN)
+    field_step = FIELD_EVERY
     fields = {}
     for ch in CHANNELS:
         lo, hi = RANGE[ch]
@@ -427,7 +449,8 @@ def main() -> None:
         "note": ("SIMULATED READINGS at real IMD station locations. The "
                  "geography is real; the temperature, pressure and humidity are "
                  "generated. Graded by neighbour differencing within 250 km."),
-        "t0": str(t0), "step_hours": 1, "n_steps": int(n_h),
+        "t0": str(t0), "step_hours": STEP_MIN / 60.0,
+        "step_minutes": STEP_MIN, "n_steps": int(n_h),
         "field_every": FIELD_EVERY, "n_fields": int(n_f),
         "range": {k: list(v) for k, v in RANGE.items()},
         "field_note": {"pres": "reduced to mean sea level; the detector uses "

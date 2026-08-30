@@ -9,24 +9,39 @@ import { type SimMap, type SimStation } from '../api/mapTypes'
 import { bandAt, frameOf, readingAt, timeLabel } from '../lib/sim'
 import { BAND_LABEL, HUE, UNGRADED, why } from '../lib/bands'
 
-export function StationChannels({ sim, s, hour }: {
+export function StationChannels({ sim, s, hour, windowH = 0 }: {
   sim: SimMap
   s: SimStation
+  /** Current position, in record steps. */
   hour: number
+  /** Hours of history to draw, ending at the clock. 0 draws everything. */
+  windowH?: number
 }) {
   const CH: ('temp' | 'rh' | 'pres')[] = ['temp', 'rh', 'pres']
   const NAME = { temp: 'Temperature', rh: 'Relative humidity', pres: 'Pressure (MSL)' }
   const UNIT = { temp: '°C', rh: '%', pres: 'hPa' }
-  const every = sim.field_every || 3
+  const every = sim.field_every || 1
   const nf = sim.n_fields || 1
   const cur = frameOf(sim, hour)
+  /* THE WINDOW. The axis used to be the whole record, always. A slow drift
+   * across a month is a smudge at that scale and unmistakable across a day, so
+   * how much paper to show is the reader's decision, not the file's.
+   * The window ENDS at the clock and reaches back, which is the direction a
+   * recorder works in. */
+  const span = windowH > 0
+    ? Math.max(2, Math.round((windowH * 60) / ((sim.step_minutes || 15) * every)))
+    : nf
+  const first = Math.max(0, Math.min(cur - span + 1, nf - span))
+  const last = Math.min(first + span - 1, nf - 1)
 
   return (
     <>
       <div className="chanrow">
       {CH.map((ch) => {
         const vals = Array.from({ length: nf }, (_, i) => readingAt(sim, s, ch, i))
-        const fin = vals.filter((v): v is number => v != null)
+        // Scale over the WINDOW, not the record: a day of readings squeezed
+        // into a month's y-range is a flat line.
+        const fin = vals.slice(first, last + 1).filter((v): v is number => v != null)
         if (!fin.length) return null
         const rawLo = Math.min(...fin), rawHi = Math.max(...fin)
         const pad = (rawHi - rawLo) * 0.1 || 1
@@ -44,7 +59,7 @@ export function StationChannels({ sim, s, hour }: {
          * vertical room. */
         const W = 620, H = 215
         const L = 50, R = 10, T = 10, B = 24        // gutters
-        const x = (i: number) => L + (i / Math.max(nf - 1, 1)) * (W - L - R)
+        const x = (i: number) => L + ((i - first) / Math.max(span - 1, 1)) * (W - L - R)
         const y = (v: number) => T + ((hi - v) / (hi - lo)) * (H - T - B)
 
         /* THE PEN DRAWS UP TO NOW, AND NO FURTHER.
@@ -63,7 +78,7 @@ export function StationChannels({ sim, s, hour }: {
          * and the trace would writhe in place instead of extending. The paper
          * is ruled before the pen touches it. */
         let d = '', pen = false
-        for (let i = 0; i <= cur && i < nf; i++) {
+        for (let i = first; i <= cur && i <= last; i++) {
           const v = vals[i]
           if (v == null) { pen = false; continue }   // the pen lifts at gaps
           d += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1) + ' '
@@ -74,10 +89,10 @@ export function StationChannels({ sim, s, hour }: {
 
         // Shading only over paper the pen has passed, for the same reason.
         const bands = []
-        for (let i = 0; i <= cur && i < nf; i++) {
+        for (let i = first; i <= cur && i <= last; i++) {
           const g = bandAt(s, ch, Math.min(i * every, s.g.length - 1))
           if (g === 'WATCH' || g === 'FAULT') {
-            bands.push(<rect key={i} x={x(i)} y={T} width={Math.max((W - L - R) / nf, 1.2)}
+            bands.push(<rect key={i} x={x(i)} y={T} width={Math.max((W - L - R) / span, 1.2)}
                              height={H - T - B}
                              fill={HUE[g]!} opacity={g === 'FAULT' ? 0.26 : 0.16} />)
           }
@@ -86,9 +101,14 @@ export function StationChannels({ sim, s, hour }: {
         // Three ticks: the two extremes the reader needs for scale, and a
         // middle one so the trace can be read off without arithmetic.
         const ticks = [hi, (hi + lo) / 2, lo]
-        const dates = [0, Math.floor(nf / 2), nf - 1]
-        const dayLabel = (frame: number) =>
-          timeLabel(sim, frame * every).slice(5, 10).replace('-', '/')
+        const dates = [first, Math.floor((first + last) / 2), last]
+        // A day label is useless on a 24-hour window and a clock is useless on
+        // a month; the axis says whichever one is changing.
+        const dayLabel = (frame: number) => {
+          const t = timeLabel(sim, frame * every)
+          return span * every * (sim.step_minutes || 15) <= 48 * 60
+            ? t.slice(11, 16) : t.slice(5, 10).replace('-', '/')
+        }
 
         const now = vals[cur]
         const band = bandAt(s, ch, hour)

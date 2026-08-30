@@ -52,15 +52,25 @@ export function bandAt(
   return BAND[str?.[hour]] ?? 'NODATA'
 }
 
-/** Hour index to the reading frame that covers it. Grades are hourly, readings
- *  are three-hourly; conflating the two indexes silently plots the wrong day. */
-export function frameOf(sim: SimMap, hour: number): number {
-  return Math.min(Math.floor(hour / (sim.field_every || 3)), (sim.n_fields || 1) - 1)
+/** THE RECORD IS INDEXED IN STEPS, NOT HOURS.
+ *
+ * A step is `step_minutes` long -- 15 in the current export. Grades exist at
+ * every step; readings are shipped every `field_every` steps because they cost
+ * a hundred times more to send. Conflating the two indexes silently plots the
+ * wrong day, which is why neither is ever called "hour" any more.
+ */
+export function frameOf(sim: SimMap, step: number): number {
+  return Math.min(Math.floor(step / (sim.field_every || 1)), (sim.n_fields || 1) - 1)
 }
 
-export function timeLabel(sim: SimMap, hour: number): string {
+/** How many steps make up a given number of minutes. */
+export function stepsPerMinutes(sim: SimMap, minutes: number): number {
+  return Math.max(1, Math.round(minutes / (sim.step_minutes || 15)))
+}
+
+export function timeLabel(sim: SimMap, step: number): string {
   const t = new Date(sim.t0 + 'Z')
-  t.setUTCHours(t.getUTCHours() + hour)
+  t.setUTCMinutes(t.getUTCMinutes() + step * (sim.step_minutes || 15))
   return t.toISOString().slice(0, 16).replace('T', ' ') + 'Z'
 }
 

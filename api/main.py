@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -119,6 +120,12 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+# COMPRESS. Nothing was compressing anything, and the map datasets are mostly
+# text: the grade strings are one character per station per step and almost
+# every character is "0", so they go from 3.8 MB to about 3 kB. Serving them
+# raw was throwing away a thousandfold for the sake of a missing line.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
 
 
 app.include_router(tiles_router)

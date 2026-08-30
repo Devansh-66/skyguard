@@ -29,8 +29,8 @@ import {
   useArmMap, useSimMap, useStatesGeo, useTileStatus, useWdqmsMap,
 } from '../api/queries'
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
-import { bandAt, frameOf, timeLabel } from '../lib/sim'
-import { BAND_LABEL, HUE, label, why } from '../lib/bands'
+import { bandAt, frameOf, stepsPerMinutes, timeLabel } from '../lib/sim'
+import { BAND_LABEL, HUE, UNGRADED_WHY, label, why } from '../lib/bands'
 import { allAlerts, ledgerAt } from '../lib/alerts'
 import { StationChannels } from '../components/StationChannels'
 import { MAP_BOX, fieldRange, paintField, rampCss } from '../lib/field'
@@ -173,6 +173,12 @@ export function NetworkRoute() {
   const [channel, setChannel] = useState<Channel>('health')
   const [showStates, setShowStates] = useState(false)
   const [view, setView] = useState<View>('india')
+  /* HOW FAR THE CLOCK MOVES, and HOW MUCH CHART IS SHOWN. Both were fixed
+   * constants -- an hour per tick and the whole month on every axis -- which
+   * are reasonable defaults and terrible rules. A drift is invisible at
+   * 30 days and obvious at 24 hours. */
+  const [stepMin, setStepMin] = useState(60)
+  const [windowH, setWindowH] = useState(0)      // 0 = the whole record
   const [hour, setHour] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
@@ -184,10 +190,11 @@ export function NetworkRoute() {
   const timer = useRef<number | null>(null)
   useEffect(() => {
     if (!playing) return
+    const by = sim.data ? stepsPerMinutes(sim.data, stepMin) : 4
     timer.current = window.setInterval(
-      () => setHour((h) => (h + 1) % nSteps), 90)
+      () => setHour((h) => (h + by) % nSteps), 90)
     return () => { if (timer.current) window.clearInterval(timer.current) }
-  }, [playing, nSteps])
+  }, [playing, nSteps, stepMin, sim.data])
 
   const b = BASES[base]
 
@@ -282,6 +289,22 @@ export function NetworkRoute() {
             </select>
           </label>
         )}
+        <label>Step
+          <select value={stepMin} onChange={(e) => setStepMin(+e.target.value)}>
+            <option value={15}>15 min</option>
+            <option value={30}>30 min</option>
+            <option value={60}>1 hour</option>
+            <option value={180}>3 hours</option>
+          </select>
+        </label>
+        <label>Chart
+          <select value={windowH} onChange={(e) => setWindowH(+e.target.value)}>
+            <option value={24}>Last 24 hours</option>
+            <option value={72}>Last 3 days</option>
+            <option value={168}>Last 7 days</option>
+            <option value={0}>Whole record</option>
+          </select>
+        </label>
         <span className="ctxnote">
           {net === 'sim' ? '344 IMD locations · 30 days · simulated'
             : net === 'wdqms' ? 'Real IMD stations · WMO quality monitoring'
@@ -396,7 +419,9 @@ export function NetworkRoute() {
           <span className="mono">{timeLabel(sim.data, hour)}</span>
           <span className="mono muted">
             {flagged.filter((r) => r.band === 'FAULT').length} fault ·{' '}
-            {flagged.filter((r) => r.band === 'WATCH').length} watch · hour {hour + 1}/{nSteps}
+            {flagged.filter((r) => r.band === 'WATCH').length} watch · day{' '}
+            {(hour * (sim.data?.step_minutes ?? 15) / 1440).toFixed(1)} of{' '}
+            {(nSteps * (sim.data?.step_minutes ?? 15) / 1440).toFixed(0)}
           </span>
         </div>
       )}
@@ -448,7 +473,7 @@ export function NetworkRoute() {
                   )}
                   {sim.data && <span className="mono muted stnclock">{timeLabel(sim.data, hour)}</span>}
                 </div>
-                <StationChannels sim={sim.data} s={chosen} hour={hour} />
+                <StationChannels sim={sim.data} s={chosen} hour={hour} windowH={windowH} />
               </>)}
         </section>
       )}
@@ -466,7 +491,8 @@ export function NetworkRoute() {
       {net === 'sim' && (
         <section className="netsec">
           <div className="belowhead">
-            Station index · {flagged.length} flagged of {graded.length}
+            Station index
+            <span className="muted"> · {graded.length} stations, {flagged.length} flagged now</span>
           </div>
           <div className="netrail">
               {byState.map(([state, rows]) => {
@@ -483,10 +509,10 @@ export function NetworkRoute() {
                     <summary>
                       <span>{state}</span>
                       <span className="state-count mono">
-                        {bad ? `${bad} of ${rows.length}`
-                          : ungradedCount(rows) === rows.length
-                            ? `${rows.length} ungraded`
-                            : `all ${rows.length} clear`}
+                        {bad > 0 && <b className="flagged">{bad}</b>}
+                        {ungradedCount(rows) === rows.length && (
+                          <em className="ungraded" title={UNGRADED_WHY}>ungraded</em>)}
+                        <span className="n">{rows.length}</span>
                       </span>
                     </summary>
                     {sorted.map(({ s, band }) => (
