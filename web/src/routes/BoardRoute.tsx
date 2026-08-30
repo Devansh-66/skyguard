@@ -20,7 +20,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 import { useQueue, useSimMap } from '../api/queries'
 import { StationChannels } from '../components/StationChannels'
-import { BAND, type Band, type SimMap, type SimStation } from '../api/mapTypes'
+import { type Band, type SimMap, type SimStation } from '../api/mapTypes'
+import { alertsFor } from '../lib/alerts'
 import { siteInfo } from '../api/sites'
 import { Async } from '../components/Async'
 import { Badge, severityTone } from '../components/Badge'
@@ -188,6 +189,7 @@ type SimItem = {
   ch: 'temp' | 'rh' | 'pres'
   band: Band
   hours: number
+  episodes: number
 }
 
 const CH_LABEL = { temp: 'Temperature', rh: 'Relative humidity', pres: 'Pressure (MSL)' }
@@ -197,16 +199,15 @@ export function simItems(sim: SimMap | undefined): SimItem[] {
   const out: SimItem[] = []
   for (const st of sim.stations) {
     for (const ch of ['temp', 'rh', 'pres'] as const) {
-      const g = ch === 'temp' ? st.gt : ch === 'rh' ? st.gh : st.gp
-      let hours = 0
-      let band: Band = 'OK'
-      for (const c of g) {
-        const b = BAND[c]
-        if (b === 'FAULT' || b === 'WATCH') hours++
-        if (b === 'FAULT') band = 'FAULT'
-        else if (b === 'WATCH' && band !== 'FAULT') band = 'WATCH'
-      }
-      if (hours > 0) out.push({ id: `sim:${st.id}:${ch}`, s: st, ch, band, hours })
+      /* Episodes, not flagged hours. Counting hours put stations on this board
+       * that had never been wrong for more than an hour at a time -- 2,484
+       * runs across the network, half of them a single hour long. An item here
+       * is meant to be a condition somebody drives out to look at. */
+      const eps = alertsFor(st, ch)
+      if (!eps.length) continue
+      const hours = eps.reduce((n, e) => n + e.hours, 0)
+      const band: Band = eps.some((e) => e.band === 'FAULT') ? 'FAULT' : 'WATCH'
+      out.push({ id: `sim:${st.id}:${ch}`, s: st, ch, band, hours, episodes: eps.length })
     }
   }
   return out.sort((a, b) => b.hours - a.hours)
@@ -246,7 +247,7 @@ function SimItems({ sim, selected, onPick }: {
                       && <Badge tone="ok">injected</Badge>}
                   </span>
                   <span className="card-meta num">
-                    {it.s.state} · {it.s.elev} m · worst {it.band.toLowerCase()}
+                    {it.s.state} · {it.s.elev} m · {it.episodes} episode{it.episodes > 1 ? 's' : ''}
                   </span>
                   <span className={'card-action ' + (it.band === 'FAULT' ? 'bad' : 'sus')}>
                     {it.band === 'FAULT' ? 'DISPATCH' : 'WATCH'}

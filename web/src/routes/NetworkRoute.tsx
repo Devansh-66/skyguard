@@ -31,6 +31,7 @@ import {
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
 import { bandAt, frameOf, timeLabel } from '../lib/sim'
 import { BAND_LABEL, HUE, label, why } from '../lib/bands'
+import { type Alert, allAlerts, openAt } from '../lib/alerts'
 import { StationChannels } from '../components/StationChannels'
 import { MAP_BOX, fieldRange, paintField, rampCss } from '../lib/field'
 import L from 'leaflet'
@@ -212,6 +213,15 @@ export function NetworkRoute() {
   }, [graded])
 
   const flagged = graded.filter((r) => r.band === 'WATCH' || r.band === 'FAULT')
+
+  /* ALERTS ARE EPISODES, NOT HOURS. See lib/alerts.ts: a grade is recomputed
+   * from scratch every hour with no memory, so thresholding it directly gave
+   * 2,484 "alerts" of which 1,318 lasted a single hour. These are debounced
+   * into conditions with a beginning and an end. Computed once for the whole
+   * record -- it does not depend on where the clock is. */
+  const alerts = useMemo(
+    () => (sim.data ? allAlerts(sim.data.stations) : []), [sim.data])
+  const openNow = useMemo(() => openAt(alerts, hour), [alerts, hour])
   /* THE OPENING STATION IS CHOSEN ONCE, AND THEN LEFT ALONE.
    *
    * The page needs a station selected on arrival, or the charts are replaced by
@@ -446,9 +456,9 @@ export function NetworkRoute() {
       {net === 'sim' && (
         <section className="netsec">
           <div className="belowhead">
-            Flagged now · {flagged.length}
+            Open alerts · {openNow.length}
           </div>
-          <AlertList sim={sim.data} rows={flagged} hour={hour} onSelect={setSelected} />
+          <AlertList sim={sim.data} rows={openNow} hour={hour} onSelect={setSelected} />
         </section>
       )}
 
@@ -583,34 +593,38 @@ function WrongByState({ rows }: { rows: { s: SimStation; band: Band }[] }) {
  */
 function AlertList({ sim, rows, hour, onSelect }: {
   sim: SimMap | undefined
-  rows: { s: SimStation; band: Band }[]
+  rows: Alert[]
   hour: number
   onSelect: (id: string) => void
 }) {
   if (!rows.length) {
-    return <p className="muted small">Nothing flagged at this hour.</p>
+    return <p className="muted small">No alert is open at this hour.</p>
   }
-  const when = sim ? timeLabel(sim, hour) : '—'
+  const CH = { temp: 'temperature', rh: 'humidity', pres: 'pressure' }
   return (
     <div className="tabwrap">
       <table className="alerttab">
         <thead>
           <tr>
             <th>Raised</th><th>Station</th><th>State</th>
-            <th>Channel</th><th>Grade</th>
+            <th>Channel</th><th>Open for</th><th>Grade</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.s.id + r.band} onClick={() => onSelect(r.s.id)} tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter') onSelect(r.s.id) }}>
-              <td className="mono when">{when}</td>
-              <td className="stncell">{r.s.name}</td>
-              <td className="mono muted">{r.s.state}</td>
-              <td className="mono">{firedChannel(r.s, r.band, hour)}</td>
+          {rows.map((a) => (
+            <tr key={a.id} onClick={() => onSelect(a.s.id)} tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') onSelect(a.s.id) }}>
+              <td className="mono when">{sim ? timeLabel(sim, a.from) : '—'}</td>
+              <td className="stncell">{a.s.name}</td>
+              <td className="mono muted">{a.s.state}</td>
+              <td className="mono">{CH[a.ch]}</td>
+              {/* How long it has been open AT THE CURRENT HOUR, not the length
+                  of the whole episode -- the rest of it is still in the future
+                  from where the clock is standing. */}
+              <td className="mono num">{hour - a.from + 1} h</td>
               <td>
-                <span className="badge" style={{ color: HUE[r.band]!, borderColor: HUE[r.band]! }}>
-                  {BAND_LABEL[r.band]}
+                <span className="badge" style={{ color: HUE[a.band]!, borderColor: HUE[a.band]! }}>
+                  {BAND_LABEL[a.band]}
                 </span>
               </td>
             </tr>
@@ -619,17 +633,4 @@ function AlertList({ sim, rows, hour, onSelect }: {
       </table>
     </div>
   )
-}
-
-/** Which channel is responsible for a station's worst grade.
- *
- * The map colours a station by its WORST channel, which is the right summary
- * and a useless dispatch instruction: nobody drives out to fix "the station".
- * Reporting more than one where several tie is honest -- ties happen when a
- * whole logger goes. */
-function firedChannel(s: SimStation, band: Band, hour: number): string {
-  const NAMES = { temp: 'temperature', rh: 'humidity', pres: 'pressure' } as const
-  const hit = (['temp', 'rh', 'pres'] as const)
-    .filter((c) => bandAt(s, c, hour) === band).map((c) => NAMES[c])
-  return hit.length ? hit.join(' + ') : 'no single channel'
 }
