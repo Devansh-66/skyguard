@@ -1,0 +1,12 @@
+# SPA fallback for Cloudflare Pages and Netlify.
+#
+# The app routes on the client: /network and /board/<id> are real URLs to the
+# router and nothing on disk. Without this rule the host 404s anything but /,
+# so the site works until someone presses reload or opens a shared link -- the
+# same trap the FastAPI mount needed a subclass to avoid.
+#
+# The /api rule comes first so the exported JSON is served as itself rather
+# than being rewritten to the HTML shell, which fails as a confusing JSON
+# parse error rather than as a 404.
+/api/*  /api/:splat  200
+/*      /index.html  200

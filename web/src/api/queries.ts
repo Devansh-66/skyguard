@@ -95,6 +95,19 @@ export function useArmMap() {
   })
 }
 
+/** The official NCMRWF boundary as geometry.
+ *
+ * Only needed on a static build, where there is no proxy to serve it as WMS
+ * tiles. It is the same source either way -- vendored from NCMRWF -- so the
+ * depiction of the border is still not something this application improvises. */
+export function useBoundaryGeo() {
+  return useQuery({
+    queryKey: keys.map('boundary'),
+    queryFn: ({ signal }) => get<unknown>('/api/map/boundary', signal),
+    staleTime: Infinity,
+  })
+}
+
 export function useStatesGeo() {
   return useQuery({
     queryKey: keys.map('states'),
@@ -112,7 +125,7 @@ export function useTileStatus() {
     queryFn: ({ signal }) => get<{
       available: boolean
       tile_template: string
-      boundary_template: string
+      boundary_template: string | null
       attribution: string
       max_zoom: number
     }>('/api/tiles/status', signal),

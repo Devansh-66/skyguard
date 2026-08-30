@@ -225,3 +225,44 @@ python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
 `dashboard/wdqms.json` — the real IMD station list everything else is derived
 from — **is** committed, because rebuilding it needs a fetch from WMO and a
 build host may not have one.
+
+## Hosting
+
+Nothing this app serves is live. There is no ingest yet: the queue is a survey
+of a fixed ARM archive and the maps are files a build step produced, so every
+endpoint is a deterministic function of data that does not change. A server
+that only ever returns the same bytes does not need to exist, so the whole site
+can be static.
+
+```bash
+python -m scripts.build_site      # simulate, grade, export sim_map.json
+python -m scripts.export_static   # freeze every API response into web/public/api
+cd web && VITE_STATIC=1 VITE_BASE=/ npm run build
+```
+
+`web/dist` is then a complete site — about 6.5 MB, 1.6 MB over the wire — that
+needs no Python anywhere.
+
+| Host | `VITE_BASE` | SPA fallback | Notes |
+| --- | --- | --- | --- |
+| Cloudflare Pages | `/` | `public/_redirects` | build `npm run build`, output `dist` |
+| Vercel | `/` | `vercel.json` | root directory `web` |
+| GitHub Pages | `/<repo>/` | `dist/404.html` (written by the build) | project sites are not served from the root |
+
+### What is not static
+
+The tile proxy. It fetches Esri imagery, caches it, and turns the NCMRWF
+boundary WMS into tiles — none of which can be frozen into a file. The static
+export points the basemap straight at Esri (tiles are `<img>`, so no CORS grant
+is needed) and draws the boundary from the vendored NCMRWF geometry instead:
+same source, different form.
+
+### Why not "host the frontend, run the backend locally"
+
+Because the hosted page would fetch `http://localhost:8000`, which only
+resolves on the machine running uvicorn. Everyone else gets an empty site. It
+is hosting that nobody but you can use — and the static export gives the same
+result with none of that.
+
+When live ingest lands over MQTT, that changes: the archive can stay static,
+the live network cannot. `VITE_STATIC` is the switch between them.

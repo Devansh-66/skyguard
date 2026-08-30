@@ -26,7 +26,7 @@
 import { GeoJSON, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  useArmMap, useSimMap, useStatesGeo, useTileStatus, useWdqmsMap,
+  useArmMap, useBoundaryGeo, useSimMap, useStatesGeo, useTileStatus, useWdqmsMap,
 } from '../api/queries'
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
 import { bandAt, frameOf, stepsPerMinutes, timeLabel } from '../lib/sim'
@@ -172,6 +172,7 @@ export function NetworkRoute() {
   const wdqms = useWdqmsMap()
   const arm = useArmMap()
   const states = useStatesGeo()
+  const boundary = useBoundaryGeo()
 
   const [net, setNet] = useState<Net>('sim')
   const [base, setBase] = useState<BaseKey>('imagery')
@@ -348,10 +349,19 @@ export function NetworkRoute() {
                 <>
                   <TileLayer url={t.tile_template} maxZoom={t.max_zoom}
                              attribution={t.attribution} />
-                  {/* The official boundary, served from NCMRWF rather than drawn
-                      by us: the depiction of a national border is not something
-                      an application should improvise. */}
-                  <TileLayer url={t.boundary_template} maxZoom={t.max_zoom} />
+                  {/* The official boundary from NCMRWF, not drawn by us: the
+                      depiction of a national border is not something an
+                      application should improvise.
+                      Served as WMS tiles through the API's proxy where there is
+                      one, and as the vendored geometry where there is not -- a
+                      static host has no proxy, and the same source either way is
+                      what matters. */}
+                  {t.boundary_template
+                    ? <TileLayer url={t.boundary_template} maxZoom={t.max_zoom} />
+                    : boundary.data != null && (
+                        <GeoJSON data={boundary.data as never}
+                                 style={{ color: '#2A3F6B', weight: 1.1,
+                                          opacity: 0.9, fill: false }} />)}
                 </>
               )}
               {showStates && states.data != null && (
