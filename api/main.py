@@ -87,11 +87,29 @@ async def lifespan(app: FastAPI):
         graph_path=os.environ.get("SKYGUARD_GRAPH", DEFAULT_GRAPH),
         causal=os.environ.get("SKYGUARD_CAUSAL", "1") != "0",
     )
-    ENGINE.build()
-    lo, hi = ENGINE.span()
-    import pandas as pd
-    CLOCK.span_seconds = float(
-        (pd.Timestamp(hi) - pd.Timestamp(lo)).total_seconds())
+    # THE LEGACY CSV ENGINE IS OPTIONAL, and the service must start without it.
+    #
+    # It powers /api/stations, /api/alerts and /api/clock -- the original
+    # ten-station replay. The React app calls none of them: it reads /api/queue,
+    # /api/map/*, /api/ai/catalog and /api/tiles/status, and nothing else. But
+    # a missing CSV raised FileNotFoundError inside lifespan, which kills the
+    # whole process, so a container built without data/ -- which is every
+    # container, since data/ is 455 MB and ignored -- would not boot at all.
+    #
+    # One unused subsystem must not be able to take down the six that are used.
+    # Its own endpoints already return 503 when the engine is absent, which is
+    # the honest answer for them and no answer at all for anything else.
+    try:
+        ENGINE.build()
+        lo, hi = ENGINE.span()
+        import pandas as pd
+        CLOCK.span_seconds = float(
+            (pd.Timestamp(hi) - pd.Timestamp(lo)).total_seconds())
+    except FileNotFoundError as e:
+        print(f"[startup] legacy CSV engine unavailable ({e.filename}); "
+              f"/api/stations, /api/alerts and /api/clock will 503. "
+              f"Everything the dashboard uses is unaffected.")
+        ENGINE = None
     # Starts at the END, paused. Opening at t=0 is defensible and makes a
     # terrible first impression: the clock has seen one hour of data, no
     # detector has enough history to say anything, and the console renders
@@ -237,6 +255,11 @@ def readyz():
     will restart it forever."""
     if not READY:
         return JSONResponse({"status": "building"}, status_code=503)
+    if ENGINE is None:
+        return {"status": "ready", "legacy_engine": "absent",
+                "note": "The CSV replay is not loaded on this host, so "
+                        "/api/stations, /api/alerts and /api/clock 503. "
+                        "Everything the dashboard reads is served."}
     return {"status": "ready", "build_seconds": ENGINE.build_seconds}
 
 

@@ -62,3 +62,15 @@ dashboard/console.html
 data/tilecache/
 docs/SkyGuard-Blueprint.pdf
 data/uscrn_tx/
+
+# ---- generated, and it was all committed once ----
+#
+# Every path here is produced by a script in this repository from something
+# else in this repository. Committing them meant the same bytes existed twice
+# under two names, and the copy in git went stale the moment the generator ran.
+
+# scripts/export_static.py -- 6.7 MB duplicating dashboard/ for static hosting
+web/public/api/
+
+# ppt_build/render.py renders these from the .pptx
+ppt_build/render/
