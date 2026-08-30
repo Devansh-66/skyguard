@@ -596,46 +596,9 @@ async def seek(frame: int = Query(..., ge=0)) -> dict:
     _target_frame[0] = frame
     return {"frame": frame}
 
-
-@router.get("/api/live/series")
-def series() -> dict:
-    """The node's whole record, the same thirty days every other station has.
-
-    WHY THIS EXISTS
-
-    The node began with no history and filled frames in as it reported, so its
-    chart was a stub on a thirty-day axis while its neighbours were complete.
-    That is not what a station looks like: a device on a pole has been reading
-    since it was installed, and the interesting question is whether the last
-    few readings depart from that history -- which cannot be asked of a chart
-    that has none.
-
-    So it is given the same record as everyone else, synthesised the same way
-    its live readings are: interpolated from its six neighbours, plus its own
-    sensor noise. Nothing here is injected. The live feed then overwrites
-    individual frames as it reports them, which is where a fault appears.
-
-    Deterministic on purpose -- a fixed seed -- so a reload does not silently
-    redraw the station's past.
-    """
-    import random
-
-    sim = _sim()
-    nbrs = _neighbours(sim, LIVE_STATION["lat"], LIVE_STATION["lon"])
-    n = sim.get("n_fields") or 1
-    rng = random.Random(20260725)
-    out: dict[str, list[float]] = {"temp": [], "rh": [], "pres": []}
-    for f in range(n):
-        exp = _expected(sim, f, nbrs)
-        for (ch, v) in zip(("temp", "rh", "pres"), exp):
-            out[ch].append(round(v + rng.gauss(0, SENSOR_NOISE[ch]), 2))
-    return {
-        "station": LIVE_STATION,
-        "n_fields": n,
-        "field_every": sim.get("field_every", 1),
-        "t0": sim.get("t0"),
-        "values": out,
-        "note": "Its history, interpolated from six neighbours within 120 km "
-                "plus sensor noise. No fault is injected here -- injected "
-                "faults appear in the frames the node reports live.",
-    }
+# /api/live/series was here. It synthesised the node's whole thirty-day past so
+# its chart matched a simulated station's, and it was removed on purpose: the
+# node has been running for minutes and a month of readings it never took is a
+# month of readings it never took. A chart that fills as the device reports is
+# the honest one, even though it is a stub against a thirty-day axis for the
+# first few minutes.

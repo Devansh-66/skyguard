@@ -26,8 +26,7 @@
 import { GeoJSON, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  useArmMap, useBoundaryGeo, useLiveSeries, useLiveStation, useSimMap,
-  useStatesGeo,
+  useArmMap, useBoundaryGeo, useLiveStation, useSimMap, useStatesGeo,
   useTileStatus, useWdqmsMap,
 } from '../api/queries'
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
@@ -143,7 +142,6 @@ export function NetworkRoute() {
   const states = useStatesGeo()
   const boundary = useBoundaryGeo()
   const node = useLiveStation()
-  const nodeSeries = useLiveSeries()
   const live = useLive(import.meta.env.VITE_API_BASE ?? '')
 
   const [net, setNet] = useState<Net>('sim')
@@ -172,27 +170,6 @@ export function NetworkRoute() {
       () => setHour((h) => (h + by) % nSteps), 90)
     return () => { if (timer.current) window.clearInterval(timer.current) }
   }, [playing, nSteps, stepMin, sim.data])
-
-  /* THE NODE'S RECORD, with what it has reported live written over the top.
-   *
-   * The series is its history -- the same thirty days every other station has,
-   * so its chart is a chart and not a stub on an empty axis. The live readings
-   * replace individual frames as they arrive, which is where an injected fault
-   * shows up. History underneath, what is happening now on top, one line. */
-  const nodeHistory = useMemo(() => {
-    const base = nodeSeries.data?.values
-    if (!base) return live.byFrame
-    const merge = (h: number[], l: (number | null)[]) => {
-      const out: (number | null)[] = h.slice()
-      l.forEach((v, i) => { if (v != null) out[i] = v })
-      return out
-    }
-    return {
-      temp: merge(base.temp, live.byFrame.temp),
-      rh: merge(base.rh, live.byFrame.rh),
-      pres: merge(base.pres, live.byFrame.pres),
-    }
-  }, [nodeSeries.data, live.byFrame])
 
   const b = BASES[base]
   /* Whether the live node's last reading failed the screen. Kept next to the
@@ -649,15 +626,20 @@ export function NetworkRoute() {
                   s={nodeStation!}
                   hour={hour}
                   windowH={windowH}
-                  live={{ byFrame: nodeHistory, grades: live.grades,
-                          upto: (nodeSeries.data?.n_fields ?? 1) - 1 }} />
+                  live={{ byFrame: live.byFrame, grades: live.grades,
+                          upto: live.frame }} />
 
                 <p className="small muted">
-                  Readings arrive at <code>/api/ingest</code>, are screened
+                  This node was switched on when the service started, so it
+                  has no past — the axis is the same thirty days every station
+                  here is drawn on, and the pen has reached{' '}
+                  <strong>{live.frame} of {sim.data.n_fields}</strong> frames.
+                  It fills as the node reports, about twelve minutes for the
+                  month. Nothing to the right of the pen has been measured, so
+                  nothing is drawn there.
+                  {' '}Readings arrive at <code>/api/ingest</code>, are screened
                   against the WMO rails, differenced against six neighbours
-                  within 120 km, and stored. The pen reaches as far as the node
-                  has reported — {live.frame} frames — rather than to the
-                  slider, because it cannot draw a reading it has not sent.
+                  within 120 km, and stored.
                 </p>
               </>)
             : !chosen || !sim.data
