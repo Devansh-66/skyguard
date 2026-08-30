@@ -277,6 +277,12 @@ def _apply_fault(vals: tuple[float, float, float], n: int):
 BASELINE_N = 40
 _resid: list[float] = []
 
+# The node's standing right now, so the maintenance board can show it as an
+# item like any other. A live station that faults and appears nowhere a
+# technician looks is a station nobody will be sent to.
+_standing: dict = {"band": "learning", "z": 0.0, "since": None,
+                   "readings": 0, "expected": None, "last": None}
+
 
 def _grade_live(reported: float, expected: float) -> tuple[float, str]:
     """|z| of this reading's residual, and the band it falls in.
@@ -364,6 +370,13 @@ async def _run(per_second: float, limit: int) -> None:
                                dt_min=SIM_MINUTES_PER_READING,
                                flags=node_flags))
                 z, band = _grade_live(temp, exp[0])
+                if band != _standing["band"]:
+                    # Date the condition from where it STARTED, not from where
+                    # we became confident about it -- the same rule the alert
+                    # ledger uses for the simulated network.
+                    _standing["since"] = time.time() if band in ("watch", "fault") else None
+                _standing.update(band=band, z=z, readings=sent,
+                                 expected=exp[0], last=temp)
                 await HUB.publish({
                     "type": "grade", "t": time.time(),
                     "station": LIVE_STATION["name"],
@@ -419,6 +432,12 @@ async def set_fault(kind: str = Query("none")) -> dict:
         raise HTTPException(400, f"unknown fault {kind!r}; have {', '.join(FAULTS)}")
     _fault.update(kind=kind, since=_state.get("sent", 0))
     _fault.pop("held", None)
+    # Changing what is wrong with the node starts its standing again. This
+    # belongs HERE and was briefly in _apply_fault, which runs once per
+    # reading -- so the band was reset to "learning" every reading, the band
+    # always "changed", and the clock on how long a fault had been open
+    # restarted continuously. It read 0.0 seconds after twenty.
+    _standing.update(band="learning", z=0.0, since=None)
     if kind == "none":
         # Repairing the node clears the learned baseline. Keeping residuals
         # gathered while it was broken would teach it that broken is normal --
@@ -474,4 +493,31 @@ def status() -> dict:
         "socket": "/api/live",
         "note": "Broadcast only. A missed message is a missed moment, not a "
                 "lost record; the archive is /api/map/*.",
+    }
+
+
+@router.get("/api/live/standing")
+def standing() -> dict:
+    """The node's current verdict, for anything that lists work to be done.
+
+    Deliberately the same shape of answer the board gives a simulated station:
+    a band, how far it is from its neighbours, and how long it has been that
+    way. The live node is a station like any other and should appear in the
+    queue like any other -- a device that faults and shows up nowhere a
+    technician looks is a device nobody will be sent to.
+    """
+    open_for = (time.time() - _standing["since"]) if _standing["since"] else None
+    return {
+        "station": LIVE_STATION,
+        "band": _standing["band"],
+        "z": round(_standing["z"], 2),
+        "readings": _standing["readings"],
+        "expected": _standing["expected"],
+        "last": _standing["last"],
+        "open_seconds": round(open_for, 1) if open_for else None,
+        "reporting": _state["running"],
+        "injected_fault": _fault["kind"],
+        "note": "Graded by neighbour differencing against six simulated "
+                "stations within 120 km, at the same 6 and 8 sigma bands the "
+                "map uses.",
     }

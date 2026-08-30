@@ -19,7 +19,7 @@ import { useEffect, useState } from 'react'
 import { usePageTitle } from '../lib/title'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Link } from 'react-router-dom'
-import { useQueue, useSimMap } from '../api/queries'
+import { useLiveStanding, useQueue, useSimMap } from '../api/queries'
 import { StationChannels } from '../components/StationChannels'
 import { type Band, type SimMap, type SimStation } from '../api/mapTypes'
 import { alertsFor } from '../lib/alerts'
@@ -35,6 +35,7 @@ export function BoardRoute() {
   const navigate = useNavigate()
   const q = useQueue()
   const sim = useSimMap()
+  const node = useLiveStanding()
   /* WHICH HALF OF THE BOARD TO SHOW.
    *
    * The two groups rest on different evidence and rank by different numbers --
@@ -107,6 +108,50 @@ export function BoardRoute() {
                 * sigma, and nothing in the simulated export carries a sigma.
                 * Ranking them together would mean inventing a common number.
                 * The group heading says which evidence each half rests on. */}
+              {/* THE LIVE NODE, AT THE TOP, when it has something to say.
+                *
+                * It is a station like any other and it belongs in the queue
+                * like any other -- a device that faults and appears nowhere a
+                * technician looks is a device nobody will be sent to. It sits
+                * above both groups because it is the only item on this board
+                * that is happening NOW: everything below is a study of a
+                * record that has already been written. */}
+              {node.data && node.data.band !== 'learning' && node.data.band !== 'ok' && (
+                <>
+                  <div className="group-head">Live node · reporting now</div>
+                  <ul className="cards">
+                    <li>
+                      <button type="button"
+                              className={'card' + (selected === 'live' ? ' active' : '')}
+                              onClick={() => navigate('/board/live')}>
+                        <span className={'spine ' + (node.data.band === 'fault' ? 'bad' : 'sus')}
+                              aria-hidden="true" />
+                        <span className="card-main">
+                          <span className="card-top">
+                            <span className="card-station">{node.data.station.name}</span>
+                            <span className="card-sev num">{node.data.z.toFixed(1)}σ</span>
+                          </span>
+                          <span className="card-sensor">
+                            Temperature
+                            <Badge tone="accent">live</Badge>
+                          </span>
+                          <span className="card-meta num">
+                            {node.data.station.state} · {node.data.station.elev} m ·{' '}
+                            {node.data.open_seconds
+                              ? `open ${Math.round(node.data.open_seconds)}s`
+                              : 'just now'}
+                          </span>
+                          <span className={'card-action '
+                            + (node.data.band === 'fault' ? 'bad' : 'sus')}>
+                            {node.data.band === 'fault' ? 'DISPATCH' : 'WATCH'}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  </ul>
+                </>
+              )}
+
               {show !== 'india' && (<>
               <div className="group-head">
                 ARM instruments · {data.items.length} · analyst-confirmed faults

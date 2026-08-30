@@ -74,3 +74,7 @@ web/public/api/
 
 # ppt_build/render.py renders these from the .pptx
 ppt_build/render/
+
+# The ingest store. Generated at runtime; the readings in it are a record of
+# this machine, not of the project.
+data/skyguard.db*

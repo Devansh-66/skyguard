@@ -203,6 +203,12 @@ def ingest(r: Reading) -> dict:
         q.append(rec)
         n = len(q)
 
+    # DURABLE, not just recent. The deque above is a window for the dashboard;
+    # this is the record. A fault is only visible against history, and history
+    # that evaporates on restart is not history.
+    from api import store
+    store.record(rec)
+
     verdict = {"ok": True, "accepted": accepted, "station": r.station,
                "server_flags": server_flags, "buffered": n}
 
@@ -279,3 +285,17 @@ def baseline(station: str) -> dict:
                         "node runs physics screen only",
                 "coefs": {v: [0.0] * 9 for v in ("temp", "rh", "pres")}}
     return {"station": station, "fitted": True, "coefs": out}
+
+
+@router.get("/api/ingest/history")
+def ingest_history(station: str | None = None, limit: int = 200) -> dict:
+    """What a node has actually sent, from disk rather than from the buffer.
+
+    /api/ingest/recent answers "what arrived in the last few minutes" out of a
+    512-deep ring buffer. This answers "what has this station ever sent", which
+    is a different question and the one that survives a restart.
+    """
+    from api import store
+    limit = max(1, min(limit, 5000))
+    return {"station": station, "readings": store.history(station, limit),
+            "store": store.stats()}

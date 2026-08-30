@@ -124,6 +124,28 @@ export function useLiveStation() {
   })
 }
 
+/** The live node's current verdict, polled so the board can list it as work.
+ *
+ *  Polled rather than pushed: the board is not the live page and does not hold
+ *  a socket open, and a maintenance queue that refreshes every few seconds is
+ *  refreshing far faster than anyone works down it. */
+export function useLiveStanding() {
+  return useQuery({
+    queryKey: ['live', 'standing'] as const,
+    queryFn: ({ signal }) => get<{
+      station: { id: string; name: string; state: string; elev: number }
+      band: 'learning' | 'ok' | 'watch' | 'fault'
+      z: number
+      readings: number
+      open_seconds: number | null
+      reporting: boolean
+      injected_fault: string
+    }>('/api/live/standing', signal),
+    refetchInterval: 5000,
+    retry: false,
+  })
+}
+
 export function useStatesGeo() {
   return useQuery({
     queryKey: keys.map('states'),
