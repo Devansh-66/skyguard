@@ -22,8 +22,10 @@ STAGES = [
      [sys.executable, "-m", "evaluation.run_full"]),
     ("export   write the dashboard snapshot from real output",
      [sys.executable, "-m", "dashboard.export"]),
-    ("build    inline the snapshot into a standalone console.html",
-     [sys.executable, "-m", "dashboard.build"]),
+    # The "build" step used to inline everything into a standalone
+    # console.html. The React app replaced that page, and it fetches the same
+    # data from /api/map/* instead of carrying it, so there is nothing to
+    # inline. Build the frontend with `cd web && npm run build`.
 ]
 
 
@@ -41,8 +43,8 @@ def main() -> None:
         if r.returncode != 0:
             sys.exit(f"\nstage {i} failed ({' '.join(cmd)}); stopping here.")
 
-    print("\nDone. Open dashboard/console.html in any browser -- it is fully "
-          "self-contained, no server needed.")
+    print("\nDone. Build the frontend with `cd web && npm run build`, then "
+          "serve both with `uvicorn api.main:app`.")
 
 
 if __name__ == "__main__":

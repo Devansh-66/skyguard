@@ -33,8 +33,7 @@ python -m uvicorn api.main:app --port 8000
 
 Then open <http://localhost:8000/app/>. FastAPI mounts `web/dist` at `/app`;
 `dist/` is gitignored, so a fresh clone must build before the route exists. The
-API answers on `/api/*` either way, and the older static pages remain at
-`/console/`.
+API answers on `/api/*` either way, and `/` redirects to the app.
 
 ## Layout
 
@@ -162,8 +161,7 @@ and a MIME error instead of an honest 404.
 
 ## Not built yet
 
-- The old static console at `/console/console.html` still exists and still
-  works. Nothing links to it any more.
+
 - **Live ingest.** When readings arrive over MQTT, that path needs its own hook
   with its own staleness. The archive and the live network are different data
   with different clocks; one refresh policy would be wrong for both.

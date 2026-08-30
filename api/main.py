@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -131,12 +131,16 @@ app.include_router(queue_router)
 from api.mapdata import router as mapdata_router  # noqa: E402
 app.include_router(mapdata_router)
 
-# Serve the console from the API itself. Same origin, so the browser's fetch
-# needs no CORS grant at all -- and a demo is one command and one URL instead
-# of a static server, a port, and an origin list that has to match.
+# The static console used to be mounted here at /console. It is gone: the React
+# app reached parity with it -- map, clock, station list, channel fields, alerts
+# and the by-state summary -- and two frontends that must be kept in step is a
+# guarantee that one of them is wrong. It was the older one that was wrong, in
+# the end: its channel charts had collapsed to two pixels wide and nobody
+# noticed, because nobody was looking at it.
+#
+# Its data now comes back through /api/map/* instead of being inlined, which is
+# why that directory is still here.
 _DASH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "dashboard")
-if os.path.isdir(_DASH):
-    app.mount("/console", StaticFiles(directory=_DASH), name="console")
 
 # The React app, built by `npm run build` in web/.
 #
@@ -189,13 +193,12 @@ if os.path.isdir(_APP):
 
 @app.get("/")
 def root():
-    """Land on the console if it has been built, otherwise say how to build it."""
-    f = os.path.join(_DASH, "console.html")
-    if os.path.exists(f):
-        return FileResponse(f)
+    """Land on the app if it has been built, otherwise say how to build it."""
+    if os.path.isdir(_APP):
+        return RedirectResponse("/app/")
     return JSONResponse({
-        "message": "console not built",
-        "fix": "python -m dashboard.build",
+        "message": "the web app has not been built",
+        "fix": "cd web && npm install && npm run build",
         "api": "/docs",
     }, status_code=404)
 

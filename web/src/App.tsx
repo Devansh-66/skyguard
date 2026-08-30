@@ -5,9 +5,9 @@
  * from edge to edge now, so the bar is simply a ruled header that sits on it.
  * A state that no longer changes anything is a state worth deleting.
  *
- * The map is the older static console at /console/console.html, linked out to
- * rather than ported. Note the consequence: that page is outside this shell, so
- * the top bar is not on it and the way back is the browser's back button.
+ * The map used to be a separate static console linked out to from here. It is
+ * ported now and /network is a route like any other, so the top bar is on it
+ * and there is one frontend rather than two drifting apart.
  */
 import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { Suspense, lazy } from 'react'

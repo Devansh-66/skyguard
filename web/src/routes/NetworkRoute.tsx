@@ -1,12 +1,13 @@
 /* The network map, ported from the static console into the app.
  *
- * WHY THIS EXISTS TWICE, BRIEFLY
+ * WHERE IT CAME FROM
  *
- * The map, the clock and the station list were built in dashboard/console.html
- * while the app carried the landing page and the board. That was a mistake --
- * two frontends that diverged -- and this is the first half of undoing it. The
- * console is not deleted until this reaches parity, because the console is the
- * half with the recent work in it.
+ * The map, the clock and the station list were built in a separate static
+ * console while the app carried the landing page and the board. Two frontends
+ * that had to be kept in step is a guarantee that one of them is wrong, and it
+ * was: the console's channel charts had collapsed to two pixels wide and
+ * nobody noticed, because nobody was looking at it. This is the port; the
+ * console is gone.
  *
  * WHAT THE CONSOLE DID THAT THIS KEEPS, AND WHY EACH ONE WAS EARNED
  *
@@ -37,6 +38,7 @@ type Net = 'sim' | 'wdqms' | 'arm'
 type BaseKey = 'imagery' | 'muted' | 'dark'
   | 'field_temp' | 'field_rh' | 'field_pres'
 type Channel = 'health' | 'temp' | 'rh' | 'pres'
+type View = 'india' | 'flagged'
 
 /* Only two of these are colours. A station with nothing wrong carries no hue at
  * all, so every coloured dot on the map is one worth looking at. */
@@ -155,9 +157,26 @@ function FieldOverlay(
   return null
 }
 
-function FitIndiaOnce() {
+/** Where the map looks.
+ *
+ * "All India" is the opening view and the one that keeps the country in
+ * proportion. "Fit to flagged" answers the other question a watcher has -- how
+ * spread out is the trouble -- and it deliberately does nothing when nothing is
+ * flagged, because zooming to an empty set lands the map in the ocean. */
+function Extent({ view, flagged }: {
+  view: View; flagged: [number, number][]
+}) {
   const map = useMap()
-  useEffect(() => { map.fitBounds(INDIA, { padding: [24, 24] }) }, [map])
+  useEffect(() => {
+    if (view === 'india' || flagged.length === 0) {
+      map.fitBounds(INDIA, { padding: [24, 24] })
+      return
+    }
+    map.fitBounds(L.latLngBounds(flagged.map(([a, b]) => L.latLng(a, b))),
+                  { padding: [48, 48], maxZoom: 7 })
+    // Only when the CHOICE changes, never on every clock tick: refitting as
+    // stations flag and clear would make the map lurch while it is being read.
+  }, [map, view])
   return null
 }
 
@@ -172,6 +191,7 @@ export function NetworkRoute() {
   const [base, setBase] = useState<BaseKey>('imagery')
   const [channel, setChannel] = useState<Channel>('health')
   const [showStates, setShowStates] = useState(false)
+  const [view, setView] = useState<View>('india')
   const [hour, setHour] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
@@ -244,6 +264,12 @@ export function NetworkRoute() {
               <option key={k} value={k}>{v.label}</option>)}
           </select>
         </label>
+        <label>View
+          <select value={view} onChange={(e) => setView(e.target.value as View)}>
+            <option value="india">All India</option>
+            <option value="flagged">Fit to flagged</option>
+          </select>
+        </label>
         {net === 'sim' && (
           <label>Channel
             <select value={channel} onChange={(e) => setChannel(e.target.value as Channel)}>
@@ -267,7 +293,8 @@ export function NetworkRoute() {
             <MapContainer center={[22.5, 82]} zoom={4} scrollWheelZoom
                           zoomSnap={0.25} zoomDelta={0.5} wheelPxPerZoomLevel={170}
                           className="netmap">
-              <FitIndiaOnce />
+              <Extent view={view}
+                      flagged={flagged.map((r) => [r.s.lat, r.s.lon] as [number, number])} />
               <TilePaneFilter filter={b.filter} />
               <FieldOverlay ch={b.field}
                             rows={net === 'sim' && sim.data ? sim.data.stations : []}
@@ -376,7 +403,10 @@ export function NetworkRoute() {
       {net === 'sim' && (
         <div className="netbelow">
           <section>
-            <div className="belowhead">All stations · {flagged.length} flagged of {graded.length}</div>
+            <div className="belowhead">
+              All stations · {flagged.length} flagged of {graded.length}
+              {sim.data && <span className="mono muted"> · {timeLabel(sim.data, hour)}</span>}
+            </div>
             <div className="netrail">
               {byState.map(([state, rows]) => {
                 const bad = rows.filter((r) => r.band === 'WATCH' || r.band === 'FAULT').length
@@ -430,14 +460,33 @@ export function NetworkRoute() {
             {!chosen || !sim.data
               ? <p className="muted small">Click a station on the map, or a row in the
                   list, to see its three channels across the whole month.</p>
-              : <StationChannels sim={sim.data} s={chosen} hour={hour} />}
+              : (<>
+                  {/* Where the station IS, before what it is doing. The charts
+                      below are unreadable without it: 32 C is unremarkable in
+                      Chennai and alarming at 3000 m in Ladakh. */}
+                  <div className="inspector mono">
+                    {chosen.id}<br />
+                    {chosen.state} · {chosen.elev} m ·{' '}
+                    {Math.abs(chosen.lat).toFixed(2)}{chosen.lat < 0 ? 'S' : 'N'}{' '}
+                    {Math.abs(chosen.lon).toFixed(2)}{chosen.lon < 0 ? 'W' : 'E'}
+                  </div>
+                  <p className="small muted">
+                    {chosen.fault
+                      ? `Injected: ${chosen.fault.kind} on ${chosen.fault.channel}, `
+                        + `from hour ${chosen.fault.onset_hour}. Shown beside the `
+                        + `verdict, never used to reach it.`
+                      : 'No fault was injected into this station. Anything shaded '
+                        + 'below is this project being wrong.'}
+                  </p>
+                  <StationChannels sim={sim.data} s={chosen} hour={hour} />
+                </>)}
           </section>
 
           <section>
             <div className="belowhead">
               Alerts · {flagged.filter((r) => !acked.has(r.s.id + ':' + r.band)).length} open
             </div>
-            <AlertList rows={flagged} acked={acked} onAck={(k) => {
+            <AlertList sim={sim.data} rows={flagged} hour={hour} acked={acked} onAck={(k) => {
               const next = new Set(acked)
               if (next.has(k)) next.delete(k); else next.add(k)
               setAcked(next)
@@ -445,7 +494,65 @@ export function NetworkRoute() {
           </section>
         </div>
       )}
+
+      {net === 'sim' && sim.data && (
+        <section className="netfoot">
+          <div className="belowhead">Where it is wrong, by state</div>
+          <WrongByState rows={graded} />
+          <p className="small muted">
+            {sim.data.note}
+          </p>
+          <p className="small muted">
+            Grades are this project's own verdict from neighbour differencing
+            against a fifteen-day baseline, not the injected truth. Health is the
+            worst of the three channels, never the mean. Ten stations — the
+            Andaman, Nicobar and Lakshadweep groups — have no neighbours within
+            250 km and cannot be graded at all.
+          </p>
+        </section>
+      )}
     </div>
+  )
+}
+
+/** How the flags are distributed across the country.
+ *
+ * The map answers "where", badly, for anything below about five stations: a
+ * single red dot in Assam and a single red dot in Kerala look identical to a
+ * cluster. This counts them. States with nothing wrong are omitted rather than
+ * listed as zero -- thirty rows of zero hide the four that matter. */
+function WrongByState({ rows }: { rows: { s: SimStation; band: Band }[] }) {
+  const by = new Map<string, { fault: number; watch: number; n: number }>()
+  for (const r of rows) {
+    const k = r.s.state || 'Unassigned'
+    const e = by.get(k) ?? { fault: 0, watch: 0, n: 0 }
+    e.n++
+    if (r.band === 'FAULT') e.fault++
+    if (r.band === 'WATCH') e.watch++
+    by.set(k, e)
+  }
+  const hot = [...by.entries()].filter(([, e]) => e.fault || e.watch)
+    .sort((a, b) => (b[1].fault * 2 + b[1].watch) - (a[1].fault * 2 + a[1].watch))
+  if (!hot.length) {
+    return <p className="muted small">Nothing flagged anywhere at this hour.</p>
+  }
+  return (
+    <table className="wrongtab mono">
+      <tbody>
+        {hot.map(([state, e]) => (
+          <tr key={state}>
+            <td>{state}</td>
+            <td style={{ color: e.fault ? HUE.FAULT! : 'var(--ink-3)' }}>
+              {e.fault} fault
+            </td>
+            <td style={{ color: e.watch ? HUE.WATCH! : 'var(--ink-3)' }}>
+              {e.watch} watch
+            </td>
+            <td className="muted">of {e.n}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
 
@@ -538,39 +645,75 @@ function StationChannels({ sim, s, hour }: {
  * escalating from watch to fault re-opens rather than staying silenced. None of
  * it is persisted; there is no store and no work order behind it, and saying so
  * is better than implying otherwise. */
-function AlertList({ rows, acked, onAck, onSelect }: {
+/** The open alerts.
+ *
+ * An alert is not just a station and a colour. A person deciding whether to act
+ * needs to know WHEN it fired, WHICH channel fired, and where the station is --
+ * a name on its own sends them back to the map to look all three up. The
+ * console said all of that and the port had dropped it to a name and a badge.
+ *
+ * There is no store behind any of this and the note at the bottom says so.
+ */
+function AlertList({ sim, rows, hour, acked, onAck, onSelect }: {
+  sim: SimMap | undefined
   rows: { s: SimStation; band: Band }[]
+  hour: number
   acked: Set<string>
   onAck: (k: string) => void
   onSelect: (id: string) => void
 }) {
   const open = rows.filter((r) => !acked.has(r.s.id + ':' + r.band))
   const quiet = rows.filter((r) => acked.has(r.s.id + ':' + r.band))
-  const item = (r: { s: SimStation; band: Band }, isAck: boolean) => (
+  const when = sim ? timeLabel(sim, hour) : '—'
+
+  const item = (r: { s: SimStation; band: Band }, n: number, isAck: boolean) => (
     <div className="alertrow" key={r.s.id + r.band}
          style={{ borderLeftColor: HUE[r.band] ?? 'var(--rule)' }}>
-      <button className="alertname" onClick={() => onSelect(r.s.id)}>{r.s.name}</button>
-      <span className="badge" style={{ color: HUE[r.band]!, borderColor: HUE[r.band]! }}>{BAND_LABEL[r.band]}</span>
+      <div className="alerthead mono">{n} · {when}</div>
+      <div className="alertline">
+        <button className="alertname" onClick={() => onSelect(r.s.id)}>{r.s.name}</button>
+        <span className="badge" style={{ color: HUE[r.band]!, borderColor: HUE[r.band]! }}>
+          {BAND_LABEL[r.band]}
+        </span>
+      </div>
+      <div className="alertmeta mono">
+        {r.s.state} · {firedChannel(r.s, r.band, hour)}
+      </div>
       <button className="btn ghost tiny" onClick={() => onAck(r.s.id + ':' + r.band)}>
         {isAck ? 'Reopen' : 'Acknowledge'}
       </button>
     </div>
   )
+
   return (
     <>
-      {open.length ? open.map((r) => item(r, false))
+      {open.length ? open.map((r, i) => item(r, i + 1, false))
         : <p className="muted small">Nothing open at this hour. An alert closes by
             itself when the station returns to OK.</p>}
       {quiet.length > 0 && (
         <>
           <div className="belowhead" style={{ marginTop: 14 }}>Acknowledged · {quiet.length}</div>
-          {quiet.map((r) => item(r, true))}
+          {quiet.map((r, i) => item(r, i + 1, true))}
         </>
       )}
       <p className="small muted">
         Acknowledgement is held in this tab only — no store, no assignment, no
-        work order. A station escalating from watch to fault re-opens.
+        work order. A station escalating from watch to fault re-opens rather
+        than staying silenced.
       </p>
     </>
   )
+}
+
+/** Which channel is responsible for a station's worst grade.
+ *
+ * The map colours a station by its WORST channel, which is the right summary
+ * and a useless dispatch instruction: nobody drives out to fix "the station".
+ * Reporting more than one where several tie is honest -- ties happen when a
+ * whole logger goes. */
+function firedChannel(s: SimStation, band: Band, hour: number): string {
+  const NAMES = { temp: 'temperature', rh: 'humidity', pres: 'pressure' } as const
+  const hit = (['temp', 'rh', 'pres'] as const)
+    .filter((c) => bandAt(s, c, hour) === band).map((c) => NAMES[c])
+  return hit.length ? hit.join(' + ') : 'no single channel'
 }
