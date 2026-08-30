@@ -100,23 +100,56 @@ export function StationChannels({ sim, s, hour, windowH = 0 }: {
 
         // Three ticks: the two extremes the reader needs for scale, and a
         // middle one so the trace can be read off without arithmetic.
-        const ticks = [hi, (hi + lo) / 2, lo]
-        const dates = [first, Math.floor((first + last) / 2), last]
+        /* A REAL GRID, not three stray rules.
+         *
+         * There were three horizontal lines and no verticals at all, so a
+         * reading could be placed against the y axis only roughly and against
+         * time not at all. Chart paper is ruled both ways; that is what makes
+         * it chart paper. Five horizontal divisions and six vertical ones, the
+         * verticals labelled at every other line so the axis does not crowd. */
+        const NY = 5, NX = 6
+        const ticks = Array.from({ length: NY }, (_, i) => hi - (i / (NY - 1)) * (hi - lo))
+        const vlines = Array.from({ length: NX + 1 },
+          (_, i) => first + Math.round((i / NX) * (span - 1)))
+
         // A day label is useless on a 24-hour window and a clock is useless on
         // a month; the axis says whichever one is changing.
+        const shortSpan = span * every * (sim.step_minutes || 15) <= 48 * 60
         const dayLabel = (frame: number) => {
           const t = timeLabel(sim, frame * every)
-          return span * every * (sim.step_minutes || 15) <= 48 * 60
-            ? t.slice(11, 16) : t.slice(5, 10).replace('-', '/')
+          return shortSpan ? t.slice(11, 16) : t.slice(5, 10).replace('-', '/')
         }
+
+        /* WHAT THE TRACE ALONE DOES NOT SAY.
+         *
+         * The extremes over the window, and the mean, because "is this high?"
+         * is the first question anyone asks of a reading and the answer is not
+         * in the shape of the line. And the onset of the injected fault where
+         * one exists and falls inside the window -- drawn from the truth, which
+         * the grader never saw, so the verdict can be checked against the thing
+         * that caused it. */
+        const win = vals.slice(first, last + 1)
+        const drawn = win.filter((v): v is number => v != null)
+        const mean = drawn.length ? drawn.reduce((a, b) => a + b, 0) / drawn.length : null
+        const onsetFrame = s.fault && s.fault.channel === ch
+          ? Math.floor((s.fault.onset_hour * 60) / ((sim.step_minutes || 15) * every))
+          : null
+        const showOnset = onsetFrame != null && onsetFrame >= first && onsetFrame <= last
 
         const now = vals[cur]
         const band = bandAt(s, ch, hour)
         // A reading with no grade is not a missing reading.
         const ungraded = band === 'NODATA' && now != null
         return (
-          <div className="chan" key={ch}>
-            <div className="chan-head">
+          /* EACH CHANNEL FOLDS AWAY.
+           *
+           * Three charts is the right default -- they share an axis and are
+           * meant to be read together -- but a reader chasing one drifting
+           * barometer does not want two thermometers in the way. Open by
+           * default, because a page of collapsed headings hides the content
+           * behind a click nobody knows to make. */
+          <details className="chan" key={ch} open>
+            <summary className="chan-head">
               <strong>{NAME[ch]}</strong>
               {band !== 'OK' && (
                 <span className="badge" title={why(band)}
@@ -124,41 +157,65 @@ export function StationChannels({ sim, s, hour, windowH = 0 }: {
                                borderColor: HUE[band] ?? 'var(--rule-edge)' }}>
                   {ungraded ? UNGRADED : BAND_LABEL[band]}
                 </span>)}
+              <span className="chan-range mono">
+                {drawn.length
+                  ? `${Math.min(...drawn).toFixed(1)}–${Math.max(...drawn).toFixed(1)}`
+                  : '—'}
+              </span>
               <span className="chan-now-val mono">
                 {now == null ? 'no data' : now.toFixed(1) + ' ' + UNIT[ch]}
               </span>
-            </div>
+            </summary>
             <svg viewBox={`0 0 ${W} ${H}`} className="chansvg" role="img"
                  aria-label={`${NAME[ch]} at ${s.name} over 30 days, `
                    + `${rawLo.toFixed(1)} to ${rawHi.toFixed(1)} ${UNIT[ch]}`}>
               <rect x={L} y={T} width={W - L - R} height={H - T - B} className="chan-stock" />
+
+              {/* Ruling, both ways. */}
+              {vlines.map((f, i) => (
+                <line key={'v' + i} x1={x(f)} x2={x(f)} y1={T} y2={H - B}
+                      className="chan-rule" />
+              ))}
               {ticks.map((v, i) => (
-                <g key={i}>
-                  <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} className="chan-rule" />
+                <g key={'h' + i}>
+                  <line x1={L} x2={W - R} y1={y(v)} y2={y(v)}
+                        className={i === 0 || i === NY - 1 ? 'chan-rule-major' : 'chan-rule'} />
                   <text x={L - 6} y={y(v) + 3} className="chan-axis" textAnchor="end">
                     {v.toFixed(ch === 'pres' ? 0 : 1)}
                   </text>
                 </g>
               ))}
-              {bands}
-              <path d={d.trim()} className="chan-pen" />
-              {/* The nib, and the edge of the drawn record. */}
-              <line x1={x(cur)} x2={x(cur)} y1={T} y2={H - B} className="chan-now" />
-              {tipY != null && (
-                <circle cx={x(cur)} cy={tipY} r={3} className="chan-nib" />
+
+              {mean != null && (
+                <line x1={L} x2={W - R} y1={y(mean)} y2={y(mean)} className="chan-mean" />
               )}
-              {dates.map((f, i) => (
-                <text key={f} x={x(f)} y={H - 6} className="chan-axis"
-                      textAnchor={i === 0 ? 'start' : i === 2 ? 'end' : 'middle'}>
+
+              {bands}
+
+              {showOnset && (
+                <g>
+                  <line x1={x(onsetFrame!)} x2={x(onsetFrame!)} y1={T} y2={H - B}
+                        className="chan-onset" />
+                  <text x={x(onsetFrame!) + 3} y={T + 9} className="chan-axis chan-onset-t">
+                    fault injected
+                  </text>
+                </g>
+              )}
+
+              <path d={d.trim()} className="chan-pen" />
+
+              <line x1={x(cur)} x2={x(cur)} y1={T} y2={H - B} className="chan-now" />
+              {tipY != null && <circle cx={x(cur)} cy={tipY} r={3} className="chan-nib" />}
+
+              {vlines.filter((_, i) => i % 2 === 0).map((f, i, arr) => (
+                <text key={'x' + f} x={x(f)} y={H - 6} className="chan-axis"
+                      textAnchor={i === 0 ? 'start' : i === arr.length - 1 ? 'end' : 'middle'}>
                   {dayLabel(f)}
                 </text>
               ))}
-              <text x={L - 6} y={T + 3} className="chan-axis chan-unit" textAnchor="end">
-                {UNIT[ch]}
-              </text>
               <rect x={L} y={T} width={W - L - R} height={H - T - B} className="chan-frame" />
             </svg>
-          </div>
+          </details>
         )
       })}
       </div>
