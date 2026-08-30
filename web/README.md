@@ -228,41 +228,48 @@ build host may not have one.
 
 ## Hosting
 
-Nothing this app serves is live. There is no ingest yet: the queue is a survey
-of a fixed ARM archive and the maps are files a build step produced, so every
-endpoint is a deterministic function of data that does not change. A server
-that only ever returns the same bytes does not need to exist, so the whole site
-can be static.
+**The product is the live service, not a static copy of it.** PS26073 asks for
+real-time detection on streaming AWS data, and Real-Time Capability is 15% of
+the evaluation. Anything that cannot ingest a reading and react to it is not
+the system being asked for.
+
+The blueprint also answers the hosting question directly:
+
+> For the finals demo itself: run locally. Venue Wi-Fi failing mid-demo is a
+> documented way to lose. Hosting is for teammates and pre-round submission,
+> not for the room.
+
+So hosting is a convenience, and it has to run Python:
 
 ```bash
-python -m scripts.build_site      # simulate, grade, export sim_map.json
-python -m scripts.export_static   # freeze every API response into web/public/api
-cd web && VITE_STATIC=1 VITE_BASE=/ npm run build
+python -m scripts.build_site
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
 ```
 
-`web/dist` is then a complete site — about 6.5 MB, 1.6 MB over the wire — that
-needs no Python anywhere.
+| Host | Runs Python | Verdict |
+| --- | --- | --- |
+| Render / Railway / Fly.io | yes | Suitable — one process, CPU only, no GPU |
+| A college or MoES VM | yes | What the blueprint assumes for production |
+| Vercel / Cloudflare Pages / GitHub Pages | no | Static only. Cannot run the detector. |
 
-| Host | `VITE_BASE` | SPA fallback | Notes |
-| --- | --- | --- | --- |
-| Cloudflare Pages | `/` | `public/_redirects` | build `npm run build`, output `dist` |
-| Vercel | `/` | `vercel.json` | root directory `web` |
-| GitHub Pages | `/<repo>/` | `dist/404.html` (written by the build) | project sites are not served from the root |
+### The static export is a FALLBACK, not the product
 
-### What is not static
+`scripts/export_static.py` freezes the current API responses into files so the
+dashboard can be shown on a static host — useful for a pre-round link or for a
+teammate with no Python, and nothing more. It is a REPLAY: it cannot ingest,
+cannot detect anything new, and will go stale the moment the archive changes.
 
-The tile proxy. It fetches Esri imagery, caches it, and turns the NCMRWF
-boundary WMS into tiles — none of which can be frozen into a file. The static
-export points the basemap straight at Esri (tiles are `<img>`, so no CORS grant
-is needed) and draws the boundary from the vendored NCMRWF geometry instead:
-same source, different form.
+```bash
+python -m scripts.export_static
+cd web && VITE_STATIC=1 VITE_BASE=/ npm run build   # Cloudflare/Vercel: base /
+```
 
-### Why not "host the frontend, run the backend locally"
+`VITE_STATIC` defaults to off, so every normal build talks to the live API.
+Do not demo from the static build.
 
-Because the hosted page would fetch `http://localhost:8000`, which only
-resolves on the machine running uvicorn. Everyone else gets an empty site. It
-is hosting that nobody but you can use — and the static export gives the same
-result with none of that.
+### Still missing for the real-time claim
 
-When live ingest lands over MQTT, that changes: the archive can stay static,
-the live network cannot. `VITE_STATIC` is the switch between them.
+`POST /api/ingest` exists and screens a reading against WMO limits, but there
+is no WebSocket and no live stream, so the dashboard cannot yet show a reading
+arriving and being judged. That is the gap between what is built and what the
+15% is for.
