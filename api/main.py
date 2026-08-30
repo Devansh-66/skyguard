@@ -112,6 +112,29 @@ async def lifespan(app: FastAPI):
               f"/api/stations, /api/alerts and /api/clock will 503. "
               f"Everything the dashboard uses is unaffected.")
         ENGINE = None
+
+    # THE NODE REPORTS BY ITSELF.
+    #
+    # It had a start button, which made a station look like a feature you
+    # switch on. No weather station has one: it is either reporting or it is
+    # broken, and "broken" is a thing the detector should notice rather than a
+    # thing the operator arranges. Starting it here also means the dashboard
+    # has a live station the moment it loads, with no ceremony.
+    try:
+        import asyncio
+
+        from api.live import start_node
+
+        async def _boot() -> None:
+            try:
+                await start_node(per_second=2.0)
+            except Exception as e:
+                # A task's exception dies with the task unless somebody looks.
+                print(f"[startup] live node failed: {type(e).__name__}: {e}")
+
+        asyncio.get_running_loop().create_task(_boot())
+    except Exception as e:                       # never block startup for it
+        print(f"[startup] live node did not start: {type(e).__name__}: {e}")
     # Starts at the END, paused. Opening at t=0 is defensible and makes a
     # terrible first impression: the clock has seen one hour of data, no
     # detector has enough history to say anything, and the console renders

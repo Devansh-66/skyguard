@@ -121,6 +121,9 @@ class Reading(BaseModel):
     seq: int = 0
     flags: list[str] = []
     dt_min: float | None = None        # minutes since the node's previous sample
+    # Which frame of the shared record this reading is for, when the sender
+    # knows it. A real ESP32 would not, and would leave it unset.
+    frame: int | None = None
     residual: float | None = None      # against the pushed baseline, if it has one
     scale: float | None = None         # node's P-square sigma estimate
     fw: str = ""
@@ -228,6 +231,10 @@ def ingest(r: Reading) -> dict:
             "temp": r.temp, "rh": r.rh, "pres": r.pres,
             "node_flags": list(r.flags), "server_flags": server_flags,
             "accepted": accepted, "verdict": verdict, "source": "ingest",
+            # Which step of the record this reading belongs to, when the sender
+            # knows. The dashboard draws the live node on the same axis as
+            # every other station, and an axis needs a position.
+            "frame": r.frame,
         }))
     except RuntimeError:
         # No running loop: called from a worker thread or a test. Nothing to

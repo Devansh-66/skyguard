@@ -7,22 +7,39 @@
  */
 import { type SimMap, type SimStation } from '../api/mapTypes'
 import { bandAt, frameOf, readingAt, timeLabel } from '../lib/sim'
+import type { Band } from '../api/mapTypes'
 import { BAND_LABEL, HUE, UNGRADED, why } from '../lib/bands'
 
-export function StationChannels({ sim, s, hour, windowH = 0 }: {
+export function StationChannels({ sim, s, hour, windowH = 0, live }: {
   sim: SimMap
   s: SimStation
   /** Current position, in record steps. */
   hour: number
   /** Hours of history to draw, ending at the clock. 0 draws everything. */
   windowH?: number
+  /* A STATION WHOSE READINGS ARRIVE, drawn by exactly this component.
+   *
+   * The live node reports at the same fifteen-minute steps as every simulated
+   * station, so it belongs on the same axis with the same window control and
+   * the same pen. Giving it a chart of its own implied two different kinds of
+   * time where there is only one, and made a station look like a feature.
+   *
+   * Values are indexed by FRAME and sparse: a frame that has not arrived is
+   * null and the pen lifts, which is what it already does for a gap in the
+   * record. `upto` is how far the node has reported, which stands in for the
+   * clock -- it cannot draw ahead of what it has sent. */
+  live?: {
+    byFrame: { temp: (number | null)[]; rh: (number | null)[]; pres: (number | null)[] }
+    grades: string[]
+    upto: number
+  }
 }) {
   const CH: ('temp' | 'rh' | 'pres')[] = ['temp', 'rh', 'pres']
   const NAME = { temp: 'Temperature', rh: 'Relative humidity', pres: 'Pressure (MSL)' }
   const UNIT = { temp: '°C', rh: '%', pres: 'hPa' }
   const every = sim.field_every || 1
   const nf = sim.n_fields || 1
-  const cur = frameOf(sim, hour)
+  const cur = live ? live.upto : frameOf(sim, hour)
   /* THE WINDOW. The axis used to be the whole record, always. A slow drift
    * across a month is a smudge at that scale and unmistakable across a day, so
    * how much paper to show is the reader's decision, not the file's.
@@ -38,7 +55,9 @@ export function StationChannels({ sim, s, hour, windowH = 0 }: {
     <>
       <div className="chanrow">
       {CH.map((ch) => {
-        const vals = Array.from({ length: nf }, (_, i) => readingAt(sim, s, ch, i))
+        const vals = live
+          ? Array.from({ length: nf }, (_, i) => live.byFrame[ch][i] ?? null)
+          : Array.from({ length: nf }, (_, i) => readingAt(sim, s, ch, i))
         // Scale over the WINDOW, not the record: a day of readings squeezed
         // into a month's y-range is a flat line.
         const fin = vals.slice(first, last + 1).filter((v): v is number => v != null)
@@ -90,7 +109,9 @@ export function StationChannels({ sim, s, hour, windowH = 0 }: {
         // Shading only over paper the pen has passed, for the same reason.
         const bands = []
         for (let i = first; i <= cur && i <= last; i++) {
-          const g = bandAt(s, ch, Math.min(i * every, s.g.length - 1))
+          const g = live
+            ? ({ '0': 'OK', '1': 'WATCH', '2': 'FAULT' }[live.grades[i] ?? '0'] ?? 'OK')
+            : bandAt(s, ch, Math.min(i * every, s.g.length - 1))
           if (g === 'WATCH' || g === 'FAULT') {
             bands.push(<rect key={i} x={x(i)} y={T} width={Math.max((W - L - R) / span, 1.2)}
                              height={H - T - B}
@@ -137,7 +158,9 @@ export function StationChannels({ sim, s, hour, windowH = 0 }: {
         const showOnset = onsetFrame != null && onsetFrame >= first && onsetFrame <= last
 
         const now = vals[cur]
-        const band = bandAt(s, ch, hour)
+        const band = live
+          ? ({ '0': 'OK', '1': 'WATCH', '2': 'FAULT' }[live.grades[cur] ?? '0'] ?? 'OK') as Band
+          : bandAt(s, ch, hour)
         // A reading with no grade is not a missing reading.
         const ungraded = band === 'NODATA' && now != null
         return (

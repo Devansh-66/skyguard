@@ -37,8 +37,7 @@ import { StationChannels } from '../components/StationChannels'
 import { MAP_BOX, fieldRange, paintField, rampCss } from '../lib/field'
 import L from 'leaflet'
 import { Async } from '../components/Async'
-import { LiveFeed } from '../components/LiveFeed'
-import { useLive } from '../lib/useLive'
+import { liveCommand, resetTrace, useLive } from '../lib/useLive'
 import { usePageTitle } from '../lib/title'
 
 type Net = 'sim' | 'wdqms' | 'arm'
@@ -225,7 +224,47 @@ export function NetworkRoute() {
    * record -- it does not depend on where the clock is. */
   const alerts = useMemo(
     () => (sim.data ? allAlerts(sim.data.stations) : []), [sim.data])
+  /* The node as a station record, built once. Both the chart and the alert
+   * ledger need it in the same shape as the other 344, because it is the same
+   * kind of thing and every surface that treats it differently is a surface
+   * that will drift. */
+  const nodeStation: SimStation | null = node.data && sim.data
+    ? { ...sim.data.stations[0], id: node.data.id, name: node.data.name,
+        state: node.data.state, lat: node.data.lat, lon: node.data.lon,
+        elev: node.data.elev, fault: null }
+    : null
+
   const ledger = useMemo(() => ledgerAt(alerts, hour), [alerts, hour])
+
+  /* THE LIVE NODE IN THE SAME LEDGER. It is a station in this network, so a
+   * fault on it belongs where every other fault is listed. Put first because
+   * it is the only entry that is happening now -- everything else in this
+   * ledger is a record of a month already graded. */
+  /** How long the node has been in this band, in its own words. */
+  const nodeOpenLabel = live.grade && live.grade.band !== 'ok'
+    ? `${Math.max(1, Math.round(live.frame - (live.grade.baseline || 0)))} frames`
+    : null
+
+  const ledgerWithNode = useMemo(() => {
+    const b = live.grade?.band
+    if (!nodeStation || !b || (b !== 'watch' && b !== 'fault')) return ledger
+    return [{
+      id: 'live:' + nodeStation.id,
+      s: nodeStation,
+      ch: 'temp' as const,
+      // `from` is a RECORD STEP for every other row. The node's own clock is
+      // the wall clock, so it carries its duration explicitly rather than
+      // letting the table subtract a frame index from a step index -- which
+      // is where "open -4 h" came from.
+      from: hour,
+      to: null,
+      openLabel: nodeOpenLabel,
+      band: (b === 'fault' ? 'FAULT' : 'WATCH') as Band,
+      hours: 0,
+      status: 'OPEN' as const,
+      closedAt: null,
+    }, ...ledger]
+  }, [ledger, live.grade?.band, live.frame, nodeStation, hour, nodeOpenLabel])
   /* THE OPENING STATION IS CHOSEN ONCE, AND THEN LEFT ALONE.
    *
    * The page needs a station selected on arrival, or the charts are replaced by
@@ -253,6 +292,8 @@ export function NetworkRoute() {
    * than letting the replay slider look as though it governs a device that is
    * reporting right now. */
   const nodeSelected = Boolean(node.data && selected === node.data.id)
+
+
 
   return (
     <div className="sheet network">
@@ -537,7 +578,7 @@ export function NetworkRoute() {
             {nodeSelected && node.data ? node.data.name
               : chosen ? chosen.name : 'Selected station'}
           </summary>
-          {nodeSelected && node.data
+          {nodeSelected && node.data && sim.data
             ? (<>
                 <div className="stnhead">
                   <span className="mono muted">
@@ -545,27 +586,50 @@ export function NetworkRoute() {
                     {Math.abs(node.data.lat).toFixed(2)}N{' '}
                     {Math.abs(node.data.lon).toFixed(2)}E
                   </span>
-                  <span className="badge" style={{ color: 'var(--ink-2)' }}>live node</span>
+                  <span className="badge" style={{ color: 'var(--ink-2)' }}>
+                    {live.status === 'open' ? 'reporting' : live.status}
+                  </span>
+                  {/* The only control the node needs. There is no start
+                      button: a weather station does not have one, it is
+                      either reporting or it is broken, and broken is
+                      something the detector should notice rather than
+                      something the operator arranges. */}
+                  <label className="mono faultsel">
+                    Inject
+                    <select value={live.fault} onChange={(e) => {
+                      resetTrace()
+                      liveCommand(import.meta.env.VITE_API_BASE ?? '',
+                        '/api/live/fault?kind=' + e.target.value).catch(() => {})
+                    }}>
+                      <option value="none">nothing — healthy</option>
+                      <option value="drift">drift</option>
+                      <option value="offset">offset</option>
+                      <option value="stuck">stuck</option>
+                      <option value="spike">spike</option>
+                      <option value="dropout">dropout</option>
+                    </select>
+                  </label>
                 </div>
 
-                {/* TWO CLOCKS, AND THEY MUST NOT BE CONFUSED.
-                  *
-                  * Every other station on this page is drawn against the
-                  * RECORD -- thirty days that already happened, scrubbed by the
-                  * slider above. This one is drawn against the wall clock,
-                  * because it is reporting now. Rendering it in the same
-                  * chart would make the slider look as though it governed a
-                  * device it cannot touch, and the trace would be aligned to a
-                  * month that has nothing to do with when the reading
-                  * arrived. */}
+                {/* The SAME chart the other 344 use. Its readings are at the
+                    same fifteen-minute steps and belong on the same axis; the
+                    only difference is that the pen stops where the node has
+                    reported rather than where the slider is. */}
+                <StationChannels
+                  sim={sim.data}
+                  s={nodeStation!}
+                  hour={hour}
+                  windowH={windowH}
+                  live={{ byFrame: live.byFrame, grades: live.grades,
+                          upto: live.frame }} />
+
                 <p className="small muted">
-                  This station reports in real time, so it is drawn against the
-                  clock on the wall — not the replay slider above, which moves
-                  through a record that has already happened. The two are
-                  different kinds of time and the charts are kept apart for
-                  that reason.
+                  Readings arrive at <code>/api/ingest</code>, are screened
+                  against the WMO rails, differenced against six neighbours
+                  within 120 km, and stored. The pen reaches as far as the node
+                  has reported — {live.frame} frames — rather than to the
+                  slider, because it cannot draw a reading it has not sent.
                 </p>
-                <LiveFeed apiBase={import.meta.env.VITE_API_BASE ?? ''} />
               </>)
             : !chosen || !sim.data
             ? <p className="muted small">Pick a station on the map or in the index below.</p>
@@ -595,10 +659,10 @@ export function NetworkRoute() {
         <details className="netsec" open>
           <summary className="belowhead">
             Alerts
-            <span className="muted"> · {ledger.filter((a) => a.status === 'OPEN').length} open
-            of {ledger.length} raised so far</span>
+            <span className="muted"> · {ledgerWithNode.filter((a) => a.status === 'OPEN').length} open
+            of {ledgerWithNode.length} raised so far</span>
           </summary>
-          <AlertList sim={sim.data} rows={ledger} hour={hour} onSelect={setSelected} />
+          <AlertList sim={sim.data} rows={ledgerWithNode} hour={hour} onSelect={setSelected} />
         </details>
       )}
 
@@ -761,7 +825,10 @@ function AlertList({ sim, rows, hour, onSelect }: {
               <td className="mono">{CH[a.ch]}</td>
               <td className="mono status">
                 {a.status === 'OPEN'
-                  ? <span className="st-open">open · {hour - a.from + 1} h</span>
+                  ? <span className="st-open">
+                      open · {(a as { openLabel?: string | null }).openLabel
+                        ?? `${hour - a.from + 1} h`}
+                    </span>
                   : <span className="st-closed">closed · {a.closedAt! - a.from} h</span>}
               </td>
               <td>

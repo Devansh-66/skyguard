@@ -38,8 +38,18 @@ export interface LiveState {
   status: 'connecting' | 'open' | 'closed'
   /** Newest first. A window, not a log: the archive is /api/map/*. */
   rows: LiveReading[]
-  /** One station's history, for drawing. */
-  trace: { temp: number[]; rh: number[]; pres: number[] }
+  /** The node's readings placed on the SHARED record axis, indexed by frame.
+   *
+   * Not a rolling trace against a wall clock. Every reading the node sends
+   * belongs to a fifteen-minute step of the same record the other 344 stations
+   * are drawn from, so it is stored by frame and drawn in the same chart, on
+   * the same axis, with the same window control. A separate live chart beside
+   * them implied two different kinds of time where there is only one. */
+  byFrame: { temp: (number | null)[]; rh: (number | null)[]; pres: (number | null)[] }
+  /** Per-frame band from the online grader: '0' ok, '1' watch, '2' fault. */
+  grades: string[]
+  /** The highest frame received, i.e. how far the pen has drawn. */
+  frame: number
   /** The most recent reading, whatever station it came from. */
   latest: LiveReading | null
   running: boolean
@@ -57,15 +67,15 @@ export interface LiveState {
 }
 
 const KEEP = 40
-const TRACE = 240
 
 let sock: WebSocket | null = null
 let base = ''
 const subs = new Set<(s: LiveState) => void>()
 
 let state: LiveState = {
-  status: 'connecting', rows: [], trace: { temp: [], rh: [], pres: [] },
+  status: 'connecting', rows: [],
   latest: null, running: false, fault: 'none', silent: false, grade: null,
+  byFrame: { temp: [], rh: [], pres: [] }, grades: [], frame: 0,
 }
 
 function push(next: Partial<LiveState>) {
@@ -102,7 +112,14 @@ function connect() {
     if (m.type === 'silence') { push({ silent: true }); return }
     if (m.type === 'grade') {
       const g = m as unknown as GradeMessage
+      const gf = (m as unknown as { frame?: number }).frame
+      const grades = state.grades.slice()
+      if (typeof gf === 'number') {
+        while (grades.length < gf) grades.push('0')
+        grades[gf] = g.band === 'fault' ? '2' : g.band === 'watch' ? '1' : '0'
+      }
       push({
+        grades,
         grade: {
           z: g.z, band: g.band, expected: g.expected,
           baseline: g.baseline, baselineNeeded: g.baseline_needed,
@@ -112,16 +129,30 @@ function connect() {
     }
     if (m.type !== 'reading') return
 
-    push({
+    const f = (m as unknown as { frame?: number }).frame
+    const next: Partial<LiveState> = {
       rows: [m, ...state.rows].slice(0, KEEP),
       latest: m,
       silent: false,
-      trace: {
-        temp: [...state.trace.temp, m.temp].slice(-TRACE),
-        rh: [...state.trace.rh, m.rh].slice(-TRACE),
-        pres: [...state.trace.pres, m.pres].slice(-TRACE),
-      },
-    })
+    }
+    if (typeof f === 'number') {
+      // Written by frame, not appended: a reading is FOR a moment in the
+      // record, and two readings for the same frame are the same moment
+      // measured twice, not two moments.
+      const put = (arr: (number | null)[], v: number) => {
+        const a = arr.slice()
+        while (a.length < f) a.push(null)
+        a[f] = v
+        return a
+      }
+      next.byFrame = {
+        temp: put(state.byFrame.temp, m.temp),
+        rh: put(state.byFrame.rh, m.rh),
+        pres: put(state.byFrame.pres, m.pres),
+      }
+      next.frame = Math.max(state.frame, f)
+    }
+    push(next)
   }
 }
 
@@ -145,7 +176,9 @@ export function useLive(apiBase = ''): LiveState {
 /** Clear the drawn history, e.g. when the node is repaired and the old trace
  *  would otherwise show a step that the sensor never made. */
 export function resetTrace() {
-  push({ trace: { temp: [], rh: [], pres: [] }, grade: null })
+  push({
+    byFrame: { temp: [], rh: [], pres: [] }, grades: [], frame: 0, grade: null,
+  })
 }
 
 export async function liveCommand(apiBase: string, path: string) {

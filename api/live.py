@@ -280,6 +280,8 @@ _resid: list[float] = []
 # The node's standing right now, so the maintenance board can show it as an
 # item like any other. A live station that faults and appears nowhere a
 # technician looks is a station nobody will be sent to.
+_last_frame = [0]
+
 _standing: dict = {"band": "learning", "z": 0.0, "since": None,
                    "readings": 0, "expected": None, "last": None}
 
@@ -364,11 +366,19 @@ async def _run(per_second: float, limit: int) -> None:
                 # with the node's, and edge_screen_disagreement means the two
                 # saw different things -- which was firing constantly for the
                 # same reason.
+                # WHICH FRAME OF THE RECORD THIS READING IS FOR.
+                #
+                # The node's readings are synthesised at fifteen-minute steps
+                # exactly like every simulated station's, so they belong on the
+                # same axis. Publishing the frame is what lets the dashboard
+                # draw this station in the same chart as the other 344 instead
+                # of on a wall clock beside them.
+                _last_frame[0] = frame
                 node_flags = physics_screen(temp, rh, pres)
                 ingest(Reading(station=LIVE_STATION["name"], temp=temp,
                                rh=rh, pres=pres, seq=sent,
                                dt_min=SIM_MINUTES_PER_READING,
-                               flags=node_flags))
+                               flags=node_flags, frame=frame))
                 z, band = _grade_live(temp, exp[0])
                 if band != _standing["band"]:
                     # Date the condition from where it STARTED, not from where
@@ -378,7 +388,7 @@ async def _run(per_second: float, limit: int) -> None:
                 _standing.update(band=band, z=z, readings=sent,
                                  expected=exp[0], last=temp)
                 await HUB.publish({
-                    "type": "grade", "t": time.time(),
+                    "type": "grade", "t": time.time(), "frame": frame,
                     "station": LIVE_STATION["name"],
                     "z": round(z, 2), "band": band,
                     "expected": round(exp[0], 2),
@@ -449,12 +459,16 @@ async def set_fault(kind: str = Query("none")) -> dict:
             "note": "Applied to the reading. The detector is not told."}
 
 
-@router.post("/api/live/replay")
-async def start_replay(
-    per_second: float = Query(2.0, gt=0, le=50, description="readings/second"),
-    limit: int = Query(100_000, gt=0, le=1_000_000),
-) -> dict:
-    """Start the node."""
+async def start_node(per_second: float = 2.0, limit: int = 1_000_000) -> dict:
+    """Start the node. Plain function, callable from anywhere.
+
+    The endpoint below is a thin wrapper over this. Calling the ENDPOINT
+    directly from application startup looked like it worked and did not: a
+    FastAPI handler's defaults are Query objects, not values, so `limit` was a
+    Query instance, `sent < limit` raised inside the task, and the exception
+    died with the task -- no traceback, no log line, just a node that never
+    reported and a startup that claimed success.
+    """
     global _feeder
     if _state["running"]:
         raise HTTPException(409, "the node is already reporting; stop it first")
@@ -466,6 +480,15 @@ async def start_replay(
             "station": LIVE_STATION, "fault": _fault["kind"],
             "note": "One node reporting through the real ingest path. An ESP32 "
                     "posting to this same endpoint replaces it entirely."}
+
+
+@router.post("/api/live/replay")
+async def start_replay(
+    per_second: float = Query(2.0, gt=0, le=50, description="readings/second"),
+    limit: int = Query(100_000, gt=0, le=1_000_000),
+) -> dict:
+    """Start the node."""
+    return await start_node(per_second, limit)
 
 
 @router.post("/api/live/stop")
