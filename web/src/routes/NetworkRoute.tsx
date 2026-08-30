@@ -248,6 +248,11 @@ export function NetworkRoute() {
   }, [sim.data])
 
   const chosen = sim.data?.stations.find((s) => s.id === selected) ?? null
+  /* The live node is selectable like any other station, because it IS one.
+   * But it does not share their clock, and the section below says so rather
+   * than letting the replay slider look as though it governs a device that is
+   * reporting right now. */
+  const nodeSelected = Boolean(node.data && selected === node.data.id)
 
   return (
     <div className="sheet network">
@@ -377,6 +382,7 @@ export function NetworkRoute() {
               {net === 'sim' && node.data && (
                 <CircleMarker center={[node.data.lat, node.data.lon]}
                   radius={live.running ? 9 : 7}
+                  eventHandlers={{ click: () => setSelected(node.data!.id) }}
                   pathOptions={{
                     color: live.status === 'open' ? '#1D6FE0' : '#8C8172',
                     weight: 2.5,
@@ -528,9 +534,40 @@ export function NetworkRoute() {
       {net === 'sim' && (
         <details className="netsec" open>
           <summary className="belowhead">
-            {chosen ? chosen.name : 'Selected station'}
+            {nodeSelected && node.data ? node.data.name
+              : chosen ? chosen.name : 'Selected station'}
           </summary>
-          {!chosen || !sim.data
+          {nodeSelected && node.data
+            ? (<>
+                <div className="stnhead">
+                  <span className="mono muted">
+                    {node.data.state} · {node.data.elev} m ·{' '}
+                    {Math.abs(node.data.lat).toFixed(2)}N{' '}
+                    {Math.abs(node.data.lon).toFixed(2)}E
+                  </span>
+                  <span className="badge" style={{ color: 'var(--ink-2)' }}>live node</span>
+                </div>
+
+                {/* TWO CLOCKS, AND THEY MUST NOT BE CONFUSED.
+                  *
+                  * Every other station on this page is drawn against the
+                  * RECORD -- thirty days that already happened, scrubbed by the
+                  * slider above. This one is drawn against the wall clock,
+                  * because it is reporting now. Rendering it in the same
+                  * chart would make the slider look as though it governed a
+                  * device it cannot touch, and the trace would be aligned to a
+                  * month that has nothing to do with when the reading
+                  * arrived. */}
+                <p className="small muted">
+                  This station reports in real time, so it is drawn against the
+                  clock on the wall — not the replay slider above, which moves
+                  through a record that has already happened. The two are
+                  different kinds of time and the charts are kept apart for
+                  that reason.
+                </p>
+                <LiveFeed apiBase={import.meta.env.VITE_API_BASE ?? ''} />
+              </>)
+            : !chosen || !sim.data
             ? <p className="muted small">Pick a station on the map or in the index below.</p>
             : (<>
                 {/* One line, not a heading plus a meta block plus a paragraph.
@@ -554,19 +591,6 @@ export function NetworkRoute() {
         </details>
       )}
 
-      {/* The live half, first, because it is the half that is happening now.
-          Everything below it is a record of a month that has already been
-          graded; this is a reading arriving and being judged. */}
-      {net === 'sim' && (
-        <details className="netsec" open>
-          <summary className="belowhead">
-            Live ingest
-            <span className="muted"> · one node reporting, on the map above</span>
-          </summary>
-          <LiveFeed apiBase={import.meta.env.VITE_API_BASE ?? ''} />
-        </details>
-      )}
-
       {net === 'sim' && (
         <details className="netsec" open>
           <summary className="belowhead">
@@ -582,9 +606,46 @@ export function NetworkRoute() {
         <details className="netsec" open>
           <summary className="belowhead">
             Station index
-            <span className="muted"> · {graded.length} stations, {flagged.length} flagged now</span>
+            <span className="muted"> · {graded.length} simulated
+              {node.data ? ' + 1 live' : ''}, {flagged.length} flagged now</span>
           </summary>
           <div className="netrail">
+              {/* THE LIVE NODE IN THE INDEX, not only on the map. It is a
+                  station in this network and someone working down a list
+                  should find it there. First, because it is the only one
+                  reporting now. */}
+              {node.data && (
+                <details open>
+                  <summary>
+                    <span>Live</span>
+                    <span className="state-count mono">
+                      {live.running ? <b className="flagged">reporting</b> : '1'}
+                    </span>
+                  </summary>
+                  <button type="button"
+                    className={'stn' + (nodeSelected ? ' on' : '')}
+                    onClick={() => setSelected(node.data!.id)}>
+                    <span className="spine" style={{
+                      background: live.grade?.band === 'fault' ? HUE.FAULT!
+                        : live.grade?.band === 'watch' ? HUE.WATCH!
+                          : 'var(--rule)',
+                    }} />
+                    <span className="card-main">
+                      <span className="card-station">{node.data.name}</span>
+                      <span className="card-meta num">
+                        {node.data.elev} m · {node.data.state}
+                      </span>
+                    </span>
+                    {live.grade && live.grade.band !== 'ok'
+                      && live.grade.band !== 'learning' && (
+                      <span className="badge" style={{
+                        color: HUE[live.grade.band === 'fault' ? 'FAULT' : 'WATCH']!,
+                        borderColor: HUE[live.grade.band === 'fault' ? 'FAULT' : 'WATCH']!,
+                      }}>{live.grade.band}</span>
+                    )}
+                  </button>
+                </details>
+              )}
               {byState.map(([state, rows]) => {
                 const bad = rows.filter((r) => r.band === 'WATCH' || r.band === 'FAULT').length
                 const isOpen = open.has(state)
