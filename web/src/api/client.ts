@@ -41,6 +41,24 @@ export class ApiError extends Error {
  */
 const STATIC = import.meta.env.VITE_STATIC === '1'
 
+/* WHERE THE API LIVES.
+ *
+ * Empty by default, which means same-origin: FastAPI serving the bundle it
+ * built, or Vite proxying /api in development. That covers running locally and
+ * it covers one process serving both.
+ *
+ * It stops covering the split deployment -- the dashboard on Vercel or
+ * Cloudflare Pages and the detector on a Hugging Face Space -- because those
+ * are different origins and a relative /api/queue would ask the CDN for a file
+ * it does not have. VITE_API_BASE points the whole client at the other origin,
+ * and the server's SKYGUARD_ORIGINS has to name this one back or the browser
+ * refuses the reply.
+ *
+ * Trailing slash stripped, because "https://x.hf.space/" + "/api/queue" is a
+ * double slash and some servers treat that as a different path.
+ */
+const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/+$/, '')
+
 /** Where a given API path lives in a static build.
  *
  * A one-to-one mapping onto files, except the queue item: its id contains
@@ -58,7 +76,7 @@ function staticUrl(path: string): string {
  *  bundle. No base URL to configure and no environment variable to get wrong. */
 export async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   let res: Response
-  const url = STATIC ? staticUrl(path) : path
+  const url = STATIC ? staticUrl(path) : API_BASE + path
   try {
     res = await fetch(url, { signal, headers: { Accept: 'application/json' } })
   } catch (e) {
@@ -68,7 +86,10 @@ export async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
     if ((e as Error).name === 'AbortError') throw e
     throw new ApiError(0, path, STATIC
       ? `Missing ${url}. Run: python -m scripts.export_static`
-      : 'Cannot reach the API. Is uvicorn running on :8000?')
+      : API_BASE
+        ? `Cannot reach the API at ${API_BASE}. Is it running, and does its `
+          + 'SKYGUARD_ORIGINS include this site?'
+        : 'Cannot reach the API. Is uvicorn running on :8000?')
   }
   if (!res.ok) {
     // FastAPI puts the useful text in `detail`; fall back to the status line

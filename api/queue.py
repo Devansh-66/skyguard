@@ -34,8 +34,10 @@ Beta reputation's concentration doing a job the previous trust value could not.
 """
 from __future__ import annotations
 
+import json
 import os
 from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -191,8 +193,44 @@ def _scan() -> dict:
             "windows": len(seen_windows)}
 
 
+def _archive_present() -> bool:
+    """Is the ARM netCDF archive actually on this host?
+
+    Asked BEFORE building the queue rather than discovered inside it. Without
+    this the scan ran on an empty DQR table and died on a KeyError deep in the
+    scorecard -- a 500 with a stack trace where the honest answer is "that data
+    is not here", which is a completely different thing from a bug.
+    """
+    from api.ai import DQR_CSV, ROOT
+    return os.path.isfile(DQR_CSV) and os.path.isdir(ROOT)
+
+
+# A PRECOMPUTED QUEUE, for hosts that do not carry the ARM archive.
+#
+# Building this queue reads 138 MB of netCDF across 591 files. That is fine on
+# a workstation and absurd to ship to a Space that exists to serve a dashboard,
+# especially since the answer cannot change: the ARM archive is fixed, the
+# analyst reports are written, and the queue is a deterministic function of
+# both. Two hundred kilobytes of answer against a hundred and thirty-eight
+# megabytes of question.
+#
+# This is NOT the same as freezing the live network. The simulated stations are
+# graded on every request and will be streamed through the detector when ingest
+# lands; the ARM board is a retrospective study of a closed archive, and a study
+# that cannot change is a file.
+_PRECOMPUTED = Path(__file__).resolve().parent.parent / "dashboard" / "queue.json"
+
+
 @router.get("/api/queue")
 def work_queue() -> dict:
+    if not _archive_present():
+        if _PRECOMPUTED.exists():
+            data = json.loads(_PRECOMPUTED.read_text(encoding="utf-8"))
+            data["source"] = "precomputed"
+            return data
+        raise HTTPException(503,
+            "The ARM archive is not on this host and dashboard/queue.json has "
+            "not been exported. Run: python -m scripts.export_queue")
     q = _scan()
     s = q["scored"]
     recall = (s["we_raised_of_those"] / s["analyst_named"]
@@ -235,6 +273,18 @@ def work_queue() -> dict:
 @router.get("/api/queue/{item_id:path}")
 def item(item_id: str) -> dict:
     """The evidence behind one queue item: checkers, belief, and the series."""
+    if not _archive_present():
+        # Same reasoning as the list: a closed archive's answer is a file.
+        items = Path(__file__).resolve().parent.parent / "dashboard" / "queue_items.json"
+        if items.exists():
+            bundle = json.loads(items.read_text(encoding="utf-8"))
+            hit = bundle.get(item_id)
+            if hit is None:
+                raise HTTPException(404, "no such queue item")
+            return hit
+        raise HTTPException(503,
+            "The ARM archive is not on this host and dashboard/queue_items.json "
+            "has not been exported. Run: python -m scripts.export_queue")
     q = _scan()
     it = next((x for x in q["items"] if x["id"] == item_id), None)
     if it is None:
