@@ -126,67 +126,228 @@ def _decode(sim: dict, s: dict, frame: int):
     return tuple(out)
 
 
-async def _run(station_id: str | None, per_second: float, limit: int) -> None:
+# THE LIVE STATION: one node, standing where the ESP32 will stand.
+#
+# Streaming an existing simulated station was the wrong demo. It showed one of
+# the 344 being replayed faster, which is the same recording at a different
+# speed. The thing worth showing is a NEW station -- a device reporting into a
+# network that does not yet know about it -- because that is what the finished
+# system is: 344 stations on file and a box on a pole sending readings in.
+#
+# In the end there is no difference between them, and that is the point. It
+# reports temperature, pressure and humidity like every other station, it is
+# graded against its neighbours like every other station, and the only thing
+# that makes it special is that its numbers arrive instead of being loaded.
+#
+# Bhopal by default: central, and it has four simulated neighbours within
+# 120 km. That last part is not decoration -- neighbour differencing needs
+# three within 250 km, so a live station in the middle of nowhere could be
+# watched and never judged.
+LIVE_STATION = {
+    "id": "ESP32-01",
+    "name": "SKYGUARD ESP32",
+    "state": "Madhya Pradesh",
+    "lat": 23.26,
+    "lon": 77.41,
+    "elev": 523,
+}
+
+# What is wrong with the node, if anything. Set from the dashboard so a fault
+# can be introduced while somebody is watching, which is the only way to show a
+# detector detecting rather than to assert that it does.
+_fault: dict = {"kind": "none", "since": 0, "amplitude": 0.0}
+
+FAULTS = ("none", "drift", "stuck", "spike", "offset", "dropout")
+
+# Readings per simulated half-hour. At two readings a second this advances the
+# weather about one simulated day per two minutes -- slow enough that the
+# baseline is nearly flat over the span of a demo, which is the only condition
+# under which a slow drift is visible as a drift.
+FRAMES_PER_READING = 60
+
+
+def _neighbours(sim: dict, lat: float, lon: float, k: int = 6):
+    """The k nearest simulated stations, with inverse-distance weights."""
+    import math
+    d = []
+    for i, st in enumerate(sim["stations"]):
+        dx = (st["lon"] - lon) * math.cos(math.radians(lat)) * 111.0
+        dy = (st["lat"] - lat) * 111.0
+        d.append((dx * dx + dy * dy, i))
+    d.sort()
+    picked = d[:k]
+    w = [1.0 / max(dist, 1.0) for dist, _ in picked]
+    tot = sum(w) or 1.0
+    return [(i, wi / tot) for (_, i), wi in zip(picked, w)]
+
+
+def _synth(sim: dict, frame: int, nbrs, n: int) -> tuple[float, float, float]:
+    """What this node would be reading, before anything goes wrong with it.
+
+    Interpolated from its neighbours rather than invented: a station at Bhopal
+    reporting Himalayan temperatures would be caught instantly by the very
+    check this is meant to demonstrate, and for the wrong reason.
+    """
+    import random
+    out = []
+    for key, ch in (("vt", "temp"), ("vh", "rh"), ("vp", "pres")):
+        acc = 0.0
+        wsum = 0.0
+        for i, w in nbrs:
+            raw = base64.b64decode(sim["stations"][i][key])
+            if frame >= len(raw) or raw[frame] == 0:
+                continue
+            lo, hi = sim["range"][ch]
+            acc += w * (lo + ((raw[frame] - 1) / 254.0) * (hi - lo))
+            wsum += w
+        base = acc / wsum if wsum else 0.0
+        # A real sensor is never exactly its neighbours' average.
+        noise = {"temp": 0.25, "rh": 1.2, "pres": 0.15}[ch]
+        out.append(base + random.gauss(0, noise))
+    return tuple(out)  # type: ignore[return-value]
+
+
+def _apply_fault(vals: tuple[float, float, float], n: int):
+    """Break the node, the way the injector breaks a simulated one.
+
+    Same fault vocabulary as simulate/faults_and_export.py on purpose: a demo
+    that showed a fault this system was never tested against would be theatre.
+    """
+    import random
+    temp, rh, pres = vals
+    kind = _fault["kind"]
+    if kind == "none":
+        return temp, rh, pres, False
+    elapsed = max(n - _fault["since"], 0)
+    if kind == "drift":
+        # 0.02 C per reading: invisible at any single moment, unmistakable
+        # after a few minutes. This is the fault the whole project exists for.
+        temp += 0.02 * elapsed
+    elif kind == "stuck":
+        temp, rh, pres = _fault.setdefault("held", (temp, rh, pres))
+    elif kind == "spike":
+        if random.random() < 0.25:
+            temp += random.choice([-1, 1]) * random.uniform(6, 14)
+    elif kind == "offset":
+        temp += 4.5
+    elif kind == "dropout":
+        return temp, rh, pres, True
+    return temp, rh, pres, False
+
+
+async def _run(per_second: float, limit: int) -> None:
+    """The node, reporting.
+
+    One station posting through /api/ingest at a steady cadence, which is what
+    an ESP32 on a pole does. The readings are synthesised from its neighbours
+    so they belong to the place it stands in, and whatever fault is currently
+    set is applied on the way out -- to the READING, never to the verdict.
+    """
     from api.ingest import Reading, ingest
 
     sim = _sim()
-    stations = sim["stations"]
-    if station_id:
-        stations = [s for s in stations if s["id"] == station_id] or stations[:1]
+    nbrs = _neighbours(sim, LIVE_STATION["lat"], LIVE_STATION["lon"])
     n_frames = sim.get("n_fields") or 1
     delay = 1.0 / max(per_second, 0.05)
     sent = 0
     try:
         while _state["running"] and sent < limit:
-            s = stations[sent % len(stations)]
-            frame = (sent // max(len(stations), 1)) % n_frames
-            temp, rh, pres = _decode(sim, s, frame)
+            # HOW FAST THE WEATHER MOVES.
+            #
+            # This was one frame per reading, and a frame is thirty simulated
+            # minutes: at two readings a second that is a day of weather every
+            # twenty seconds, and the station's temperature swings ten degrees
+            # while you watch. A drift of 0.02 C per reading is invisible
+            # underneath that -- the first test of the fault button measured
+            # the diurnal cycle and called it a result.
+            #
+            # One frame per FRAMES_PER_READING readings instead, so the
+            # background is nearly still and a fault is the thing that moves.
+            frame = (sent // FRAMES_PER_READING) % n_frames
+            temp, rh, pres, dropped = _apply_fault(
+                _synth(sim, frame, nbrs, sent), sent)
             sent += 1
             _state["sent"] = sent
-            if temp is None or rh is None or pres is None:
+            if dropped:
+                # A dead node sends nothing. Publishing "nothing arrived" is
+                # the only way a viewer can tell silence from a paused feed.
+                await HUB.publish({"type": "silence", "t": time.time(),
+                                   "station": LIVE_STATION["name"],
+                                   "fault": _fault["kind"]})
                 await asyncio.sleep(delay)
                 continue
             try:
-                verdict = ingest(Reading(station=s["name"], temp=temp,
-                                         rh=rh, pres=pres))
+                ingest(Reading(station=LIVE_STATION["name"], temp=temp,
+                               rh=rh, pres=pres, seq=sent))
             except HTTPException as e:
-                verdict = {"error": str(e.detail)}
+                await HUB.publish({"type": "rejected", "t": time.time(),
+                                   "station": LIVE_STATION["name"],
+                                   "why": str(e.detail)})
             except Exception as e:
-                verdict = {"error": f"{type(e).__name__}: {e}"}
-            # NO PUBLISH HERE. ingest() broadcasts every reading it accepts,
-            # and this used to broadcast the same one again -- every station
-            # arrived twice on the socket. The feeder is a stand-in for an
-            # ESP32, and an ESP32 posting to /api/ingest gets exactly one
-            # event; the stand-in must not be a better citizen than the thing
-            # it stands in for.
-            del verdict
+                await HUB.publish({"type": "rejected", "t": time.time(),
+                                   "station": LIVE_STATION["name"],
+                                   "why": f"{type(e).__name__}: {e}"})
             await asyncio.sleep(delay)
     except asyncio.CancelledError:
         raise
     finally:
         _state["running"] = False
-        # Same reasoning: this runs during cancellation, and a broadcast that
-        # fails here must not replace the CancelledError with its own.
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await HUB.publish({"type": "feeder", "running": False, "sent": sent})
 
 
+@router.get("/api/live/station")
+def live_station() -> dict:
+    """Where the node stands, and what is currently wrong with it."""
+    sim = _sim()
+    nbrs = _neighbours(sim, LIVE_STATION["lat"], LIVE_STATION["lon"])
+    return {
+        **LIVE_STATION,
+        "fault": dict(_fault),
+        "faults_available": list(FAULTS),
+        "neighbours": [sim["stations"][i]["name"] for i, _ in nbrs],
+        "note": "A station like any other. It reports temperature, pressure "
+                "and humidity, it is graded against its neighbours, and the "
+                "only difference is that its readings arrive rather than being "
+                "loaded from a file.",
+    }
+
+
+@router.post("/api/live/fault")
+async def set_fault(kind: str = Query("none")) -> dict:
+    """Break the node, or repair it, while somebody is watching.
+
+    The fault vocabulary is the injector's, not a new one invented for the
+    demo: showing a fault this system was never tested against would be
+    theatre. It changes the READING only -- nothing downstream is told, which
+    is the entire point of pressing it.
+    """
+    if kind not in FAULTS:
+        raise HTTPException(400, f"unknown fault {kind!r}; have {', '.join(FAULTS)}")
+    _fault.update(kind=kind, since=_state.get("sent", 0))
+    _fault.pop("held", None)
+    await HUB.publish({"type": "fault", "kind": kind,
+                       "station": LIVE_STATION["name"]})
+    return {"fault": kind, "since_reading": _fault["since"],
+            "note": "Applied to the reading. The detector is not told."}
+
+
 @router.post("/api/live/replay")
 async def start_replay(
-    station: str | None = Query(None, description="one station id, or all"),
-    per_second: float = Query(4.0, gt=0, le=50, description="readings/second"),
-    limit: int = Query(5000, gt=0, le=200_000),
+    per_second: float = Query(2.0, gt=0, le=50, description="readings/second"),
+    limit: int = Query(100_000, gt=0, le=1_000_000),
 ) -> dict:
-    """Start the stand-in for the hardware."""
+    """Start the node."""
     global _feeder
     if _state["running"]:
-        raise HTTPException(409, "a replay is already running; stop it first")
-    _state.update(running=True, station=station, sent=0, rate=per_second)
-    _feeder = asyncio.create_task(_run(station, per_second, limit))
+        raise HTTPException(409, "the node is already reporting; stop it first")
+    _state.update(running=True, station=LIVE_STATION["id"], sent=0, rate=per_second)
+    _feeder = asyncio.create_task(_run(per_second, limit))
     await HUB.publish({"type": "feeder", "running": True, "rate": per_second})
-    return {"started": True, "per_second": per_second, "station": station,
-            "note": "Simulated readings through the real ingest path. The "
-                    "ESP32 will post to this same endpoint."}
+    return {"started": True, "per_second": per_second,
+            "station": LIVE_STATION, "fault": _fault["kind"],
+            "note": "One node reporting through the real ingest path. An ESP32 "
+                    "posting to this same endpoint replaces it entirely."}
 
 
 @router.post("/api/live/stop")
