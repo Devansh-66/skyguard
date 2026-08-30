@@ -463,3 +463,24 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
 }
 .simdetail .stnhead { margin-bottom: 14px; }
 .simdetail .chanrow { margin-top: 8px; }
+
+/* THE OPEN-ALERT LIST DOES NOT RESIZE THE PAGE.
+ *
+ * Alerts open and close as the clock runs, and a list that grows and shrinks
+ * with them dragged everything below it up and down -- the station index moved
+ * under the cursor while it was being read. The box is a fixed height and
+ * scrolls inside itself, so the rest of the page holds still no matter how many
+ * alerts are open. This is the one place a nested scrollbar earns its keep:
+ * the content genuinely changes size on its own. */
+.alertbox {
+  height: 232px; overflow: auto;
+  border: 1px solid var(--rule-edge); background: var(--paper-2);
+}
+.alertbox .alerttab { font-size: 12px; }
+.alertbox thead th {
+  position: sticky; top: 0; background: var(--paper-2);
+  padding: 7px 14px 5px 10px; z-index: 1;
+}
+.alertbox td { padding: 6px 14px 6px 10px; }
+.alertbox .empty { padding: 14px; }
+.card-action.done { color: var(--ink-3); border-color: var(--rule-edge); }

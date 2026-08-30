@@ -53,6 +53,25 @@ CHANNELS = ("temp", "rh", "pres")
 
 # Fault types, and what each does to a channel. Every one of these is a failure
 # an AWS actually has; none is a shape chosen because it is easy to detect.
+# THE ROLLING SIGMA. Fifteen days is six correlation times of the weather field
+# (tau is 2.5 days), which is what it takes for a robust spread estimate to
+# settle. The one-day lag holds the reference behind the point being scored so
+# a starting fault is not already inside its own baseline. Six hours between
+# recomputes: the spread of a weather residual does not move faster than that.
+# THE BANDS, IN ONE PLACE. They were written out twice -- once for the combined
+# grade and once for the per-channel grades -- and only one copy was updated
+# when they were recalibrated. The map and the alert list were then banding the
+# same residual at different thresholds, so a station could be clear on the map
+# and alerting in the list. A threshold that appears twice is a threshold that
+# will disagree with itself.
+WATCH_SIGMA = 6.0
+FAULT_SIGMA = 8.0
+
+SIGMA_WIN = 15 * 24 * 60 // 15          # 15 days, in 15-minute steps
+SIGMA_LAG = 1 * 24 * 60 // 15           # 1 day
+SIGMA_STRIDE = 6 * 60 // 15             # 6 hours
+MIN_BASE = 5 * 24 * 60 // 15            # never estimate from under 5 days
+
 FAULT_KINDS = ("drift", "step", "stuck", "dropout", "noise", "shield")
 
 
@@ -172,19 +191,75 @@ def grade(data: dict, near: np.ndarray, clean_steps: int):
         return out
 
     def _z(resids):
+        """Standardise the residual against a TRAILING, LAGGED, ROLLING spread.
+
+        WHY NOT ONE ESTIMATE FROM AN EARLY WINDOW, WHICH IS WHAT THIS DID
+
+        Sigma was the MAD of the first half of the record, applied to all of
+        it. Measured on a network with no faults injected at all:
+
+            baseline window   |z| p95 = 2.78
+            scoring period    |z| p95 = 4.47      inflated 1.61x
+            false alarms at 4 sigma: 7.6% of station-hours
+
+        Two things caused that and both are the same mistake. The estimate was
+        IN-SAMPLE -- fitted to the window it was then evaluated on, so it fits
+        that window's noise and nothing else. And it was FIXED, so a month of
+        changing weather was scored against a fortnight of one regime. A
+        threshold of 4 was really about 2.5 by the end, which is the entire
+        false-alarm rate.
+
+        WHAT IT DOES NOW
+
+        Sigma is recomputed from a window that TRAILS the point being scored,
+        so no point is ever standardised against itself. That is also the only
+        version a deployed system could run: at 09:00 you have yesterday, not
+        next week.
+
+        The window is LAGGED by a day. A slow drift that has already entered
+        the reference window inflates sigma and hides itself -- self-masking --
+        and holding the reference a day behind buys the detector the beginning
+        of a fault before the fault can start defending itself. It does not
+        solve self-masking for a fault longer than the window; nothing that
+        uses the station's own history can, and that limit is stated wherever
+        the recall figure appears.
+
+        Recomputed every SIGMA_STRIDE steps rather than every step, because the
+        spread of a weather residual does not move in six hours and 344
+        stations times 2,880 steps times three channels of exact rolling MAD
+        buys nothing for the cost.
+        """
         zz = {}
         for ch in CHANNELS:
-            base = resids[ch][:clean_steps]
-            med = np.nanmedian(base, axis=0)
-            mad = 1.4826 * np.nanmedian(np.abs(base - med), axis=0)
-            # Shrink each station's own estimate halfway toward the network
-            # median. The residual spread is mostly a property of the geometry
-            # and the weather, which every station shares; a per-station
-            # estimate from one window is noisy, and the stations it
-            # underestimates are exactly the ones that then cry wolf.
-            pooled = np.nanmedian(mad)
-            sigma = np.maximum(0.5 * mad + 0.5 * pooled, 1e-6)
-            zz[ch] = (resids[ch] - med) / sigma
+            r = resids[ch]
+            n_t, n_s = r.shape
+            sig = np.full((n_t, n_s), np.nan, dtype=np.float32)
+            med = np.full((n_t, n_s), np.nan, dtype=np.float32)
+
+            for start in range(0, n_t, SIGMA_STRIDE):
+                # The window ends SIGMA_LAG before this block and reaches back
+                # SIGMA_WIN. Early on there is not enough history, so it falls
+                # back to the longest trailing stretch available -- which is
+                # the honest thing a real deployment does on its first fortnight.
+                hi = max(start - SIGMA_LAG, MIN_BASE)
+                lo = max(hi - SIGMA_WIN, 0)
+                base = r[lo:hi]
+                if base.shape[0] < MIN_BASE:
+                    base = r[:MIN_BASE]
+                m = np.nanmedian(base, axis=0)
+                mad = 1.4826 * np.nanmedian(np.abs(base - m), axis=0)
+                # Shrink each station's own estimate halfway toward the network
+                # median. The residual spread is mostly a property of the
+                # geometry and the weather, which every station shares; a
+                # per-station estimate from one window is noisy, and the
+                # stations it underestimates are exactly the ones that cry wolf.
+                pooled = np.nanmedian(mad)
+                sd = np.maximum(0.5 * mad + 0.5 * pooled, 1e-6)
+                end = min(start + SIGMA_STRIDE, n_t)
+                sig[start:end] = sd
+                med[start:end] = m
+
+            zz[ch] = (r - med) / sig
         return zz
 
     z1 = _z(_resid(None))
@@ -240,20 +315,36 @@ def main() -> None:
     stack = np.stack([np.abs(z[c]) for c in CHANNELS])
     worst = np.nanmax(np.where(np.isfinite(stack), stack, -np.inf), axis=0)
     worst_ch = np.nanargmax(np.where(np.isfinite(stack), stack, -np.inf), axis=0)
-    # BANDS CHOSEN FROM A MEASURED TRADE-OFF, not from the round numbers used
-    # elsewhere. Sweeping the threshold on this network gave:
+    # BANDS CALIBRATED AGAINST A FAULT-FREE CONTROL RUN, not asserted.
     #
-    #     2 sigma  82% recall  38.6% of healthy stations also flagged
-    #     3 sigma  54% recall  11.1%
-    #     4 sigma  32% recall   2.8%
-    #     5 sigma  25% recall   0.0%
+    # The old 4 and 6 were chosen against a sigma estimated in-sample from a
+    # fixed early window, and that sigma was 1.61x too small by the end of the
+    # month, so "4 sigma" was really about 2.5. The sigma is trailing and
+    # lagged now (see _z) and the inflation is down to 1.23x, which moves where
+    # the bands belong.
     #
-    # There is no good point on that curve, and pretending otherwise by picking
-    # 2 sigma would paint a third of the country amber. 4 and 6 keep the map
-    # honest at the cost of recall, and the number to quote is the trade, not
-    # one end of it.
+    # Re-measured end to end -- inject 28 faults, grade blind, debounce into
+    # alerts with the 3-hour raise and 6-hour clear the interface uses, then
+    # ask which STATIONS raise an alert at all:
+    #
+    #   watch  episodes  stations alerting  faults found  healthy alerting
+    #     4.0       352               171         23/28          148/316
+    #     5.0       156                84         19/28           65/316
+    #     6.0        73                42         16/28           26/316
+    #     6.5        55                28         13/28           15/316
+    #     7.0        35                17         10/28            7/316
+    #
+    # 6 and 8 is the chosen point: 57% of the injected faults found at 38%
+    # precision, against 86% at 15% before. A queue a technician works down is
+    # ruined by precision below about a third -- people stop driving out -- and
+    # the missed faults are the slow ones, which cost a data point rather than
+    # a van. 7.0 would buy 59% precision for a third of the recall, which is
+    # the wrong end of the same trade.
+    #
+    # Both numbers are worth quoting together and neither alone.
     grade_i = np.where(np.isnan(data["temp"]) & np.isnan(data["rh"]), 3,
-                       np.where(worst >= 6, 2, np.where(worst >= 4, 1, 0)))
+                       np.where(worst >= FAULT_SIGMA, 2,
+                                np.where(worst >= WATCH_SIGMA, 1, 0)))
     grade_i = np.where(np.isfinite(worst), grade_i, 3)   # 3 = no data
 
     # Per-channel grades too, so the four map panels work on this network the
@@ -269,7 +360,8 @@ def main() -> None:
     for ci, ch in enumerate(CHANNELS):
         az = np.abs(z[ch])
         gi = np.where(np.isfinite(az),
-                      np.where(az >= 6, 2, np.where(az >= 4, 1, 0)), 3)
+                      np.where(az >= FAULT_SIGMA, 2,
+                               np.where(az >= WATCH_SIGMA, 1, 0)), 3)
         gh = gi[::4]
         per_ch[ch] = ["".join(chars[gh[:, s]]) for s in range(n_st)]
 

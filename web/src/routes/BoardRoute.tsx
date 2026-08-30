@@ -190,6 +190,10 @@ type SimItem = {
   band: Band
   hours: number
   episodes: number
+  /** Still running at the end of the record, or closed by itself. */
+  open: boolean
+  /** Hour the most recent episode began. */
+  from: number
 }
 
 const CH_LABEL = { temp: 'Temperature', rh: 'Relative humidity', pres: 'Pressure (MSL)' }
@@ -207,10 +211,22 @@ export function simItems(sim: SimMap | undefined): SimItem[] {
       if (!eps.length) continue
       const hours = eps.reduce((n, e) => n + e.hours, 0)
       const band: Band = eps.some((e) => e.band === 'FAULT') ? 'FAULT' : 'WATCH'
-      out.push({ id: `sim:${st.id}:${ch}`, s: st, ch, band, hours, episodes: eps.length })
+      /* AN ALERT THAT CLEARED IS NOT THE SAME WORK AS ONE STILL RUNNING.
+       * The board is a queue; something that fixed itself, or was a false
+       * alarm that went away, must not sit in it looking like a job. It stays
+       * on the board -- the record matters, and a station that alerts and
+       * clears repeatedly is itself a finding -- but it is marked closed and
+       * sorted below everything open. */
+      const last = eps[eps.length - 1]
+      out.push({ id: `sim:${st.id}:${ch}`, s: st, ch, band, hours,
+                 episodes: eps.length, open: last.to === null, from: last.from })
     }
   }
-  return out.sort((a, b) => b.hours - a.hours)
+  // Open work first, then by how long it has been wrong.
+  return out.sort((a, b) =>
+    Number(b.open) - Number(a.open)
+    || (b.band === 'FAULT' ? 1 : 0) - (a.band === 'FAULT' ? 1 : 0)
+    || b.hours - a.hours)
 }
 
 function SimItems({ sim, selected, onPick }: {
@@ -224,7 +240,7 @@ function SimItems({ sim, selected, onPick }: {
   return (
     <>
       <div className="group-head">
-        Simulated network, India · {items.length} · injected faults
+        Simulated network, India · {items.filter((i) => i.open).length} open of {items.length}
       </div>
       <ul className="cards">
         {shown.map((it) => {
@@ -249,8 +265,9 @@ function SimItems({ sim, selected, onPick }: {
                   <span className="card-meta num">
                     {it.s.state} · {it.s.elev} m · {it.episodes} episode{it.episodes > 1 ? 's' : ''}
                   </span>
-                  <span className={'card-action ' + (it.band === 'FAULT' ? 'bad' : 'sus')}>
-                    {it.band === 'FAULT' ? 'DISPATCH' : 'WATCH'}
+                  <span className={'card-action ' + (!it.open ? 'done'
+                    : it.band === 'FAULT' ? 'bad' : 'sus')}>
+                    {!it.open ? 'CLEARED' : it.band === 'FAULT' ? 'DISPATCH' : 'WATCH'}
                   </span>
                 </span>
               </button>
@@ -303,7 +320,8 @@ function SimDetail({ id, sim }: { id: string; sim: SimMap | undefined }) {
       <div className="fields">
         <Field k="channel" v={CH_LABEL[ch as 'temp' | 'rh' | 'pres']} />
         <Field k="hours flagged" v={String(it?.hours ?? 0)} />
-        <Field k="worst grade" v={(it?.band ?? 'OK').toLowerCase()} />
+        <Field k="status" v={it?.open ? 'open' : 'cleared'} />
+        <Field k="episodes" v={String(it?.episodes ?? 0)} />
         <Field k="injected" v={injected ? `${injected.kind} on ${injected.channel}` : 'nothing'} />
       </div>
 

@@ -597,12 +597,16 @@ function AlertList({ sim, rows, hour, onSelect }: {
   hour: number
   onSelect: (id: string) => void
 }) {
-  if (!rows.length) {
-    return <p className="muted small">No alert is open at this hour.</p>
-  }
   const CH = { temp: 'temperature', rh: 'humidity', pres: 'pressure' }
+  if (!rows.length) {
+    // Same box, empty. Collapsing it would move the page exactly as growing it
+    // does, which is the thing this box exists to stop.
+    return <div className="alertbox"><p className="muted small empty">
+      No alert is open at this hour.
+    </p></div>
+  }
   return (
-    <div className="tabwrap">
+    <div className="alertbox">
       <table className="alerttab">
         <thead>
           <tr>
