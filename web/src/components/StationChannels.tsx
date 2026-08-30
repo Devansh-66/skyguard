@@ -37,8 +37,13 @@ export function StationChannels({ sim, s, hour }: {
          * impossible once there is text on it -- the labels would have been
          * squashed by whatever width the column happened to be. It scales
          * uniformly now, with a gutter for the axis. */
-        const W = 620, H = 150
-        const L = 46, R = 8, T = 8, B = 20          // gutters
+        /* Taller relative to its width than it was. At 620x150 in a three-up
+         * grid each chart rendered about 78px high, and a month of diurnal
+         * cycles in 78px is a band of ink with no shape in it. The point of
+         * these is to make a drift visible against a rhythm, which needs
+         * vertical room. */
+        const W = 620, H = 215
+        const L = 50, R = 10, T = 10, B = 24        // gutters
         const x = (i: number) => L + (i / Math.max(nf - 1, 1)) * (W - L - R)
         const y = (v: number) => T + ((hi - v) / (hi - lo)) * (H - T - B)
 

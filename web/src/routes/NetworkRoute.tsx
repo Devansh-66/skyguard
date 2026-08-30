@@ -212,17 +212,28 @@ export function NetworkRoute() {
   }, [graded])
 
   const flagged = graded.filter((r) => r.band === 'WATCH' || r.band === 'FAULT')
-  /* THE PAGE OPENED WITH NO GRAPH ON IT.
+  /* THE OPENING STATION IS CHOSEN ONCE, AND THEN LEFT ALONE.
    *
-   * Nothing was selected until the reader clicked, so the middle column held an
-   * instruction where the charts belong -- and the instruction is only readable
-   * by someone who already knows what it is offering. Falling back to the worst
-   * station at this hour puts a real trace on screen immediately, and it is the
-   * one worth looking at rather than an arbitrary first row. */
-  const fallback = graded.length
-    ? [...graded].sort((a, c) => BAND_ORDER[c.band] - BAND_ORDER[a.band])[0].s.id
-    : null
-  const chosen = sim.data?.stations.find((s) => s.id === (selected ?? fallback)) ?? null
+   * The page needs a station selected on arrival, or the charts are replaced by
+   * an instruction and there is no graph on the page at all. The first attempt
+   * DERIVED that station -- worst at the current hour -- which meant the clock
+   * reselected it every tick: the name changed on its own, the three traces
+   * were swapped underneath whoever was reading them, and stepping through the
+   * month became impossible because the subject kept moving.
+   *
+   * A default is a starting point, not a rule. It is set once, when the data
+   * first arrives, and after that only a click changes it.
+   */
+  useEffect(() => {
+    if (selected || !graded.length) return
+    const worst = [...graded].sort((a, c) => BAND_ORDER[c.band] - BAND_ORDER[a.band])[0]
+    setSelected(worst.s.id)
+    // graded is deliberately absent from the deps: this must run on the first
+    // load and never again, and listing it would re-arm the effect every hour.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sim.data])
+
+  const chosen = sim.data?.stations.find((s) => s.id === selected) ?? null
 
   return (
     <div className="sheet network">
