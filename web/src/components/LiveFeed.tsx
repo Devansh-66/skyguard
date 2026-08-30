@@ -37,8 +37,67 @@ type Status = 'connecting' | 'open' | 'closed'
  * that matters -- /api/map/* is what history is for. */
 const KEEP = 40
 
-export function LiveFeed({ apiBase = '' }: { apiBase?: string }) {
+/** Points on the strip charts. Two minutes at two readings a second. */
+const TRACE = 240
+
+/** A live strip chart: the pen draws as readings arrive.
+ *
+ * WHY IT WATCHES ONE STATION
+ *
+ * The feeder can walk the whole network, and for a chart that is useless: with
+ * 344 stations in rotation any single one is heard from once every 344
+ * readings, so a "live graph" would be one dot a minute with 343 other
+ * stations' values interleaved. A time series needs a subject. Streaming one
+ * station is what makes the trace a trace -- and it is also what an ESP32 on a
+ * bench actually is: one station, reporting.
+ */
+function Strip({ label, unit, values }: {
+  label: string; unit: string; values: number[]
+}) {
+  const W = 420, H = 52, P = 3
+  const lo = values.length ? Math.min(...values) : 0
+  const hi = values.length ? Math.max(...values) : 1
+  const pad = (hi - lo) * 0.15 || 0.5
+  const y = (v: number) => P + ((hi + pad - v) / ((hi + pad) - (lo - pad))) * (H - 2 * P)
+  const x = (i: number) => (values.length < 2 ? P
+    : P + (i / (values.length - 1)) * (W - 2 * P))
+  const d = values.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ')
+  const last = values.length ? values[values.length - 1] : null
+
+  return (
+    <div className="strip">
+      <div className="strip-head">
+        <span className="strip-label">{label}</span>
+        <span className="mono strip-now">
+          {last == null ? '—' : `${last.toFixed(1)} ${unit}`}
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="strip-svg" role="img"
+           aria-label={`${label}, last ${values.length} readings`}>
+        <rect width={W} height={H} className="chan-stock" />
+        <line x1={0} x2={W} y1={H / 2} y2={H / 2} className="chan-rule" />
+        {values.length > 1 && <path d={d} className="chan-pen" />}
+        {last != null && values.length > 0 && (
+          <circle cx={x(values.length - 1)} cy={y(last)} r={2.5} className="chan-nib" />
+        )}
+      </svg>
+    </div>
+  )
+}
+
+export function LiveFeed({ apiBase = '', station, stationName }: {
+  apiBase?: string
+  /** The station to stream. Without one the feeder walks the network and the
+   *  strip charts stay empty, which is honest: there is no series to draw. */
+  station?: string | null
+  stationName?: string | null
+}) {
   const [rows, setRows] = useState<LiveReading[]>([])
+  /* The trace, kept separately from the table. The table is every reading that
+   * arrives; this is one station's history, which is the only thing that can
+   * be drawn as a line. */
+  const [trace, setTrace] = useState<{ temp: number[]; rh: number[]; pres: number[] }>(
+    { temp: [], rh: [], pres: [] })
   const [status, setStatus] = useState<Status>('connecting')
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -76,10 +135,23 @@ export function LiveFeed({ apiBase = '' }: { apiBase?: string }) {
         // Newest first, and trimmed on every push rather than periodically:
         // the trim is what keeps this a window instead of a leak.
         setRows((prev) => [m, ...prev].slice(0, KEEP))
+        // Only the watched station extends the trace. A chart mixing 344
+        // stations' values into one line is not a measurement of anything.
+        if (!station || m.station === stationName) {
+          setTrace((p) => ({
+            temp: [...p.temp, m.temp].slice(-TRACE),
+            rh: [...p.rh, m.rh].slice(-TRACE),
+            pres: [...p.pres, m.pres].slice(-TRACE),
+          }))
+        }
       } catch { /* a malformed frame is not worth a broken panel */ }
     }
     return () => sock.close()
-  }, [apiBase])
+  }, [apiBase, station, stationName])
+
+  // A new subject starts a new trace. Carrying the old station's points into
+  // the new station's line would draw a step that never happened.
+  useEffect(() => { setTrace({ temp: [], rh: [], pres: [] }) }, [station])
 
   /* Set the running state from the RESPONSE, not only from the socket event.
    *
@@ -109,13 +181,29 @@ export function LiveFeed({ apiBase = '' }: { apiBase?: string }) {
         <button type="button" className="btn ghost tiny"
                 onClick={() => (running
                   ? send('/api/live/stop', false)
-                  : send('/api/live/replay?per_second=4', true))}>
+                  : send('/api/live/replay?per_second=2'
+                      + (station ? `&station=${encodeURIComponent(station)}` : ''),
+                    true))}>
           {running ? 'Stop the feed' : 'Start the feed'}
         </button>
         <span className="mono muted live-count">{rows.length ? `${rows.length} shown` : ''}</span>
       </div>
 
       {error && <p className="small muted">{error}</p>}
+
+      {station ? (
+        <div className="strips">
+          <Strip label="Temperature" unit="°C" values={trace.temp} />
+          <Strip label="Relative humidity" unit="%" values={trace.rh} />
+          <Strip label="Pressure" unit="hPa" values={trace.pres} />
+        </div>
+      ) : (
+        <p className="small muted">
+          Select a station above and the feed will stream that one, drawing its
+          three channels as each reading arrives. Without a subject the feeder
+          walks all 344 and there is no series to draw.
+        </p>
+      )}
 
       <div className="tabwrap live-box">
         <table className="alerttab">

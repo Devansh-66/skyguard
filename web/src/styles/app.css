@@ -602,3 +602,11 @@ details.netsec:not([open]) { padding-bottom: 4px; }
 .live-box thead th { position: sticky; top: 0; background: var(--paper-2); padding: 7px 14px 5px 10px; z-index: 1; }
 .live-box td { padding: 5px 14px 5px 10px; }
 .live .flagged { color: var(--signal-red); }
+
+/* The live strip charts: one station's three channels, drawn as they arrive. */
+.strips { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 14px 20px; }
+.strip { display: flex; flex-direction: column; gap: 4px; }
+.strip-head { display: flex; align-items: baseline; gap: 8px; }
+.strip-label { font-size: 12.5px; font-weight: 500; }
+.strip-now { margin-left: auto; font-size: 12px; }
+.strip-svg { display: block; width: 100%; height: auto; border: 1px solid var(--rule-edge); }

@@ -505,9 +505,13 @@ export function NetworkRoute() {
         <details className="netsec" open>
           <summary className="belowhead">
             Live ingest
-            <span className="muted"> · readings through the real pipeline</span>
+            <span className="muted"> · {chosen
+              ? `streaming ${chosen.name} through the real pipeline`
+              : 'readings through the real pipeline'}</span>
           </summary>
-          <LiveFeed apiBase={import.meta.env.VITE_API_BASE ?? ''} />
+          <LiveFeed apiBase={import.meta.env.VITE_API_BASE ?? ''}
+                    station={chosen?.id ?? null}
+                    stationName={chosen?.name ?? null} />
         </details>
       )}
 
