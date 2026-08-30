@@ -29,7 +29,9 @@ import {
   useArmMap, useSimMap, useStatesGeo, useTileStatus, useWdqmsMap,
 } from '../api/queries'
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
-import { bandAt, frameOf, readingAt, reported, timeLabel } from '../lib/sim'
+import { bandAt, frameOf, timeLabel } from '../lib/sim'
+import { BAND_LABEL, HUE, label, why } from '../lib/bands'
+import { StationChannels } from '../components/StationChannels'
 import { MAP_BOX, fieldRange, paintField, rampCss } from '../lib/field'
 import L from 'leaflet'
 import { Async } from '../components/Async'
@@ -40,40 +42,6 @@ type BaseKey = 'imagery' | 'muted' | 'dark'
 type Channel = 'health' | 'temp' | 'rh' | 'pres'
 type View = 'india' | 'flagged'
 
-/* Only two of these are colours. A station with nothing wrong carries no hue at
- * all, so every coloured dot on the map is one worth looking at. */
-const HUE: Record<Band, string | null> = {
-  OK: null, WATCH: '#1D6FE0', FAULT: '#E01B24', NODATA: '#8C8172',
-}
-
-/* NODATA IS NOT ONE SITUATION. It covers a station that reported nothing, and a
- * station that reported perfectly well and cannot be GRADED -- and those need
- * different words, because the second was showing "NODATA" beside a valid
- * 35.7 C reading and reading as a broken sensor.
- *
- * Ten stations can never be graded at all: the island groups, Andaman & Nicobar
- * and Lakshadweep, have fewer than three stations within 250 km, and neighbour
- * differencing has nothing to difference against. That is a real limit of the
- * method rather than a gap in the data, and it is exactly where a single-station
- * check has to take over. Naming it is more useful than hiding it. */
-const BAND_LABEL: Record<Band, string> = {
-  OK: 'OK', WATCH: 'WATCH', FAULT: 'FAULT', NODATA: 'NOT REPORTING',
-}
-const UNGRADED = 'NO NEIGHBOURS'
-const UNGRADED_WHY =
-  'Fewer than three stations within 250 km, so there is nothing to difference '
-  + 'against. The reading is fine; the method does not reach here.'
-
-/** A grade of "-" beside a real reading means UNGRADED, not missing. */
-function label(
-  sim: SimMap | undefined, s: SimStation,
-  ch: 'health' | 'temp' | 'rh' | 'pres', hour: number, band: Band,
-): string {
-  if (band !== 'NODATA') return BAND_LABEL[band]
-  if (!sim) return BAND_LABEL.NODATA
-  return reported(sim, s, ch, hour) ? UNGRADED : BAND_LABEL.NODATA
-}
-
 /** How many of these carry no grade at all.
  *
  * A group where every station is ungraded has not been found "clear" -- nothing
@@ -81,10 +49,6 @@ function label(
  * the pipeline never reached. */
 function ungradedCount(rows: { band: Band }[]): number {
   return rows.filter((r) => r.band === 'NODATA').length
-}
-
-function why(band: Band): string | undefined {
-  return band === 'NODATA' ? UNGRADED_WHY : undefined
 }
 
 type BaseDef = {
@@ -593,135 +557,7 @@ function WrongByState({ rows }: { rows: { s: SimStation; band: Band }[] }) {
 /** One station's three channels across the month, with the hours this project
  *  graded as watch or fault shaded behind each trace. The reading and the
  *  verdict on the reading, on one axis. */
-function StationChannels({ sim, s, hour }: {
-  sim: NonNullable<ReturnType<typeof useSimMap>['data']>
-  s: SimStation
-  hour: number
-}) {
-  const CH: ('temp' | 'rh' | 'pres')[] = ['temp', 'rh', 'pres']
-  const NAME = { temp: 'Temperature', rh: 'Relative humidity', pres: 'Pressure (MSL)' }
-  const UNIT = { temp: '°C', rh: '%', pres: 'hPa' }
-  const every = sim.field_every || 3
-  const nf = sim.n_fields || 1
-  const cur = frameOf(sim, hour)
 
-  return (
-    <>
-      <div className="chanrow">
-      {CH.map((ch) => {
-        const vals = Array.from({ length: nf }, (_, i) => readingAt(sim, s, ch, i))
-        const fin = vals.filter((v): v is number => v != null)
-        if (!fin.length) return null
-        const rawLo = Math.min(...fin), rawHi = Math.max(...fin)
-        const pad = (rawHi - rawLo) * 0.1 || 1
-        const lo = rawLo - pad, hi = rawHi + pad
-
-        /* GEOMETRY. The chart used to be stretched with
-         * preserveAspectRatio="none", which is fine for a bare trace and
-         * impossible once there is text on it -- the labels would have been
-         * squashed by whatever width the column happened to be. It scales
-         * uniformly now, with a gutter for the axis. */
-        const W = 620, H = 150
-        const L = 46, R = 8, T = 8, B = 20          // gutters
-        const x = (i: number) => L + (i / Math.max(nf - 1, 1)) * (W - L - R)
-        const y = (v: number) => T + ((hi - v) / (hi - lo)) * (H - T - B)
-
-        let d = '', pen = false
-        vals.forEach((v, i) => {
-          if (v == null) { pen = false; return }   // the pen lifts at gaps
-          d += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1) + ' '
-          pen = true
-        })
-
-        const bands = []
-        for (let i = 0; i < nf; i++) {
-          const g = bandAt(s, ch, Math.min(i * every, s.g.length - 1))
-          if (g === 'WATCH' || g === 'FAULT') {
-            bands.push(<rect key={i} x={x(i)} y={T} width={Math.max((W - L - R) / nf, 1.2)}
-                             height={H - T - B}
-                             fill={HUE[g]!} opacity={g === 'FAULT' ? 0.26 : 0.16} />)
-          }
-        }
-
-        // Three ticks: the two extremes the reader needs for scale, and a
-        // middle one so the trace can be read off without arithmetic.
-        const ticks = [hi, (hi + lo) / 2, lo]
-        const dates = [0, Math.floor(nf / 2), nf - 1]
-        const dayLabel = (frame: number) =>
-          timeLabel(sim, frame * every).slice(5, 10).replace('-', '/')
-
-        const now = vals[cur]
-        const band = bandAt(s, ch, hour)
-        // A reading with no grade is not a missing reading.
-        const ungraded = band === 'NODATA' && now != null
-        return (
-          <div className="chan" key={ch}>
-            <div className="chan-head">
-              <strong>{NAME[ch]}</strong>
-              {band !== 'OK' && (
-                <span className="badge" title={why(band)}
-                      style={{ color: HUE[band] ?? 'var(--ink-3)',
-                               borderColor: HUE[band] ?? 'var(--rule-edge)' }}>
-                  {ungraded ? UNGRADED : BAND_LABEL[band]}
-                </span>)}
-              <span className="chan-now-val mono">
-                {now == null ? 'no data' : now.toFixed(1) + ' ' + UNIT[ch]}
-              </span>
-            </div>
-            <svg viewBox={`0 0 ${W} ${H}`} className="chansvg" role="img"
-                 aria-label={`${NAME[ch]} at ${s.name} over 30 days, `
-                   + `${rawLo.toFixed(1)} to ${rawHi.toFixed(1)} ${UNIT[ch]}`}>
-              <rect x={L} y={T} width={W - L - R} height={H - T - B} className="chan-stock" />
-              {ticks.map((v, i) => (
-                <g key={i}>
-                  <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} className="chan-rule" />
-                  <text x={L - 6} y={y(v) + 3} className="chan-axis" textAnchor="end">
-                    {v.toFixed(ch === 'pres' ? 0 : 1)}
-                  </text>
-                </g>
-              ))}
-              {bands}
-              <path d={d.trim()} className="chan-pen" />
-              <line x1={x(cur)} x2={x(cur)} y1={T} y2={H - B} className="chan-now" />
-              {dates.map((f, i) => (
-                <text key={f} x={x(f)} y={H - 6} className="chan-axis"
-                      textAnchor={i === 0 ? 'start' : i === 2 ? 'end' : 'middle'}>
-                  {dayLabel(f)}
-                </text>
-              ))}
-              <text x={L - 6} y={T + 3} className="chan-axis chan-unit" textAnchor="end">
-                {UNIT[ch]}
-              </text>
-              <rect x={L} y={T} width={W - L - R} height={H - T - B} className="chan-frame" />
-            </svg>
-          </div>
-        )
-      })}
-      </div>
-      <p className="small muted">
-        Shading is this project's own verdict, not the injected truth.
-      </p>
-    </>
-  )
-}
-
-/** Open and acknowledged, and honest about the difference.
- *
- * An alert closes BY ITSELF when the station returns to OK, which is a real
- * closure -- the condition ended -- and is not the same as anyone having dealt
- * with it. Acknowledgement is keyed to the station AND its band, so a station
- * escalating from watch to fault re-opens rather than staying silenced. None of
- * it is persisted; there is no store and no work order behind it, and saying so
- * is better than implying otherwise. */
-/** The open alerts.
- *
- * An alert is not just a station and a colour. A person deciding whether to act
- * needs to know WHEN it fired, WHICH channel fired, and where the station is --
- * a name on its own sends them back to the map to look all three up. The
- * console said all of that and the port had dropped it to a name and a badge.
- *
- * There is no store behind any of this and the note at the bottom says so.
- */
 /* WHAT IS WRONG RIGHT NOW.
  *
  * The Acknowledge button is gone. It set a flag in one browser tab: no store,

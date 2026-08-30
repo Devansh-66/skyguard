@@ -448,3 +448,16 @@ blockquote p { margin: 5px 0 0; color: var(--ink-2); font-size: 13px; }
 .simlist .spine.warn { background: #1D6FE0; }
 .simlist .simname { flex: 1; }
 .simlist .num { color: var(--ink-3); }
+
+/* Group headings in the board list. The two halves rest on different evidence
+   -- a report a human wrote, and an injection we performed -- and the ranking
+   metric differs with it, so the list says which is which rather than letting
+   the reader assume one order. */
+.group-head {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-3);
+  padding: 16px 0 7px; border-bottom: 1px solid var(--rule);
+  margin-bottom: 6px;
+}
+.simdetail .stnhead { margin-bottom: 14px; }
+.simdetail .chanrow { margin-top: 8px; }
