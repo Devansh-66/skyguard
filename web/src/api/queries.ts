@@ -108,6 +108,22 @@ export function useBoundaryGeo() {
   })
 }
 
+/** Where the live node stands, and what is currently wrong with it. */
+export function useLiveStation() {
+  return useQuery({
+    queryKey: ['live', 'station'] as const,
+    queryFn: ({ signal }) => get<{
+      id: string; name: string; state: string
+      lat: number; lon: number; elev: number
+      neighbours: string[]
+    }>('/api/live/station', signal),
+    staleTime: Infinity,
+    // A station that is not configured is not an error worth a red box; the
+    // map simply has one fewer dot.
+    retry: false,
+  })
+}
+
 export function useStatesGeo() {
   return useQuery({
     queryKey: keys.map('states'),

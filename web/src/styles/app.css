@@ -610,3 +610,22 @@ details.netsec:not([open]) { padding-bottom: 4px; }
 .strip-label { font-size: 12.5px; font-weight: 500; }
 .strip-now { margin-left: auto; font-size: 12px; }
 .strip-svg { display: block; width: 100%; height: auto; border: 1px solid var(--rule-edge); }
+
+.faultsel { display: flex; align-items: center; gap: 6px; font-size: 10px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.faultsel select {
+  font-family: var(--sans); font-size: 11.5px; letter-spacing: 0;
+  text-transform: none; padding: 3px 6px;
+  background: var(--paper); color: var(--ink);
+  border: 1px solid var(--rule-edge); border-radius: var(--radius-sm);
+}
+
+.live-verdict { display: flex; align-items: center; gap: 10px; min-height: 22px; }
+.verdict-chip {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; padding: 2px 7px;
+  border: 1px solid currentColor; border-radius: var(--radius-sm);
+}
+.verdict-chip.ok { color: var(--ink-3); }
+.verdict-chip.watch { color: #1D6FE0; }
+.verdict-chip.fault { color: var(--signal-red); }

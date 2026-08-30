@@ -26,7 +26,8 @@
 import { GeoJSON, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  useArmMap, useBoundaryGeo, useSimMap, useStatesGeo, useTileStatus, useWdqmsMap,
+  useArmMap, useBoundaryGeo, useLiveStation, useSimMap, useStatesGeo,
+  useTileStatus, useWdqmsMap,
 } from '../api/queries'
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
 import { bandAt, frameOf, stepsPerMinutes, timeLabel } from '../lib/sim'
@@ -37,6 +38,7 @@ import { MAP_BOX, fieldRange, paintField, rampCss } from '../lib/field'
 import L from 'leaflet'
 import { Async } from '../components/Async'
 import { LiveFeed } from '../components/LiveFeed'
+import { useLive } from '../lib/useLive'
 import { usePageTitle } from '../lib/title'
 
 type Net = 'sim' | 'wdqms' | 'arm'
@@ -140,6 +142,8 @@ export function NetworkRoute() {
   const arm = useArmMap()
   const states = useStatesGeo()
   const boundary = useBoundaryGeo()
+  const node = useLiveStation()
+  const live = useLive(import.meta.env.VITE_API_BASE ?? '')
 
   const [net, setNet] = useState<Net>('sim')
   const [base, setBase] = useState<BaseKey>('imagery')
@@ -169,6 +173,17 @@ export function NetworkRoute() {
   }, [playing, nSteps, stepMin, sim.data])
 
   const b = BASES[base]
+  /* Whether the live node's last reading failed the screen. Kept next to the
+   * other map state so the marker is coloured by the same rule as every other
+   * dot: red means something is wrong with it, and nothing else does. */
+  /* THE NODE'S COLOUR IS ITS VERDICT, by the same rule as every other dot.
+   *
+   * Not the WMO screen. Measured on this node: a drift, a stuck value and a
+   * +4.5 C offset all PASS the rails, because all three are physically
+   * plausible readings -- which is the whole reason neighbour differencing
+   * exists. Colouring the marker by the screen would have shown a healthy dot
+   * for every fault the project is actually about. */
+  const liveBand = live.grade?.band ?? null
   /* THE CHANNEL IS THE MEASUREMENT, and now it shows the measurement.
    *
    * Picking Temperature used to recolour the dots by the temperature grade and
@@ -353,6 +368,47 @@ export function NetworkRoute() {
                                           opacity: 0.9, fill: false }} />)}
                 </>
               )}
+              {/* THE LIVE NODE, drawn after the network so it sits on top of
+                  it. It is a station like any other -- same map, same
+                  neighbours, same grading -- and the only thing marking it out
+                  is that its reading arrived rather than being loaded. The
+                  ring is what says "this one is reporting now"; the fill is
+                  its screening verdict, exactly as for every other dot. */}
+              {net === 'sim' && node.data && (
+                <CircleMarker center={[node.data.lat, node.data.lon]}
+                  radius={live.running ? 9 : 7}
+                  pathOptions={{
+                    color: live.status === 'open' ? '#1D6FE0' : '#8C8172',
+                    weight: 2.5,
+                    fillColor: liveBand === 'fault' ? '#E01B24'
+                      : liveBand === 'watch' ? '#1D6FE0' : '#FFFFFF',
+                    fillOpacity: 0.95,
+                  }}>
+                  <Tooltip direction="top" offset={[0, -8]}>
+                    <b>{node.data.name}</b> — live node<br />
+                    {node.data.state} · {node.data.elev} m<br />
+                    {live.latest && live.latest.station === node.data.name ? (
+                      <span className="mono">
+                        {live.latest.temp.toFixed(1)} °C ·{' '}
+                        {live.latest.rh.toFixed(1)} % ·{' '}
+                        {live.latest.pres.toFixed(1)} hPa
+                      </span>
+                    ) : <span className="mono">not reporting</span>}
+                    {live.grade && (
+                      <><br /><b>
+                        {live.grade.band === 'learning'
+                          ? `learning its baseline (${live.grade.baseline}/${live.grade.baselineNeeded})`
+                          : `${live.grade.band} · ${live.grade.z.toFixed(1)}σ from its neighbours`}
+                      </b></>
+                    )}
+                    {live.latest?.server_flags?.length
+                      ? <><br />screen: {live.latest.server_flags.join(', ')}</> : null}
+                    <br />
+                    <span className="mono">{node.data.neighbours.length} neighbours</span>
+                  </Tooltip>
+                </CircleMarker>
+              )}
+
               {showStates && states.data != null && (
                 <GeoJSON data={states.data as never}
                          style={{ color: '#FFFFFF', weight: 1.2, opacity: 0.85, fill: false }} />
@@ -505,13 +561,9 @@ export function NetworkRoute() {
         <details className="netsec" open>
           <summary className="belowhead">
             Live ingest
-            <span className="muted"> · {chosen
-              ? `streaming ${chosen.name} through the real pipeline`
-              : 'readings through the real pipeline'}</span>
+            <span className="muted"> · one node reporting, on the map above</span>
           </summary>
-          <LiveFeed apiBase={import.meta.env.VITE_API_BASE ?? ''}
-                    station={chosen?.id ?? null}
-                    stationName={chosen?.name ?? null} />
+          <LiveFeed apiBase={import.meta.env.VITE_API_BASE ?? ''} />
         </details>
       )}
 

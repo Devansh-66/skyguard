@@ -14,31 +14,8 @@
  * the socket in that request. An ESP32 will post to the same endpoint and land
  * in the same list, which is the only claim this panel makes.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
-
-export interface LiveReading {
-  type: string
-  t: number
-  station: string
-  temp: number
-  rh: number
-  pres: number
-  accepted?: boolean
-  server_flags?: string[]
-  source?: string
-}
-
-type Status = 'connecting' | 'open' | 'closed'
-
-/** How many rows to keep on screen.
- *
- * This is a WINDOW, not a log. At four readings a second an unbounded list is
- * a memory leak with a scrollbar, and the archive already holds every reading
- * that matters -- /api/map/* is what history is for. */
-const KEEP = 40
-
-/** Points on the strip charts. Two minutes at two readings a second. */
-const TRACE = 240
+import { useCallback, useState } from 'react'
+import { liveCommand, resetTrace, useLive } from '../lib/useLive'
 
 /** A live strip chart: the pen draws as readings arrive.
  *
@@ -85,91 +62,16 @@ function Strip({ label, unit, values }: {
   )
 }
 
-export function LiveFeed({ apiBase = '', station, stationName }: {
-  apiBase?: string
-  /** The station to stream. Without one the feeder walks the network and the
-   *  strip charts stay empty, which is honest: there is no series to draw. */
-  station?: string | null
-  stationName?: string | null
-}) {
-  const [rows, setRows] = useState<LiveReading[]>([])
-  /* The trace, kept separately from the table. The table is every reading that
-   * arrives; this is one station's history, which is the only thing that can
-   * be drawn as a line. */
-  const [trace, setTrace] = useState<{ temp: number[]; rh: number[]; pres: number[] }>(
-    { temp: [], rh: [], pres: [] })
-  const [status, setStatus] = useState<Status>('connecting')
-  const [running, setRunning] = useState(false)
+export function LiveFeed({ apiBase = '' }: { apiBase?: string }) {
+  const live = useLive(apiBase)
   const [error, setError] = useState<string | null>(null)
-  const ws = useRef<WebSocket | null>(null)
 
-  useEffect(() => {
-    // ws:// against http, wss:// against https. Getting this wrong is the
-    // classic "works locally, silently dead once deployed" bug: a page served
-    // over TLS cannot open an insecure socket, and the browser blocks it
-    // without a useful message.
-    const base = apiBase || window.location.origin
-    const url = base.replace(/^http/, 'ws') + '/api/live'
-    let sock: WebSocket
-    try {
-      sock = new WebSocket(url)
-    } catch (e) {
-      setStatus('closed')
-      setError(String(e))
-      return
-    }
-    ws.current = sock
-    sock.onopen = () => { setStatus('open'); setError(null) }
-    sock.onclose = () => setStatus('closed')
-    sock.onerror = () => setError('The socket closed. Is the API running?')
-    sock.onmessage = (ev) => {
-      try {
-        const m = JSON.parse(ev.data)
-        if (m.type === 'hello' && Array.isArray(m.backlog)) {
-          setRows(m.backlog.filter((x: LiveReading) => x.type === 'reading')
-            .slice(-KEEP).reverse())
-          return
-        }
-        if (m.type === 'feeder') { setRunning(Boolean(m.running)); return }
-        if (m.type !== 'reading') return
-        // Newest first, and trimmed on every push rather than periodically:
-        // the trim is what keeps this a window instead of a leak.
-        setRows((prev) => [m, ...prev].slice(0, KEEP))
-        // Only the watched station extends the trace. A chart mixing 344
-        // stations' values into one line is not a measurement of anything.
-        if (!station || m.station === stationName) {
-          setTrace((p) => ({
-            temp: [...p.temp, m.temp].slice(-TRACE),
-            rh: [...p.rh, m.rh].slice(-TRACE),
-            pres: [...p.pres, m.pres].slice(-TRACE),
-          }))
-        }
-      } catch { /* a malformed frame is not worth a broken panel */ }
-    }
-    return () => sock.close()
-  }, [apiBase, station, stationName])
-
-  // A new subject starts a new trace. Carrying the old station's points into
-  // the new station's line would draw a step that never happened.
-  useEffect(() => { setTrace({ temp: [], rh: [], pres: [] }) }, [station])
-
-  /* Set the running state from the RESPONSE, not only from the socket event.
-   *
-   * The server broadcasts {type:"feeder"} when a replay starts, and relying on
-   * that alone left the button saying "Start the feed" while forty readings a
-   * second poured in underneath it -- the feed was running and the only control
-   * for it claimed otherwise. The socket event still arrives and still wins;
-   * this just stops the button lying in the gap. */
-  const send = useCallback(async (path: string, nowRunning: boolean) => {
-    try {
-      const r = await fetch((apiBase || '') + path, { method: 'POST' })
-      if (!r.ok) { setError(`${path} returned ${r.status}`); return }
-      setError(null)
-      setRunning(nowRunning)
-    } catch (e) {
-      setError(String(e))
-    }
+  const cmd = useCallback(async (path: string) => {
+    try { await liveCommand(apiBase, path); setError(null) }
+    catch (e) { setError(String(e)) }
   }, [apiBase])
+
+  const { status, rows, trace, running, fault, silent, grade } = live
 
   return (
     <div className="live">
@@ -179,31 +81,65 @@ export function LiveFeed({ apiBase = '', station, stationName }: {
           {status === 'open' ? 'connected' : status}
         </span>
         <button type="button" className="btn ghost tiny"
-                onClick={() => (running
-                  ? send('/api/live/stop', false)
-                  : send('/api/live/replay?per_second=2'
-                      + (station ? `&station=${encodeURIComponent(station)}` : ''),
-                    true))}>
-          {running ? 'Stop the feed' : 'Start the feed'}
+                onClick={() => cmd(running ? '/api/live/stop'
+                  : '/api/live/replay?per_second=2')}>
+          {running ? 'Stop the node' : 'Start the node'}
         </button>
-        <span className="mono muted live-count">{rows.length ? `${rows.length} shown` : ''}</span>
+
+        {/* BREAK IT WHILE SOMEBODY IS WATCHING.
+            The fault vocabulary is the injector's, not one invented for a
+            demo: showing a fault this system was never tested against would be
+            theatre. It changes the reading only -- the detector is not told. */}
+        <label className="mono faultsel">
+          Fault
+          <select value={fault} onChange={(e) => {
+            resetTrace()
+            cmd('/api/live/fault?kind=' + e.target.value)
+          }}>
+            <option value="none">none — healthy</option>
+            <option value="drift">drift — 0.02 °C per reading</option>
+            <option value="offset">offset — +4.5 °C step</option>
+            <option value="stuck">stuck — value frozen</option>
+            <option value="spike">spike — random jumps</option>
+            <option value="dropout">dropout — stops reporting</option>
+          </select>
+        </label>
+
+        <span className="mono muted live-count">
+          {silent ? 'no reading' : rows.length ? `${rows.length} shown` : ''}
+        </span>
       </div>
 
       {error && <p className="small muted">{error}</p>}
 
-      {station ? (
-        <div className="strips">
-          <Strip label="Temperature" unit="°C" values={trace.temp} />
-          <Strip label="Relative humidity" unit="%" values={trace.rh} />
-          <Strip label="Pressure" unit="hPa" values={trace.pres} />
-        </div>
-      ) : (
-        <p className="small muted">
-          Select a station above and the feed will stream that one, drawing its
-          three channels as each reading arrives. Without a subject the feeder
-          walks all 344 and there is no series to draw.
-        </p>
-      )}
+      {/* THE VERDICT, in the same words the map uses. The rails and the
+          neighbour check answer different questions and both are shown: the
+          rails catch a reading that cannot be true, this catches a reading
+          that is merely wrong. */}
+      <div className="live-verdict">
+        {grade == null ? (
+          <span className="muted small">No verdict yet — start the node.</span>
+        ) : grade.band === 'learning' ? (
+          <span className="muted small">
+            Learning what normal looks like here · {grade.baseline}/{grade.baselineNeeded}
+            {' '}readings. A station just switched on cannot be judged yet.
+          </span>
+        ) : (
+          <>
+            <span className={'verdict-chip ' + grade.band}>{grade.band}</span>
+            <span className="mono small">
+              {grade.z.toFixed(1)}σ from its neighbours · they expect{' '}
+              {grade.expected.toFixed(1)} °C
+            </span>
+          </>
+        )}
+      </div>
+
+      <div className="strips">
+        <Strip label="Temperature" unit="°C" values={trace.temp} />
+        <Strip label="Relative humidity" unit="%" values={trace.rh} />
+        <Strip label="Pressure" unit="hPa" values={trace.pres} />
+      </div>
 
       <div className="tabwrap live-box">
         <table className="alerttab">
@@ -215,7 +151,7 @@ export function LiveFeed({ apiBase = '', station, stationName }: {
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={`${r.t}-${r.station}-${i}`}>
+              <tr key={`${r.t}-${i}`}>
                 <td className="stncell">{r.station}</td>
                 <td className="mono num">{r.temp.toFixed(1)} °C</td>
                 <td className="mono num">{r.rh.toFixed(1)} %</td>
@@ -229,8 +165,8 @@ export function LiveFeed({ apiBase = '', station, stationName }: {
             ))}
             {!rows.length && (
               <tr><td colSpan={5} className="muted small">
-                Nothing arriving. Start the feed to post simulated readings
-                through the real ingest path.
+                Nothing arriving. Start the node to post readings through the
+                real ingest path.
               </td></tr>
             )}
           </tbody>
@@ -238,10 +174,10 @@ export function LiveFeed({ apiBase = '', station, stationName }: {
       </div>
 
       <p className="small muted">
-        The readings are simulated; the pipeline is not. Each row was posted to
-        <code> /api/ingest</code>, screened against the WMO rails, and pushed
-        back over a WebSocket in that request. An ESP32 will post to the same
-        endpoint and appear in the same list.
+        One station, reporting. Each row was posted to <code>/api/ingest</code>,
+        screened against the WMO rails, and pushed back over a WebSocket in that
+        request. An ESP32 posting to the same endpoint replaces this entirely —
+        which is why it is a station on the map and not a panel beside it.
       </p>
     </div>
   )

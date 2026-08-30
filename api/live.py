@@ -139,17 +139,18 @@ def _decode(sim: dict, s: dict, frame: int):
 # graded against its neighbours like every other station, and the only thing
 # that makes it special is that its numbers arrive instead of being loaded.
 #
-# Bhopal by default: central, and it has four simulated neighbours within
-# 120 km. That last part is not decoration -- neighbour differencing needs
-# three within 250 km, so a live station in the middle of nowhere could be
-# watched and never judged.
+# Gandhinagar: six simulated neighbours within 120 km and fourteen within 250.
+# That is not decoration -- neighbour differencing needs three inside 250 km, so
+# a live station in the middle of nowhere could be watched forever and never
+# judged. The nearest are the simulated GANDHINAGAR at 8 km and AHMADABAD at
+# 17 km, which is what a new AWS beside existing ones actually looks like.
 LIVE_STATION = {
     "id": "ESP32-01",
     "name": "SKYGUARD ESP32",
-    "state": "Madhya Pradesh",
-    "lat": 23.26,
-    "lon": 77.41,
-    "elev": 523,
+    "state": "Gujarat",
+    "lat": 23.2156,
+    "lon": 72.6369,
+    "elev": 81,
 }
 
 # What is wrong with the node, if anything. Set from the dashboard so a fault
@@ -164,6 +165,13 @@ FAULTS = ("none", "drift", "stuck", "spike", "offset", "dropout")
 # baseline is nearly flat over the span of a demo, which is the only condition
 # under which a slow drift is visible as a drift.
 FRAMES_PER_READING = 60
+
+# What one reading REPRESENTS in simulated time. A frame is thirty simulated
+# minutes and sixty readings cover one, so each reading stands for half a
+# minute. The server needs this to judge rate of change: without it, it times
+# the gap with a wall clock and measures the demo's speed rather than the
+# weather's.
+SIM_MINUTES_PER_READING = 30.0 / FRAMES_PER_READING
 
 
 def _neighbours(sim: dict, lat: float, lon: float, k: int = 6):
@@ -181,14 +189,16 @@ def _neighbours(sim: dict, lat: float, lon: float, k: int = 6):
     return [(i, wi / tot) for (_, i), wi in zip(picked, w)]
 
 
-def _synth(sim: dict, frame: int, nbrs, n: int) -> tuple[float, float, float]:
-    """What this node would be reading, before anything goes wrong with it.
+def _expected(sim: dict, frame: int, nbrs) -> tuple[float, float, float]:
+    """What the NEIGHBOURS say this place should be reading, right now.
 
-    Interpolated from its neighbours rather than invented: a station at Bhopal
-    reporting Himalayan temperatures would be caught instantly by the very
-    check this is meant to demonstrate, and for the wrong reason.
+    This is the reference the node is judged against, and it must not contain
+    anything the node contributed -- not its noise, and certainly not its
+    fault. The first version compared the reading with the value the reading
+    was generated from, so the residual was identically zero, the baseline
+    spread was zero, and the first drift scored z = 789,154. A detector whose
+    healthy residual is exactly 0.00 is not measuring anything.
     """
-    import random
     out = []
     for key, ch in (("vt", "temp"), ("vh", "rh"), ("vp", "pres")):
         acc = 0.0
@@ -200,11 +210,22 @@ def _synth(sim: dict, frame: int, nbrs, n: int) -> tuple[float, float, float]:
             lo, hi = sim["range"][ch]
             acc += w * (lo + ((raw[frame] - 1) / 254.0) * (hi - lo))
             wsum += w
-        base = acc / wsum if wsum else 0.0
-        # A real sensor is never exactly its neighbours' average.
-        noise = {"temp": 0.25, "rh": 1.2, "pres": 0.15}[ch]
-        out.append(base + random.gauss(0, noise))
+        out.append(acc / wsum if wsum else 0.0)
     return tuple(out)  # type: ignore[return-value]
+
+
+# What this node's own sensors add on top of the neighbours' estimate. A real
+# station is never exactly the interpolation of its neighbours, and the spread
+# of that difference is what the grader learns as normal.
+SENSOR_NOISE = {"temp": 0.25, "rh": 1.2, "pres": 0.15}
+
+
+def _reading(expected: tuple[float, float, float]) -> tuple[float, float, float]:
+    """The node's honest reading: the neighbours' estimate plus its own noise."""
+    import random
+    return (expected[0] + random.gauss(0, SENSOR_NOISE["temp"]),
+            expected[1] + random.gauss(0, SENSOR_NOISE["rh"]),
+            expected[2] + random.gauss(0, SENSOR_NOISE["pres"]))
 
 
 def _apply_fault(vals: tuple[float, float, float], n: int):
@@ -235,6 +256,47 @@ def _apply_fault(vals: tuple[float, float, float], n: int):
     return temp, rh, pres, False
 
 
+# GRADING THE NODE AGAINST ITS NEIGHBOURS, ONLINE.
+#
+# The WMO rails catch gross errors and nothing else. Measured on this node:
+#
+#     none    passed        drift   PASSED
+#     spike   temp_rate     stuck   PASSED
+#                           offset  PASSED
+#
+# Drift, stuck and offset are all physically plausible readings. A range check
+# cannot see them, which is the entire reason this project exists -- and a demo
+# where the map never reacts to a drifting sensor would demonstrate the
+# opposite of the claim.
+#
+# So the node is differenced against its neighbours as each reading arrives,
+# which is the same method the map uses, run one reading at a time instead of
+# over a month. The baseline is the first BASELINE_N readings: a deployed node
+# would use its own history the same way, and a station that has just been
+# switched on genuinely cannot be judged yet.
+BASELINE_N = 40
+_resid: list[float] = []
+
+
+def _grade_live(reported: float, expected: float) -> tuple[float, str]:
+    """|z| of this reading's residual, and the band it falls in.
+
+    Same 6 and 8 sigma as simulate/faults_and_export.py, deliberately: a demo
+    that used friendlier thresholds than the measured pipeline would be
+    showing a detector nobody evaluated.
+    """
+    r = reported - expected
+    if len(_resid) < BASELINE_N:
+        _resid.append(r)
+        return 0.0, "learning"
+    import statistics
+    med = statistics.median(_resid)
+    mad = statistics.median([abs(x - med) for x in _resid]) or 1e-6
+    sigma = 1.4826 * mad
+    z = abs(r - med) / max(sigma, 1e-6)
+    return z, "fault" if z >= 8 else "watch" if z >= 6 else "ok"
+
+
 async def _run(per_second: float, limit: int) -> None:
     """The node, reporting.
 
@@ -243,7 +305,7 @@ async def _run(per_second: float, limit: int) -> None:
     so they belong to the place it stands in, and whatever fault is currently
     set is applied on the way out -- to the READING, never to the verdict.
     """
-    from api.ingest import Reading, ingest
+    from api.ingest import Reading, ingest, physics_screen
 
     sim = _sim()
     nbrs = _neighbours(sim, LIVE_STATION["lat"], LIVE_STATION["lon"])
@@ -264,8 +326,11 @@ async def _run(per_second: float, limit: int) -> None:
             # One frame per FRAMES_PER_READING readings instead, so the
             # background is nearly still and a fault is the thing that moves.
             frame = (sent // FRAMES_PER_READING) % n_frames
-            temp, rh, pres, dropped = _apply_fault(
-                _synth(sim, frame, nbrs, sent), sent)
+            exp = _expected(sim, frame, nbrs)
+            # The neighbours' estimate, which the node never sees, and the
+            # node's own reading, which is that estimate plus its own noise and
+            # then whatever is wrong with it.
+            temp, rh, pres, dropped = _apply_fault(_reading(exp), sent)
             sent += 1
             _state["sent"] = sent
             if dropped:
@@ -277,8 +342,36 @@ async def _run(per_second: float, limit: int) -> None:
                 await asyncio.sleep(delay)
                 continue
             try:
+                # dt_min IS NOT OPTIONAL HERE, and leaving it out was a real
+                # bug: the server falls back to wall-clock, and this node posts
+                # several readings a second while REPRESENTING half a simulated
+                # minute each. The rate check then allowed a change of
+                # 3.0 C/min x 0.0033 min = 0.01 C, against sensor noise of
+                # 0.25 C, so every healthy reading was flagged temp_rate. The
+                # check was right and the feeder was lying to it.
+                #
+                # A real ESP32 reports every fifteen minutes and would say so.
+                # Compressing time for a demo means saying which time.
+                #
+                # The node also declares what its OWN screen found. That is the
+                # edge tier in miniature: the server compares its conclusion
+                # with the node's, and edge_screen_disagreement means the two
+                # saw different things -- which was firing constantly for the
+                # same reason.
+                node_flags = physics_screen(temp, rh, pres)
                 ingest(Reading(station=LIVE_STATION["name"], temp=temp,
-                               rh=rh, pres=pres, seq=sent))
+                               rh=rh, pres=pres, seq=sent,
+                               dt_min=SIM_MINUTES_PER_READING,
+                               flags=node_flags))
+                z, band = _grade_live(temp, exp[0])
+                await HUB.publish({
+                    "type": "grade", "t": time.time(),
+                    "station": LIVE_STATION["name"],
+                    "z": round(z, 2), "band": band,
+                    "expected": round(exp[0], 2),
+                    "baseline": min(len(_resid), BASELINE_N),
+                    "baseline_needed": BASELINE_N,
+                })
             except HTTPException as e:
                 await HUB.publish({"type": "rejected", "t": time.time(),
                                    "station": LIVE_STATION["name"],
@@ -326,6 +419,11 @@ async def set_fault(kind: str = Query("none")) -> dict:
         raise HTTPException(400, f"unknown fault {kind!r}; have {', '.join(FAULTS)}")
     _fault.update(kind=kind, since=_state.get("sent", 0))
     _fault.pop("held", None)
+    if kind == "none":
+        # Repairing the node clears the learned baseline. Keeping residuals
+        # gathered while it was broken would teach it that broken is normal --
+        # the self-masking failure, reproduced by hand.
+        _resid.clear()
     await HUB.publish({"type": "fault", "kind": kind,
                        "station": LIVE_STATION["name"]})
     return {"fault": kind, "since_reading": _fault["since"],
@@ -342,6 +440,7 @@ async def start_replay(
     if _state["running"]:
         raise HTTPException(409, "the node is already reporting; stop it first")
     _state.update(running=True, station=LIVE_STATION["id"], sent=0, rate=per_second)
+    _resid.clear()
     _feeder = asyncio.create_task(_run(per_second, limit))
     await HUB.publish({"type": "feeder", "running": True, "rate": per_second})
     return {"started": True, "per_second": per_second,
