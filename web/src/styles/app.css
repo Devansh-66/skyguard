@@ -644,3 +644,93 @@ details.netsec:not([open]) { padding-bottom: 4px; }
 .corpus-note[open] > summary::before { content: "\2212 "; }
 .corpus-note strong { display: block; margin-top: 10px; font-size: 12.5px; }
 .corpus-note p { margin: 3px 0 0; color: var(--ink-2); }
+
+/* The index's controls. A list of 344 needs a way in that is not "know which
+   state it is in, then read". */
+.idxbar {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin: 10px 0 12px;
+}
+.idxsearch {
+  flex: 1 1 220px; min-width: 160px;
+  font: inherit; font-size: 12.5px; padding: 5px 9px;
+  background: var(--paper-2); color: var(--ink);
+  border: 1px solid var(--rule-edge); border-radius: var(--radius-sm);
+}
+.idxsearch::placeholder { color: var(--ink-4); }
+.idxbar .cbx {
+  display: flex; align-items: center; gap: 6px; flex: none;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.idxcount { font-size: 10.5px; }
+
+/* ---------------- the front sheet ----------------
+ *
+ * Same materials as the rest of the site: ruled paper, one ink, mono for every
+ * number. The page is a stack of plates, and the only thing given any weight is
+ * the sentence the whole project rests on.
+ */
+.home { gap: 2.6rem; }
+
+.hero { display: flex; flex-direction: column; gap: 14px; padding: 8px 0 4px; }
+.hero-title {
+  font-family: var(--display); font-weight: 700;
+  font-size: clamp(1.9rem, 4.4vw, 3.1rem); line-height: 1.06;
+  letter-spacing: -.035em; margin: 0; max-width: 20ch; text-wrap: balance;
+}
+.hero-title em { font-style: normal; color: var(--oxide); }
+.hero-lede { max-width: 62ch; font-size: 1.02rem; line-height: 1.62; margin: 0; }
+.hero-sub { max-width: 62ch; color: var(--ink-2); margin: 0; }
+.hero-go { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+
+/* The live line. Deliberately quiet -- it is a fact, not a banner. */
+.livestrip {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 11px 14px; font-size: 12.5px;
+  border: 1px solid var(--rule-edge); background: var(--paper-2);
+}
+
+.figures {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 1px; background: var(--rule-edge);
+  border: 1px solid var(--rule-edge);
+}
+.figure {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 16px 18px; background: var(--paper);
+}
+.figure-v {
+  font-family: var(--mono); font-size: 1.6rem; font-weight: 500;
+  letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+}
+.figure-k {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.figure-n { font-size: 11.5px; color: var(--ink-4); line-height: 1.4; }
+
+.how {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 22px 30px; margin-top: 14px;
+}
+.how h3 { font-size: 15px; margin: 0 0 5px; }
+.how p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--ink-2); }
+
+.scored { margin-top: 14px; display: flex; flex-direction: column; gap: 14px; }
+.scored-nums {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: 1px; background: var(--rule-edge); border: 1px solid var(--rule-edge);
+}
+.scored-note { margin: 0; max-width: 68ch; font-size: 13px; line-height: 1.6; }
+
+.honesty { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 12px; }
+.honesty th {
+  text-align: left; font-family: var(--mono); font-weight: 400; font-size: 10px;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+  padding: 0 16px 6px 0; border-bottom: 1px solid var(--rule);
+}
+.honesty td { padding: 7px 16px 7px 0; border-bottom: 1px solid var(--rule-minor); }
+.honesty .k { font-weight: 500; }
+/* Generated data marked as such, everywhere it appears. */
+.honesty .gen { color: var(--oxide); }

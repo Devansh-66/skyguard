@@ -84,3 +84,62 @@ def map_index() -> dict:
             for n, (p, how) in sorted(FILES.items())
         ]
     }
+
+
+@router.get("/api/summary")
+def summary() -> dict:
+    """What the front page needs, and nothing it does not.
+
+    The landing page wants five numbers. Reading them out of /api/map/sim would
+    make a visitor download 5.7 MB of station-by-station grades to be told there
+    are 344 stations -- so the counts are computed here, once, and cached.
+
+    The measured figures are quoted from the runs recorded in the repository
+    rather than recomputed on request: they come from a sweep against known
+    injected faults, and a number that changes between page loads is not the
+    number that was measured.
+    """
+    import json
+    from functools import lru_cache
+
+    @lru_cache(maxsize=1)
+    def _counts() -> tuple[int, int, int, str]:
+        p = _DASH / "sim_map.json"
+        if not p.exists():
+            return 0, 0, 0, ""
+        d = json.loads(p.read_text(encoding="utf-8"))
+        st = d["stations"]
+        states = {s.get("state") for s in st if s.get("state")}
+        faulty = sum(1 for s in st if s.get("fault"))
+        return len(st), len(states), faulty, d.get("t0", "")
+
+    n, n_states, faulty, t0 = _counts()
+    return {
+        "network": {
+            "simulated_stations": n,
+            "states": n_states,
+            "injected_faults": faulty,
+            "days": 30,
+            "step_minutes": 15,
+            "t0": t0,
+        },
+        "parameters": ["temperature", "pressure", "relative humidity"],
+        "measured": {
+            # From the calibration sweep in simulate/faults_and_export.py.
+            "recall": 0.57,
+            "precision": 0.38,
+            "recall_excluding_dropouts": 0.72,
+            "alert_episodes": 73,
+            "stations_alerting": 42,
+            "note": "Bands calibrated at 6 and 8 sigma against a fault-free "
+                    "control run. Dropouts are excluded from the second recall "
+                    "figure because a station that stops reporting has no "
+                    "residual to difference -- it is NO DATA, not a fault.",
+        },
+        "validation": {
+            "corpus": "ARM (US DOE), nine instruments",
+            "why": "The only corpus available with faults a human analyst "
+                   "confirmed. India contributes real station locations, not "
+                   "labelled faults.",
+        },
+    }

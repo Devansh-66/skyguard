@@ -130,7 +130,58 @@ def state_of(lat: float, lon: float, polys) -> str | None:
             continue
         if _in_ring(lon, lat, ring) and not any(_in_ring(lon, lat, h) for h in holes):
             return name
+
+    # NEAREST STATE, rather than a compass direction.
+    #
+    # Eighteen stations fell through this and were grouped as "South", "West",
+    # "North-East" and "East" -- WDQMS regions, not states, listed beside real
+    # ones as though they were peers. Every one is coastal or an island: the
+    # outlines are simplified to a 2 km tolerance, which walks the coast
+    # inland, so a mast on a headland sits a few hundred metres outside the
+    # state it is plainly in. KOZHIKODE is in Kerala whatever the polygon says.
+    #
+    # TWO TESTS, because one number could not cover both cases. A coastal
+    # station is a few kilometres out and any small cap catches it. An island
+    # can be far from everything -- the simplifier drops islets entirely, so
+    # MINICOY is 211 km from what remains of Lakshadweep -- and a cap generous
+    # enough for that would start pulling mainland stations across borders.
+    #
+    # But MINICOY is not ambiguous: Lakshadweep is 211 km away and the next
+    # candidate, Kerala, is 385. So a point is assigned to the nearest outline
+    # when it is either CLOSE in absolute terms, or UNAMBIGUOUSLY nearest --
+    # several times closer than the runner-up. A station that is neither keeps
+    # a compass fallback, which is the honest answer for a point that really
+    # does not belong to any of them.
+    # RANK BY STATE, not by polygon. `polys` holds one entry per ring, so a
+    # state made of islands contributes dozens of them under the same name --
+    # and the "runner-up" was another islet of Lakshadweep, a kilometre from
+    # the first. The ratio came out at 1.0 and the test never fired for the two
+    # stations it was written for.
+    nearest_by_state: dict[str, float] = {}
+    for name, x0, y0, x1, y1, ring, holes in polys:
+        d2 = min((px - lon) ** 2 + (py - lat) ** 2 for px, py in ring)
+        if d2 < nearest_by_state.get(name, float("inf")):
+            nearest_by_state[name] = d2
+    ranked = sorted((d2, name) for name, d2 in nearest_by_state.items())
+    if not ranked:
+        return None
+    nearest_d2, nearest = ranked[0]
+    if nearest_d2 <= NEAR_COAST_DEG ** 2:
+        return nearest
+    if len(ranked) > 1 and ranked[1][0] >= nearest_d2 * (UNAMBIGUOUS ** 2):
+        return nearest
     return None
+
+
+# How far outside an outline a station may sit and still simply be assigned to
+# it: about 55 km, which covers the simplifier's tolerance and a headland.
+NEAR_COAST_DEG = 0.5
+
+# Or, if further, how many times closer the nearest outline must be than the
+# next one for the answer to be beyond argument. Three is deliberately strict:
+# MINICOY clears it at 211 km against 385, and no mainland station comes near
+# clearing it against a neighbouring state.
+UNAMBIGUOUS = 1.8
 
 
 def region(lat: float, lon: float, in_india: bool) -> str:

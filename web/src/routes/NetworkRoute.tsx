@@ -160,6 +160,17 @@ export function NetworkRoute() {
   // Which state groups are expanded. This belongs to the reader, not to the
   // data, so it is not derived from it and does not reset when the clock moves.
   const [open, setOpen] = useState<Set<string>>(new Set())
+  /* FINDING A STATION IN 344 OF THEM.
+   *
+   * The index was 33 collapsed state groups and nothing else, so reaching one
+   * named station meant knowing which state it is in and then reading a list.
+   * A search box is the difference between an index and a filing cabinet.
+   *
+   * "Flagged only" is the other question this list is asked -- what needs
+   * attention -- and answering it by expanding 33 groups and scanning is not
+   * answering it. */
+  const [query, setQuery] = useState('')
+  const [flaggedOnly, setFlaggedOnly] = useState(false)
 
   const nSteps = sim.data?.n_steps ?? 1
   const timer = useRef<number | null>(null)
@@ -205,15 +216,21 @@ export function NetworkRoute() {
   }, [net, sim.data, channel, hour])
 
   const byState = useMemo(() => {
+    const q = query.trim().toLowerCase()
     const m = new Map<string, { s: SimStation; band: Band }[]>()
     for (const r of graded) {
+      // Filters applied here rather than at render, so a state whose every
+      // station is filtered out does not appear as an empty heading.
+      if (flaggedOnly && r.band !== 'WATCH' && r.band !== 'FAULT') continue
+      if (q && !r.s.name.toLowerCase().includes(q)
+          && !(r.s.state || '').toLowerCase().includes(q)) continue
       const k = r.s.state || 'Unassigned'
       if (!m.has(k)) m.set(k, [])
       m.get(k)!.push(r)
     }
     // Alphabetical, always. See the header note.
     return [...m.entries()].sort((a, c) => a[0].localeCompare(c[0]))
-  }, [graded])
+  }, [graded, query, flaggedOnly])
 
   const flagged = graded.filter((r) => r.band === 'WATCH' || r.band === 'FAULT')
 
@@ -684,6 +701,23 @@ export function NetworkRoute() {
             <span className="muted"> · {graded.length} simulated
               {node.data ? ' + 1 live' : ''}, {flagged.length} flagged now</span>
           </summary>
+
+          <div className="idxbar">
+            <input type="search" className="idxsearch" value={query}
+                   placeholder="Find a station or state"
+                   aria-label="Find a station or state"
+                   onChange={(e) => setQuery(e.target.value)} />
+            <label className="cbx">
+              <input type="checkbox" checked={flaggedOnly}
+                     onChange={(e) => setFlaggedOnly(e.target.checked)} />
+              Flagged only
+            </label>
+            {(query || flaggedOnly) && (
+              <span className="mono muted idxcount">
+                {byState.reduce((n, [, rows]) => n + rows.length, 0)} of {graded.length}
+              </span>
+            )}
+          </div>
           <div className="netrail">
               {/* THE LIVE NODE IN THE INDEX, not only on the map. It is a
                   station in this network and someone working down a list
@@ -723,7 +757,17 @@ export function NetworkRoute() {
               )}
               {byState.map(([state, rows]) => {
                 const bad = rows.filter((r) => r.band === 'WATCH' || r.band === 'FAULT').length
+                /* OPEN WHEN OPENING IT IS THE ONLY THING TO DO.
+                 *
+                 * Thirteen of the thirty-three states hold one or two
+                 * stations, and a collapsed heading hiding a single row is a
+                 * click that can only have one outcome. Small groups start
+                 * open; so does anything matching a search, because the reader
+                 * has already said what they are looking for. */
                 const isOpen = open.has(state)
+                  || (!open.size && rows.length <= 2)
+                  || Boolean(query.trim())
+                  || flaggedOnly
                 const sorted = [...rows].sort((a, c) =>
                   BAND_ORDER[c.band] - BAND_ORDER[a.band] || a.s.name.localeCompare(c.s.name))
                 return (
