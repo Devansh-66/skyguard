@@ -124,6 +124,10 @@ class Reading(BaseModel):
     # Which frame of the shared record this reading is for, when the sender
     # knows it. A real ESP32 would not, and would leave it unset.
     frame: int | None = None
+    # Which traverse of the record this belongs to. A node that keeps reporting
+    # comes back to the start; without this the dashboard cannot tell the tail
+    # of one pass from the head of the next.
+    pass_no: int | None = None
     residual: float | None = None      # against the pushed baseline, if it has one
     scale: float | None = None         # node's P-square sigma estimate
     fw: str = ""
@@ -235,6 +239,7 @@ def ingest(r: Reading) -> dict:
             # knows. The dashboard draws the live node on the same axis as
             # every other station, and an axis needs a position.
             "frame": r.frame,
+            "pass": r.pass_no,
         }))
     except RuntimeError:
         # No running loop: called from a worker thread or a test. Nothing to

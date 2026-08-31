@@ -301,6 +301,7 @@ _resid: list[float] = []
 # its own counter so it still reports on a page nobody is watching.
 _target_frame: list[int | None] = [None]
 _last_frame = [0]
+_last_pass = [0]
 
 _standing: dict = {"band": "learning", "z": 0.0, "since": None,
                    "since_frame": None, "readings": 0,
@@ -354,9 +355,23 @@ async def _run(per_second: float, limit: int) -> None:
             #
             # One frame per FRAMES_PER_READING readings instead, so the
             # background is nearly still and a fault is the thing that moves.
-            frame = (_target_frame[0] if _target_frame[0] is not None
-                     else (sent // FRAMES_PER_READING) % n_frames)
-            frame = max(0, min(frame, n_frames - 1))
+            # WHICH PASS, as well as which frame.
+            #
+            # The record is thirty days and the node keeps reporting, so it
+            # comes back to the start. That is fine -- it is a recorder reaching
+            # the end of the paper -- but the frame alone cannot say it, and the
+            # dashboard was drawing the tail of one pass and the head of the
+            # next on the same axis with the untouched middle between them. Two
+            # disconnected traces from two different traverses, which reads as a
+            # broken chart and is really a station reporting twice for the same
+            # timestamp.
+            #
+            # Publishing the pass lets the dashboard start a fresh sheet when it
+            # changes, which is what a recorder does with fresh paper.
+            step = (_target_frame[0] if _target_frame[0] is not None
+                    else sent // FRAMES_PER_READING)
+            frame = max(0, min(step % n_frames, n_frames - 1))
+            pass_no = step // n_frames
             exp = _expected(sim, frame, nbrs)
             # The neighbours' estimate, which the node never sees, and the
             # node's own reading, which is that estimate plus its own noise and
@@ -397,11 +412,13 @@ async def _run(per_second: float, limit: int) -> None:
                 # draw this station in the same chart as the other 344 instead
                 # of on a wall clock beside them.
                 _last_frame[0] = frame
+                _last_pass[0] = pass_no
                 node_flags = physics_screen(temp, rh, pres)
                 ingest(Reading(station=LIVE_STATION["name"], temp=temp,
                                rh=rh, pres=pres, seq=sent,
                                dt_min=SIM_MINUTES_PER_READING,
-                               flags=node_flags, frame=frame))
+                               flags=node_flags, frame=frame,
+                               pass_no=pass_no))
                 z, band = _grade_live(temp, exp[0])
                 if band != _standing["band"]:
                     # Date the condition from where it STARTED, not from where
@@ -420,6 +437,7 @@ async def _run(per_second: float, limit: int) -> None:
                                if _standing["since_frame"] is not None else None)
                 await HUB.publish({
                     "type": "grade", "t": time.time(), "frame": frame,
+                    "pass": pass_no,
                     "station": LIVE_STATION["name"],
                     "z": round(z, 2), "band": band,
                     "open_frames": open_frames,
@@ -575,6 +593,7 @@ def standing() -> dict:
         # page told it. Exposed because "is the live station on the same date
         # as the map" is a question worth being able to answer directly.
         "frame": _last_frame[0],
+        "pass": _last_pass[0],
         "frame_follows_page": _target_frame[0] is not None,
         "injected_fault": _fault["kind"],
         "note": "Graded by neighbour differencing against six simulated "

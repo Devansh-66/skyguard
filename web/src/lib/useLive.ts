@@ -52,6 +52,9 @@ export interface LiveState {
   grades: string[]
   /** The highest frame received, i.e. how far the pen has drawn. */
   frame: number
+  /** Which traverse of the record the node is on. A new pass is a fresh
+   *  sheet: the frames from the last one are not this one's readings. */
+  pass: number
   /** The most recent reading, whatever station it came from. */
   latest: LiveReading | null
   running: boolean
@@ -78,7 +81,7 @@ const subs = new Set<(s: LiveState) => void>()
 let state: LiveState = {
   status: 'connecting', rows: [],
   latest: null, running: false, fault: 'none', silent: false, grade: null,
-  byFrame: { temp: [], rh: [], pres: [] }, grades: [], frame: 0,
+  byFrame: { temp: [], rh: [], pres: [] }, grades: [], frame: 0, pass: 0,
 }
 
 function push(next: Partial<LiveState>) {
@@ -134,10 +137,24 @@ function connect() {
     if (m.type !== 'reading') return
 
     const f = (m as unknown as { frame?: number }).frame
+    const p = (m as unknown as { pass?: number }).pass ?? 0
     const next: Partial<LiveState> = {
       rows: [m, ...state.rows].slice(0, KEEP),
       latest: m,
       silent: false,
+    }
+    // A NEW PASS IS A FRESH SHEET.
+    //
+    // The node reports past the end of the thirty-day record and comes back to
+    // the start. Keeping the previous traverse's frames drew the tail of one
+    // pass and the head of the next on the same axis, with the untouched middle
+    // between them -- two disconnected traces that looked like a broken chart
+    // and were really the station reporting twice for the same timestamp.
+    if (p !== state.pass) {
+      state = {
+        ...state, pass: p, frame: 0, grades: [],
+        byFrame: { temp: [], rh: [], pres: [] },
+      }
     }
     if (typeof f === 'number') {
       // Written by frame, not appended: a reading is FOR a moment in the
@@ -155,6 +172,7 @@ function connect() {
         pres: put(state.byFrame.pres, m.pres),
       }
       next.frame = Math.max(state.frame, f)
+      next.pass = p
     }
     push(next)
   }
