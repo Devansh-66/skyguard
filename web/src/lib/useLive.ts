@@ -108,9 +108,21 @@ function connect() {
     let m: LiveReading & { backlog?: LiveReading[]; running?: boolean; kind?: string }
     try { m = JSON.parse(ev.data) } catch { return }
 
-    if (m.type === 'hello' && Array.isArray(m.backlog)) {
-      const rows = m.backlog.filter((x) => x.type === 'reading').slice(-KEEP).reverse()
-      push({ rows, latest: rows[0] ?? null })
+    if (m.type === 'hello') {
+      const h = m as unknown as {
+        backlog?: LiveReading[]; running?: boolean; fault?: string
+        frame?: number; pass?: number
+      }
+      const rows = (h.backlog ?? []).filter((x) => x.type === 'reading')
+        .slice(-KEEP).reverse()
+      // The hello carries the CURRENT state, not just the backlog: a page
+      // opened after the node started never hears the event that says so.
+      push({
+        rows, latest: rows[0] ?? null,
+        running: Boolean(h.running),
+        fault: h.fault ?? 'none',
+        pass: h.pass ?? 0,
+      })
       return
     }
     if (m.type === 'feeder') { push({ running: Boolean(m.running) }); return }

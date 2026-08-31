@@ -60,7 +60,24 @@ class Hub:
         await ws.send_text(json.dumps({
             "type": "hello", "backlog": self.recent,
             "listeners": len(self.sockets),
+            # THE CURRENT STATE, not only future changes.
+            #
+            # A browser learns the node is running from the {"feeder"} event,
+            # which is broadcast when it STARTS -- so a page opened afterwards
+            # never heard it and believed the node was stopped. The clock,
+            # which now follows the node, therefore never moved, and the
+            # button offered to Play something already playing.
+            #
+            # A subscriber that joins mid-stream needs the state as well as the
+            # changes.
+            **self.state(),
         }))
+
+    def state(self) -> dict:
+        """Whatever a joining subscriber has to be told outright."""
+        return {"running": bool(_state.get("running")),
+                "fault": _fault.get("kind", "none"),
+                "frame": _last_frame[0], "pass": _last_pass[0]}
 
     def leave(self, ws: WebSocket) -> None:
         self.sockets.discard(ws)

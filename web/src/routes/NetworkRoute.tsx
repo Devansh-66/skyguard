@@ -24,13 +24,13 @@
  *   reads on satellite imagery and disappears on a pale one.
  */
 import { GeoJSON, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   useArmMap, useBoundaryGeo, useLiveStation, useSimMap, useStatesGeo,
   useTileStatus, useWdqmsMap,
 } from '../api/queries'
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
-import { bandAt, frameOf, stepsPerMinutes, timeLabel } from '../lib/sim'
+import { bandAt, frameOf, timeLabel } from '../lib/sim'
 import { BAND_LABEL, HUE, label, why } from '../lib/bands'
 import { allAlerts, ledgerAt } from '../lib/alerts'
 import { StationChannels } from '../components/StationChannels'
@@ -170,7 +170,6 @@ export function NetworkRoute() {
   const [stepMin, setStepMin] = useState(60)
   const [windowH, setWindowH] = useState(0)      // 0 = the whole record
   const [hour, setHour] = useState(0)
-  const [playing, setPlaying] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
 
   /* FINDING A STATION IN 344 OF THEM.
@@ -190,14 +189,37 @@ export function NetworkRoute() {
     { col: 'state', desc: false })
 
   const nSteps = sim.data?.n_steps ?? 1
-  const timer = useRef<number | null>(null)
+
+  /* THE NODE IS "NOW", AND THE PAGE FOLLOWS IT.
+   *
+   * There were two clocks on this page and they disagreed: the map sat at day
+   * 0 of the record while the live station's pen was at day 18.9 of the same
+   * thirty days. Pressing Play advanced one and not the other, so the same
+   * screen showed the network on 25 July and the node on 13 August.
+   *
+   * A live system has one present, and it is wherever the reporting station
+   * has got to. So the clock is DERIVED from the node's frame rather than run
+   * by a timer of its own, and everything on the page -- the map, the station
+   * charts, the alert ledger -- reads the same moment as the node.
+   *
+   * Play and pause therefore control the NODE, not an animation: the only
+   * thing that can advance time here is a reading arriving.
+   */
   useEffect(() => {
-    if (!playing) return
-    const by = sim.data ? stepsPerMinutes(sim.data, stepMin) : 4
-    timer.current = window.setInterval(
-      () => setHour((h) => (h + by) % nSteps), 90)
-    return () => { if (timer.current) window.clearInterval(timer.current) }
-  }, [playing, nSteps, stepMin, sim.data])
+    if (!live.running || !sim.data) return
+    const step = live.frame * (sim.data.field_every || 1)
+    setHour(Math.min(step, nSteps - 1))
+  }, [live.frame, live.running, sim.data, nSteps])
+
+  // Dragging the slider is taking manual control: the node is stopped so the
+  // next reading does not yank the page back to the present. Play resumes it.
+  const scrub = useCallback((step: number) => {
+    setHour(step)
+    if (live.running) {
+      liveCommand(import.meta.env.VITE_API_BASE ?? '', '/api/live/stop')
+        .catch(() => { /* the clock still moved; that is what was asked for */ })
+    }
+  }, [live.running])
 
   const b = BASES[base]
   /* Whether the live node's last reading failed the screen. Kept next to the
@@ -382,8 +404,17 @@ export function NetworkRoute() {
             </select>
           </label>
         )}
-        <label>Step
-          <select value={stepMin} onChange={(e) => setStepMin(+e.target.value)}>
+        {/* Step sets how fast the node reports, because a reading arriving is
+            the only thing that advances time on this page now. */}
+        <label>Speed
+          <select value={stepMin} onChange={(e) => {
+            setStepMin(+e.target.value)
+            if (live.running) {
+              liveCommand(import.meta.env.VITE_API_BASE ?? '',
+                `/api/live/replay?per_second=${Math.max(1, 60 / +e.target.value * 2)}`)
+                .catch(() => {})
+            }
+          }}>
             <option value={15}>15 min</option>
             <option value={30}>30 min</option>
             <option value={60}>1 hour</option>
@@ -573,16 +604,22 @@ export function NetworkRoute() {
 
       {net === 'sim' && sim.data && (
         <div className="simbar">
-          <button type="button" className="btn ghost" onClick={() => setPlaying((p) => !p)}>
-            {playing ? 'Pause' : 'Play'}
+          <button type="button" className="btn ghost"
+                  onClick={() => liveCommand(
+                    import.meta.env.VITE_API_BASE ?? '',
+                    live.running ? '/api/live/stop'
+                      : `/api/live/replay?per_second=${Math.max(1, 60 / stepMin * 2)}`,
+                  ).catch(() => {})}>
+            {live.running ? 'Pause' : 'Play'}
           </button>
           <input type="range" min={0} max={nSteps - 1} value={hour}
                  aria-label="Hour of the replay"
-                 onChange={(e) => setHour(+e.target.value)} />
+                 onChange={(e) => scrub(+e.target.value)} />
           <span className="mono">{timeLabel(sim.data, hour)}</span>
           <span className="mono muted">
             {flagged.filter((r) => r.band === 'FAULT').length} fault ·{' '}
-            {flagged.filter((r) => r.band === 'WATCH').length} watch · day{' '}
+            {flagged.filter((r) => r.band === 'WATCH').length} watch ·{' '}
+            {live.running ? 'live' : 'paused'} · day{' '}
             {(hour * (sim.data?.step_minutes ?? 15) / 1440).toFixed(1)} of{' '}
             {(nSteps * (sim.data?.step_minutes ?? 15) / 1440).toFixed(0)}
           </span>
