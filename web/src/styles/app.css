@@ -734,3 +734,42 @@ details.netsec:not([open]) { padding-bottom: 4px; }
 .honesty .k { font-weight: 500; }
 /* Generated data marked as such, everywhere it appears. */
 .honesty .gen { color: var(--oxide); }
+
+/* ---------------- the station index ----------------
+ *
+ * A TABLE, not an accordion. Thirty-three collapsible groups in a multi-column
+ * flow meant that opening any one of them changed its height and reflowed
+ * everything after it -- the whole index jumped under the cursor, and choosing
+ * which groups started open only moved where the jump happened. Every row here
+ * is the same height and nothing opens, so nothing moves.
+ */
+.idxbox {
+  height: 420px; overflow: auto;
+  border: 1px solid var(--rule-edge); background: var(--paper-2);
+}
+.idxtab { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.idxtab th {
+  position: sticky; top: 0; z-index: 1; background: var(--paper-2);
+  text-align: left; padding: 0; border-bottom: 1px solid var(--rule);
+}
+.idxtab th button {
+  width: 100%; text-align: left; background: none; border: none; cursor: pointer;
+  padding: 8px 14px 6px 10px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-3);
+  display: flex; align-items: center; gap: 5px;
+}
+.idxtab th button:hover { color: var(--ink); }
+.idxtab th.sorted button { color: var(--ink); }
+.sortmark { font-size: 8px; }
+.idxtab td {
+  padding: 6px 14px 6px 10px; border-bottom: 1px solid var(--rule-minor);
+  vertical-align: middle;
+}
+.idxtab .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.idxrow { cursor: pointer; }
+.idxrow:hover td { background: var(--surface-2); }
+.idxrow.on td { background: var(--surface-2); font-weight: 500; }
+.idxrow:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.idxrow.live .stncell { font-weight: 500; }
+.idxinj { margin-left: 7px; font-size: 10px; color: var(--ink-4); }

@@ -31,7 +31,7 @@ import {
 } from '../api/queries'
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
 import { bandAt, frameOf, stepsPerMinutes, timeLabel } from '../lib/sim'
-import { BAND_LABEL, HUE, UNGRADED_WHY, label, why } from '../lib/bands'
+import { BAND_LABEL, HUE, label, why } from '../lib/bands'
 import { allAlerts, ledgerAt } from '../lib/alerts'
 import { StationChannels } from '../components/StationChannels'
 import { MAP_BOX, fieldRange, paintField, rampCss } from '../lib/field'
@@ -43,14 +43,29 @@ import { usePageTitle } from '../lib/title'
 type Net = 'sim' | 'wdqms' | 'arm'
 type BaseKey = 'imagery' | 'muted' | 'dark'
 type Channel = 'health' | 'temp' | 'rh' | 'pres'
+type IndexCol = 'name' | 'state' | 'elev' | 'status'
 
-/** How many of these carry no grade at all.
- *
- * A group where every station is ungraded has not been found "clear" -- nothing
- * looked at it. Saying "all 3 clear" of the Andaman stations claimed a verdict
- * the pipeline never reached. */
-function ungradedCount(rows: { band: Band }[]): number {
-  return rows.filter((r) => r.band === 'NODATA').length
+/** A sortable column header. Clicking the active column reverses it, which is
+ *  what every table anyone has ever used does. */
+function Th({ col, sort, set, children }: {
+  col: IndexCol
+  sort: { col: IndexCol; desc: boolean }
+  set: (s: { col: IndexCol; desc: boolean }) => void
+  children: React.ReactNode
+}) {
+  const active = sort.col === col
+  return (
+    <th className={active ? 'sorted' : undefined}
+        aria-sort={active ? (sort.desc ? 'descending' : 'ascending') : 'none'}>
+      <button type="button"
+              onClick={() => set({ col, desc: active ? !sort.desc : false })}>
+        {children}
+        <span className="sortmark" aria-hidden="true">
+          {active ? (sort.desc ? '▼' : '▲') : ''}
+        </span>
+      </button>
+    </th>
+  )
 }
 
 type BaseDef = { label: string; filter: string; ok: string; okOpacity: number }
@@ -157,9 +172,7 @@ export function NetworkRoute() {
   const [hour, setHour] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
-  // Which state groups are expanded. This belongs to the reader, not to the
-  // data, so it is not derived from it and does not reset when the clock moves.
-  const [open, setOpen] = useState<Set<string>>(new Set())
+
   /* FINDING A STATION IN 344 OF THEM.
    *
    * The index was 33 collapsed state groups and nothing else, so reaching one
@@ -171,6 +184,10 @@ export function NetworkRoute() {
    * answering it. */
   const [query, setQuery] = useState('')
   const [flaggedOnly, setFlaggedOnly] = useState(false)
+  /** How the index is ordered. State first, because that is how a person who
+   *  knows the network thinks about it; the header switches it. */
+  const [sort, setSort] = useState<{ col: IndexCol; desc: boolean }>(
+    { col: 'state', desc: false })
 
   const nSteps = sim.data?.n_steps ?? 1
   const timer = useRef<number | null>(null)
@@ -215,22 +232,35 @@ export function NetworkRoute() {
     return rows
   }, [net, sim.data, channel, hour])
 
-  const byState = useMemo(() => {
+  /* THE INDEX, as one flat list.
+   *
+   * Grouping by state put the list in 33 containers and made the state
+   * something you had to open rather than something you could read. As a
+   * column it is sortable, searchable, and always visible -- and every row is
+   * the same height, so nothing moves when anything changes. */
+  const indexRows = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const m = new Map<string, { s: SimStation; band: Band }[]>()
-    for (const r of graded) {
-      // Filters applied here rather than at render, so a state whose every
-      // station is filtered out does not appear as an empty heading.
-      if (flaggedOnly && r.band !== 'WATCH' && r.band !== 'FAULT') continue
-      if (q && !r.s.name.toLowerCase().includes(q)
-          && !(r.s.state || '').toLowerCase().includes(q)) continue
-      const k = r.s.state || 'Unassigned'
-      if (!m.has(k)) m.set(k, [])
-      m.get(k)!.push(r)
-    }
-    // Alphabetical, always. See the header note.
-    return [...m.entries()].sort((a, c) => a[0].localeCompare(c[0]))
-  }, [graded, query, flaggedOnly])
+    const rows = graded.filter((r) => {
+      if (flaggedOnly && r.band !== 'WATCH' && r.band !== 'FAULT') return false
+      if (!q) return true
+      return r.s.name.toLowerCase().includes(q)
+        || (r.s.state || '').toLowerCase().includes(q)
+    })
+    const dir = sort.desc ? -1 : 1
+    return rows.sort((a, b) => {
+      switch (sort.col) {
+        case 'elev': return dir * (a.s.elev - b.s.elev)
+        case 'status':
+          // Worst first when sorting by status: the reason anyone sorts by it.
+          return dir * (BAND_ORDER[b.band] - BAND_ORDER[a.band])
+            || a.s.name.localeCompare(b.s.name)
+        case 'name': return dir * a.s.name.localeCompare(b.s.name)
+        default:
+          return dir * ((a.s.state || '').localeCompare(b.s.state || '')
+            || a.s.name.localeCompare(b.s.name))
+      }
+    })
+  }, [graded, query, flaggedOnly, sort])
 
   const flagged = graded.filter((r) => r.band === 'WATCH' || r.band === 'FAULT')
 
@@ -714,99 +744,82 @@ export function NetworkRoute() {
             </label>
             {(query || flaggedOnly) && (
               <span className="mono muted idxcount">
-                {byState.reduce((n, [, rows]) => n + rows.length, 0)} of {graded.length}
+                {indexRows.length} of {graded.length}
               </span>
             )}
           </div>
-          <div className="netrail">
-              {/* THE LIVE NODE IN THE INDEX, not only on the map. It is a
-                  station in this network and someone working down a list
-                  should find it there. First, because it is the only one
-                  reporting now. */}
-              {node.data && (
-                <details open>
-                  <summary>
-                    <span>Live</span>
-                    <span className="state-count mono">
-                      {live.running ? <b className="flagged">reporting</b> : '1'}
-                    </span>
-                  </summary>
-                  <button type="button"
-                    className={'stn' + (nodeSelected ? ' on' : '')}
-                    onClick={() => setSelected(node.data!.id)}>
-                    <span className="spine" style={{
-                      background: live.grade?.band === 'fault' ? HUE.FAULT!
-                        : live.grade?.band === 'watch' ? HUE.WATCH!
-                          : 'var(--rule)',
-                    }} />
-                    <span className="card-main">
-                      <span className="card-station">{node.data.name}</span>
-                      <span className="card-meta num">
-                        {node.data.elev} m · {node.data.state}
-                      </span>
-                    </span>
-                    {live.grade && live.grade.band !== 'ok'
-                      && live.grade.band !== 'learning' && (
-                      <span className="badge" style={{
-                        color: HUE[live.grade.band === 'fault' ? 'FAULT' : 'WATCH']!,
-                        borderColor: HUE[live.grade.band === 'fault' ? 'FAULT' : 'WATCH']!,
-                      }}>{live.grade.band}</span>
-                    )}
-                  </button>
-                </details>
-              )}
-              {byState.map(([state, rows]) => {
-                const bad = rows.filter((r) => r.band === 'WATCH' || r.band === 'FAULT').length
-                /* OPEN WHEN OPENING IT IS THE ONLY THING TO DO.
-                 *
-                 * Thirteen of the thirty-three states hold one or two
-                 * stations, and a collapsed heading hiding a single row is a
-                 * click that can only have one outcome. Small groups start
-                 * open; so does anything matching a search, because the reader
-                 * has already said what they are looking for. */
-                const isOpen = open.has(state)
-                  || (!open.size && rows.length <= 2)
-                  || Boolean(query.trim())
-                  || flaggedOnly
-                const sorted = [...rows].sort((a, c) =>
-                  BAND_ORDER[c.band] - BAND_ORDER[a.band] || a.s.name.localeCompare(c.s.name))
-                return (
-                  <details key={state} open={isOpen} onToggle={(e) => {
-                    const next = new Set(open)
-                    if ((e.target as HTMLDetailsElement).open) next.add(state); else next.delete(state)
-                    setOpen(next)
-                  }}>
-                    <summary>
-                      <span>{state}</span>
-                      <span className="state-count mono">
-                        {bad > 0 && <b className="flagged">{bad}</b>}
-                        {ungradedCount(rows) === rows.length && (
-                          <em className="ungraded" title={UNGRADED_WHY}>ungraded</em>)}
-                        <span className="n">{rows.length}</span>
-                      </span>
-                    </summary>
-                    {sorted.map(({ s, band }) => (
-                      <button type="button" key={s.id}
-                        className={'stn' + (s.id === selected ? ' on' : '')}
-                        onClick={() => setSelected(s.id)}>
-                        <span className="spine" style={{ background: HUE[band] ?? 'var(--rule)' }} />
-                        <span className="card-main">
-                          <span className="card-station">{s.name}</span>
-                          <span className="card-meta num">
-                            {s.elev} m{s.fault ? ` · injected ${s.fault.kind}` : ''}
-                          </span>
-                        </span>
-                        {band !== 'OK' && (
-                          <span className="badge" title={why(band)}
-                                style={{ color: HUE[band] ?? 'var(--ink-3)',
-                                         borderColor: HUE[band] ?? 'var(--rule-edge)' }}>
-                            {label(sim.data, s, channel, hour, band)}
-                          </span>)}
-                      </button>
-                    ))}
-                  </details>
-                )
-              })}
+          {/* A TABLE, NOT AN ACCORDION.
+            *
+            * This was 33 collapsible state groups flowing in text columns, and
+            * it was wrong in a way no amount of tuning fixed: opening any group
+            * changes its height, a multi-column flow reflows everything after
+            * it, and the whole index jumps under the cursor. Which group starts
+            * open only decided WHERE the jump happens.
+            *
+            * An index is a list you scan and search, not a set of drawers. One
+            * row per station, every row the same height, nothing to open. The
+            * state is a column rather than a container, so it can be sorted by
+            * and searched on without hiding anything behind it. */}
+          <div className="tabwrap idxbox">
+            <table className="idxtab">
+              <thead>
+                <tr>
+                  <Th col="name" sort={sort} set={setSort}>Station</Th>
+                  <Th col="state" sort={sort} set={setSort}>State</Th>
+                  <Th col="elev" sort={sort} set={setSort}>Elev</Th>
+                  <Th col="status" sort={sort} set={setSort}>Status</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {node.data && !query.trim() && !flaggedOnly && (
+                  <tr className={'idxrow live' + (nodeSelected ? ' on' : '')}
+                      tabIndex={0}
+                      onClick={() => setSelected(node.data!.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') setSelected(node.data!.id) }}>
+                    <td className="stncell">{node.data.name}</td>
+                    <td className="mono muted">{node.data.state}</td>
+                    <td className="mono num">{node.data.elev} m</td>
+                    <td>
+                      <span className="badge" style={{ color: 'var(--ink-2)' }}>live</span>
+                      {live.grade && live.grade.band !== 'ok'
+                        && live.grade.band !== 'learning' && (
+                        <span className="badge" style={{
+                          color: HUE[live.grade.band === 'fault' ? 'FAULT' : 'WATCH']!,
+                          borderColor: HUE[live.grade.band === 'fault' ? 'FAULT' : 'WATCH']!,
+                        }}>{live.grade.band}</span>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                {indexRows.map(({ s, band }) => (
+                  <tr key={s.id} tabIndex={0}
+                      className={'idxrow' + (s.id === selected ? ' on' : '')}
+                      onClick={() => setSelected(s.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') setSelected(s.id) }}>
+                    <td className="stncell">{s.name}</td>
+                    <td className="mono muted">{s.state}</td>
+                    <td className="mono num">{s.elev} m</td>
+                    <td>
+                      {band !== 'OK' && (
+                        <span className="badge" title={why(band)}
+                              style={{ color: HUE[band] ?? 'var(--ink-3)',
+                                       borderColor: HUE[band] ?? 'var(--rule-edge)' }}>
+                          {label(sim.data, s, channel, hour, band)}
+                        </span>)}
+                      {s.fault && (
+                        <span className="mono idxinj">injected {s.fault.kind}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {!indexRows.length && (
+                  <tr><td colSpan={4} className="muted small">
+                    Nothing matches. {flaggedOnly && 'Nothing is flagged at this hour. '}
+                    {query && `No station or state contains "${query}".`}
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </details>
       )}
