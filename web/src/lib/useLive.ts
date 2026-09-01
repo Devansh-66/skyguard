@@ -75,6 +75,8 @@ export interface LiveState {
 const KEEP = 40
 
 let sock: WebSocket | null = null
+let retry = 0
+let timer: ReturnType<typeof setTimeout> | null = null
 let base = ''
 const subs = new Set<(s: LiveState) => void>()
 
@@ -100,10 +102,33 @@ function connect() {
     sock = new WebSocket(url)
   } catch {
     push({ status: 'closed' })
+    if (subs.size > 0) {
+      const wait = Math.min(1000 * 2 ** retry, 15000)
+      retry += 1
+      if (timer !== null) clearTimeout(timer)
+      timer = setTimeout(() => { timer = null; connect() }, wait)
+    }
     return
   }
-  sock.onopen = () => push({ status: 'open' })
-  sock.onclose = () => { sock = null; push({ status: 'closed' }) }
+  sock.onopen = () => { retry = 0; push({ status: 'open' }) }
+  sock.onclose = () => {
+    sock = null
+    push({ status: 'closed' })
+    // RECONNECT. Without this the page is permanently deaf to the live feed
+    // the first time the connection drops -- a server restart, a laptop
+    // sleeping, a Space waking up -- and since the clock is driven by readings
+    // arriving, the whole dashboard silently stops. Play then looks broken
+    // while the node reports perfectly well on the other side of a socket
+    // nobody is listening to.
+    //
+    // Backoff so a server that is down is not hammered, capped so a server
+    // that comes back is picked up promptly.
+    if (subs.size === 0) return
+    const wait = Math.min(1000 * 2 ** retry, 15000)
+    retry += 1
+    if (timer !== null) clearTimeout(timer)
+    timer = setTimeout(() => { timer = null; connect() }, wait)
+  }
   sock.onmessage = (ev) => {
     let m: LiveReading & { backlog?: LiveReading[]; running?: boolean; kind?: string }
     try { m = JSON.parse(ev.data) } catch { return }
@@ -201,7 +226,10 @@ export function useLive(apiBase = ''): LiveState {
     return () => {
       subs.delete(fn)
       // Last reader out closes the door.
-      if (subs.size === 0 && sock) { sock.close(); sock = null }
+      if (subs.size === 0) {
+        if (timer !== null) { clearTimeout(timer); timer = null }
+        if (sock) { sock.close(); sock = null }
+      }
     }
   }, [apiBase])
   return state

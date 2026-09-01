@@ -571,6 +571,18 @@ async def stop_replay() -> dict:
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await _feeder
         _feeder = None
+    # Say so, from here, where it can actually be said. _run's finally block
+    # publishes the same event, and when we arrive there by CANCELLATION that
+    # publish never lands: awaiting inside a finally that is unwinding a
+    # cancellation is itself cancelled at once, and the suppress() around it
+    # swallows the evidence. So the feeder announced "running: true" on start
+    # and then halted in silence -- every other open page went on showing
+    # "live" above a clock that had stopped moving, which is the worst thing a
+    # monitoring display can do. This publish runs after the task is reaped,
+    # outside the cancellation, so it survives. The one in _run still covers
+    # the feeder ending on its own by exhausting `limit`.
+    await HUB.publish({"type": "feeder", "running": False,
+                       "sent": _state["sent"]})
     return {"stopped": True, "sent": _state["sent"]}
 
 

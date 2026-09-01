@@ -113,26 +113,16 @@ async def lifespan(app: FastAPI):
               f"Everything the dashboard uses is unaffected.")
         ENGINE = None
 
-    # THE NODE REPORTS BY ITSELF.
+    # THE NODE DOES NOT START BY ITSELF.
     #
-    # It had a start button, which made a station look like a feature you
-    # switch on. No weather station has one: it is either reporting or it is
-    # broken, and "broken" is a thing the detector should notice rather than a
-    # thing the operator arranges. Starting it here also means the dashboard
-    # has a live station the moment it loads, with no ceremony.
-    try:
-        import asyncio
-
-        from api.live import start_node
-
-        async def _boot() -> None:
-            try:
-                await start_node(per_second=2.0)
-            except Exception as e:
-                # A task's exception dies with the task unless somebody looks.
-                print(f"[startup] live node failed: {type(e).__name__}: {e}")
-
-        asyncio.get_running_loop().create_task(_boot())
+    # It used to, on the argument that a weather station has no start button.
+    # That was right about stations and wrong about this page: the node now
+    # drives the clock, so a node that starts with the service means the record
+    # begins replaying the moment anyone opens the dashboard, with nobody
+    # having asked and Play offering to start something already running.
+    #
+    # Play starts the node, the node advances the clock, and the whole network
+    # moves with it. One control, and nothing happens until it is pressed.
     except Exception as e:                       # never block startup for it
         print(f"[startup] live node did not start: {type(e).__name__}: {e}")
     # Starts at the END, paused. Opening at t=0 is defensible and makes a
