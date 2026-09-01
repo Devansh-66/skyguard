@@ -98,8 +98,10 @@ function connect() {
   // the classic "works locally, silently dead once deployed".
   const origin = base || window.location.origin
   const url = origin.replace(/^http/, 'ws') + '/api/live'
+  let ws: WebSocket
   try {
-    sock = new WebSocket(url)
+    ws = new WebSocket(url)
+    sock = ws
   } catch {
     push({ status: 'closed' })
     if (subs.size > 0) {
@@ -110,8 +112,18 @@ function connect() {
     }
     return
   }
-  sock.onopen = () => { retry = 0; push({ status: 'open' }) }
-  sock.onclose = () => {
+  // A DEAD SOCKET MUST NOT SPEAK FOR THE LIVE ONE.
+  //
+  // These handlers close over shared module state, and a socket that has been
+  // replaced still fires: the old one's onclose arrived after the reconnect
+  // had already succeeded, set sock back to null and pushed status 'closed'
+  // over a connection that was working perfectly. The page then sat frozen
+  // with readings streaming into handlers whose updates were being overwritten
+  // by a corpse. Anything from a socket that is no longer `sock` is ignored.
+  const stale = () => sock !== ws
+  ws.onopen = () => { if (stale()) return; retry = 0; push({ status: 'open' }) }
+  ws.onclose = () => {
+    if (stale()) return
     sock = null
     push({ status: 'closed' })
     // RECONNECT. Without this the page is permanently deaf to the live feed
@@ -129,7 +141,8 @@ function connect() {
     if (timer !== null) clearTimeout(timer)
     timer = setTimeout(() => { timer = null; connect() }, wait)
   }
-  sock.onmessage = (ev) => {
+  ws.onmessage = (ev) => {
+    if (stale()) return
     let m: LiveReading & { backlog?: LiveReading[]; running?: boolean; kind?: string }
     try { m = JSON.parse(ev.data) } catch { return }
 
@@ -187,7 +200,17 @@ function connect() {
     // pass and the head of the next on the same axis, with the untouched middle
     // between them -- two disconnected traces that looked like a broken chart
     // and were really the station reporting twice for the same timestamp.
-    if (p !== state.pass) {
+    // A FRAME THAT GOES BACKWARDS IS A NEW SESSION, NOT A STRAY READING.
+    //
+    // frame used to be kept with Math.max(state.frame, f), which made it a
+    // ratchet: once the server restarted, the node began its record again at a
+    // low frame while the page still held the high-water mark from the last
+    // session, and the maximum never moved again. The clock froze permanently
+    // with readings pouring in and being discarded, which looked exactly like
+    // a dead Play button. Treat a rewind the way a new pass is treated -- the
+    // record restarted, so start a fresh sheet.
+    const rewound = typeof f === 'number' && f + 1 < state.frame
+    if (p !== state.pass || rewound) {
       state = {
         ...state, pass: p, frame: 0, grades: [],
         byFrame: { temp: [], rh: [], pres: [] },
@@ -208,7 +231,7 @@ function connect() {
         rh: put(state.byFrame.rh, m.rh),
         pres: put(state.byFrame.pres, m.pres),
       }
-      next.frame = Math.max(state.frame, f)
+      next.frame = f
       next.pass = p
     }
     push(next)
