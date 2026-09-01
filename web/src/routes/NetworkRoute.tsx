@@ -817,7 +817,7 @@ export function NetworkRoute() {
               </thead>
               <tbody>
                 {node.data && !query.trim() && !flaggedOnly && (
-                  <tr className={'idxrow live' + (nodeSelected ? ' on' : '')}
+                  <tr className={'idxrow idxlive' + (nodeSelected ? ' on' : '')}
                       tabIndex={0}
                       onClick={() => setSelected(node.data!.id)}
                       onKeyDown={(e) => { if (e.key === 'Enter') setSelected(node.data!.id) }}>

@@ -771,5 +771,11 @@ details.netsec:not([open]) { padding-bottom: 4px; }
 .idxrow:hover td { background: var(--surface-2); }
 .idxrow.on td { background: var(--surface-2); font-weight: 500; }
 .idxrow:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
-.idxrow.live .stncell { font-weight: 500; }
+/* Named for this table, not "live". The node's row used to carry the bare
+   class `live`, which also matches .live { display: flex; flex-direction:
+   column } up in the live-panel rules -- so the <tr> became a flex column and
+   its four cells stacked one per line, while every other row in the table laid
+   out normally. A generic class name on a table row is a collision waiting to
+   happen. */
+.idxrow.idxlive .stncell { font-weight: 500; }
 .idxinj { margin-left: 7px; font-size: 10px; color: var(--ink-4); }
