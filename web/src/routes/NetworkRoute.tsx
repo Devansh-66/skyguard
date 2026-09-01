@@ -148,6 +148,13 @@ function Extent() {
   return null
 }
 
+// Readings per second for a chosen simulated step. One reading is 30
+// simulated minutes whatever the setting, so this is purely how fast the
+// record is played: 15 min runs it four times faster than 1 hour.
+function perSecond(stepMin: number): number {
+  return Math.max(0.5, 60 / stepMin * 2)
+}
+
 export function NetworkRoute() {
   usePageTitle('Network')
   const tiles = useTileStatus()
@@ -408,12 +415,13 @@ export function NetworkRoute() {
             the only thing that advances time on this page now. */}
         <label>Speed
           <select value={stepMin} onChange={(e) => {
-            setStepMin(+e.target.value)
-            if (live.running) {
-              liveCommand(import.meta.env.VITE_API_BASE ?? '',
-                `/api/live/replay?per_second=${Math.max(1, 60 / +e.target.value * 2)}`)
-                .catch(() => {})
-            }
+            const min = +e.target.value
+            setStepMin(min)
+            // Retune, do not restart. Posting /api/live/replay here returned
+            // 409 for a node that was already reporting, and the speed never
+            // changed; restarting instead would have reset the clock to day 0.
+            liveCommand(import.meta.env.VITE_API_BASE ?? '',
+              `/api/live/rate?per_second=${perSecond(min)}`).catch(() => {})
           }}>
             <option value={15}>15 min</option>
             <option value={30}>30 min</option>
@@ -608,7 +616,7 @@ export function NetworkRoute() {
                   onClick={() => liveCommand(
                     import.meta.env.VITE_API_BASE ?? '',
                     live.running ? '/api/live/stop'
-                      : `/api/live/replay?per_second=${Math.max(1, 60 / stepMin * 2)}`,
+                      : `/api/live/replay?per_second=${perSecond(stepMin)}`,
                   ).catch(() => {})}>
             {live.running ? 'Pause' : 'Play'}
           </button>

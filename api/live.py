@@ -357,8 +357,34 @@ async def _run(per_second: float, limit: int) -> None:
     sim = _sim()
     nbrs = _neighbours(sim, LIVE_STATION["lat"], LIVE_STATION["lon"])
     n_frames = sim.get("n_fields") or 1
-    delay = 1.0 / max(per_second, 0.05)
-    sent = 0
+    # RATE IS READ EVERY STEP, NOT CAPTURED ONCE.
+    #
+    # This was `delay = 1.0 / per_second` computed here and then frozen for the
+    # life of the task, so the Speed control could not do anything to a node
+    # that was already reporting. The page tried: it posted /api/live/replay on
+    # every change, start_node saw a node already running and returned 409, and
+    # the .catch() on the other end threw the refusal away in silence. Four
+    # speeds, one of which was whatever you happened to press Play with.
+    #
+    # Restarting the feeder would have been the wrong repair anyway -- start
+    # resets sent to 0, so changing speed would have thrown the clock back to
+    # day 0. The rate lives in _state, one loop reads it each time round, and
+    # the node keeps its place.
+    _state["rate"] = per_second
+    # RESUME, DO NOT REWIND.
+    #
+    # sent started at 0 on every start, and since step is sent // frames the
+    # node replayed its record from the beginning each time. Pressing Play
+    # after a Pause therefore looked like nothing happened: the feeder was
+    # running perfectly, re-sending frames 0, 1, 2 ... under a clock that had
+    # been sitting at day 0.2, and the display did not move again until it had
+    # climbed all the way back. Several seconds of a button that appeared dead.
+    #
+    # A station that stops transmitting and starts again continues its record.
+    # stop leaves _state["sent"] alone, so picking it up here is the resume.
+    # The fault clock rides on the same counter, so a drift that was halfway
+    # developed stays halfway developed rather than starting over.
+    sent = int(_state.get("sent") or 0)
     try:
         while _state["running"] and sent < limit:
             # HOW FAST THE WEATHER MOVES.
@@ -402,7 +428,7 @@ async def _run(per_second: float, limit: int) -> None:
                 await HUB.publish({"type": "silence", "t": time.time(),
                                    "station": LIVE_STATION["name"],
                                    "fault": _fault["kind"]})
-                await asyncio.sleep(delay)
+                await asyncio.sleep(1.0 / max(_state["rate"], 0.05))
                 continue
             try:
                 # dt_min IS NOT OPTIONAL HERE, and leaving it out was a real
@@ -470,7 +496,7 @@ async def _run(per_second: float, limit: int) -> None:
                 await HUB.publish({"type": "rejected", "t": time.time(),
                                    "station": LIVE_STATION["name"],
                                    "why": f"{type(e).__name__}: {e}"})
-            await asyncio.sleep(delay)
+            await asyncio.sleep(1.0 / max(_state["rate"], 0.05))
     except asyncio.CancelledError:
         raise
     finally:
@@ -539,8 +565,12 @@ async def start_node(per_second: float = 2.0, limit: int = 1_000_000) -> dict:
     global _feeder
     if _state["running"]:
         raise HTTPException(409, "the node is already reporting; stop it first")
-    _state.update(running=True, station=LIVE_STATION["id"], sent=0, rate=per_second)
-    _resid.clear()
+    _state.update(running=True, station=LIVE_STATION["id"], rate=per_second)
+    # Only a node with no record behind it needs to learn its baseline from
+    # nothing. Clearing on every resume threw away the neighbour residuals and
+    # dropped the station back into "learning" each time it was unpaused.
+    if not _state.get("sent"):
+        _resid.clear()
     _feeder = asyncio.create_task(_run(per_second, limit))
     await HUB.publish({"type": "feeder", "running": True, "rate": per_second})
     return {"started": True, "per_second": per_second,
@@ -584,6 +614,23 @@ async def stop_replay() -> dict:
     await HUB.publish({"type": "feeder", "running": False,
                        "sent": _state["sent"]})
     return {"stopped": True, "sent": _state["sent"]}
+
+
+@router.post("/api/live/rate")
+async def set_rate(
+    per_second: float = Query(..., gt=0, le=50, description="readings/second"),
+) -> dict:
+    """Change how fast the node reports, without interrupting it.
+
+    Separate from /api/live/replay on purpose. Restarting to change speed
+    would reset the frame counter and jump the whole page back to day 0, and
+    a real station does not begin its record again because someone changed
+    how often it transmits.
+    """
+    _state["rate"] = per_second
+    await HUB.publish({"type": "feeder", "running": bool(_state["running"]),
+                       "rate": per_second})
+    return {"per_second": per_second, "reporting": bool(_state["running"])}
 
 
 @router.get("/api/live/status")
