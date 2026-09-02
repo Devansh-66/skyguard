@@ -26,6 +26,7 @@ from api.tiles import router as tiles_router
 from api.ingest import router as ingest_router
 from api.ai import router as ai_router
 from api.queue import router as queue_router
+from api.orchestrator import router as orchestrator_router
 from api.model import router as model_router
 from api.live import router as live_router
 
@@ -165,6 +166,7 @@ app.include_router(tiles_router)
 app.include_router(ingest_router)
 app.include_router(ai_router)
 app.include_router(queue_router)
+app.include_router(orchestrator_router)
 
 # The map datasets the React app fetches instead of inlining. See api/mapdata.py
 # for why the two frontends differ on this.

@@ -112,3 +112,24 @@ export async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   }
   return body as T
 }
+
+/** POST JSON. Used only by the triage panel, which assesses the whole board in
+ *  one request rather than one round trip per sensor. There is no static
+ *  fallback: a panel that cannot reach the server has no verdict to give, and
+ *  inventing one on the client is exactly the duplication this avoids. */
+export async function post<T>(path: string, body: unknown,
+                              signal?: AbortSignal): Promise<T> {
+  let res: Response
+  try {
+    res = await fetch(API_BASE + path, {
+      method: 'POST', signal,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body),
+    })
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw e
+    throw new ApiError(0, path, 'Cannot reach the API. Is uvicorn running?')
+  }
+  if (!res.ok) throw new ApiError(res.status, path, await res.text())
+  return res.json() as Promise<T>
+}

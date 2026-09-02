@@ -13,6 +13,7 @@ import { Async } from './Async'
 import { Badge, severityTone } from './Badge'
 import { BeliefChart } from './BeliefChart'
 import { Callout } from './Callout'
+import { ActionCard, AgentVerdicts, CaseProgress } from './AgentPanel'
 import { Field } from './Field'
 
 export function ItemDetail({ id }: { id: string }) {
@@ -40,11 +41,25 @@ export function ItemDetail({ id }: { id: string }) {
             </div>
             <div className="detail-badges">
               <Badge tone={severityTone(it.severity)}>{it.severity.toFixed(1)}σ</Badge>
-              <Badge tone={it.action === 'DISPATCH' ? 'bad' : 'sus'}>{it.action}</Badge>
             </div>
           </header>
 
-          <p className="lede">{it.why}</p>
+          {/* THE JOB, BEFORE THE EVIDENCE.
+            *
+            * This pane used to open with a sigma badge and a paragraph. A
+            * technician reading it still did not know whether to bring a spare
+            * probe or a multimeter. */}
+          {it.assessment ? (
+            <>
+              <ActionCard a={it.assessment} />
+              <h3>Why the panel says so</h3>
+              <AgentVerdicts a={it.assessment} />
+              <h3>Case</h3>
+              <CaseProgress at={2} />
+            </>
+          ) : (
+            <p className="lede">{it.why}</p>
+          )}
 
           {it.reference.compromised && (
             <Callout tone="sus" title="This estimate is weakened by its own reference">

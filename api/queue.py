@@ -42,6 +42,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException
+from api.orchestrator import Evidence, assess
 
 from api.ai import (SENSORS, HK, _dqr, _held_days, _prepared, _f,
                     _reference_note)
@@ -68,32 +69,9 @@ MIN_EVIDENCE = 40.0
 SERVICE_INTERVAL_D = 90.0
 
 
-def _action(bias: float, drift: float, noise: float, trust: float,
-            hk_moved: bool) -> tuple[str, str]:
-    """Dispatch or correct centrally -- and say why, in operational terms.
-
-    The first version compared the drift against an arbitrary fraction of the
-    noise. Every real drift cleared it, so every item said DISPATCH and the
-    distinction did no work at all. The rule now asks the question an operator
-    actually has: a stable offset can be fixed with a coefficient, but one still
-    growing will be wrong again before anyone gets there, so it needs the visit.
-    """
-    if hk_moved:
-        return ("DISPATCH",
-                "housekeeping has moved too, so this is the hardware rather "
-                "than the calibration and a coefficient will not hold it")
-    if trust < 0.5:
-        return ("DISPATCH", "the sensor has failed most of its recent checks")
-    growth = abs(drift) * SERVICE_INTERVAL_D
-    if growth > RAISE_AT * max(noise, 1e-9):
-        return ("DISPATCH",
-                f"drifting {abs(drift):.3f} sigma/day, so it moves a further "
-                f"{growth:.1f} sigma before the next {SERVICE_INTERVAL_D:.0f}-day "
-                f"service visit — a coefficient set today is wrong long before "
-                f"anyone arrives")
-    return ("CORRECT CENTRALLY",
-            f"offset of {bias:+.2f} sigma, growing only {growth:.2f} sigma over "
-            f"{SERVICE_INTERVAL_D:.0f} days — a coefficient update holds, no visit")
+# _action() lived here. The three-agent panel in api/orchestrator.py replaced
+# it: it could only ever say DISPATCH or CORRECT CENTRALLY, so a technician was
+# told to go but never what to do on arrival.
 
 
 @lru_cache(maxsize=1)
@@ -144,9 +122,25 @@ def _scan() -> dict:
                     break
             onset = df.timestamp[onset_i].isoformat() if onset_i is not None else None
 
-            act, why = _action(b.bias, b.drift, b.noise, b.trust,
-                               hk_moved and k not in HK)
             confirmed = SENSORS[k][0] in str(r["variables"])
+            # THE PANEL DECIDES, NOT THIS LOOP.
+            #
+            # This used to call a local _action() that returned one of two
+            # strings. The same three agents now judge every source -- ARM,
+            # the simulated network and the live node -- so the board cannot
+            # give two different answers about the same kind of evidence.
+            verdict = assess(Evidence(
+                source="arm", sensor=k, label=SENSORS[k][2],
+                bias_sigma=_f(b.bias), drift_sigma_day=_f(b.drift),
+                noise_sigma=_f(b.noise), trust=_f(b.trust),
+                evidence_n=_f(b.trust_confidence), checks_passed=b.checks_passed,
+                housekeeping_moved=bool(hk_moved and k not in HK),
+                analyst_confirmed=bool(confirmed),
+                days_open=(None if onset_i is None else
+                           round((df.timestamp[i] - df.timestamp[onset_i])
+                                 .total_seconds() / 86400.0, 1)),
+            )).dict()
+            act, why = verdict["action"], verdict["why"]
             items.append({
                 "id": f"{st}:{r['dqr']}:{k}",
                 "station": st, "sensor": k, "label": SENSORS[k][2],
@@ -161,6 +155,7 @@ def _scan() -> dict:
                                      round((df.timestamp[i] - df.timestamp[onset_i])
                                            .total_seconds() / 86400.0, 1)),
                 "action": act, "why": why,
+                "assessment": verdict,
                 "confirmed_by_analyst": bool(confirmed),
                 "analyst_subject": str(r["subject"]) if confirmed else None,
                 "window": {"dqr": r["dqr"], "start": r["start"].isoformat(),
@@ -248,15 +243,7 @@ def work_queue() -> dict:
         "windows_scanned": q["windows"],
         "items": q["items"],
         "actions": actions,
-        "action_note": (
-            "Every item here says DISPATCH. That is not a bug in the rule -- it "
-            "is what this corpus contains. Each window came from a report an "
-            "analyst wrote after noticing something, so by construction it holds "
-            "faults severe enough to be worth writing up. The quiet, stable "
-            "offset that a coefficient would fix is exactly the case nobody "
-            "files a report about, so it cannot appear here. Demonstrating the "
-            "no-dispatch branch needs routine data, not a fault archive."
-            if set(actions) == {"DISPATCH"} else None),
+        "action_note": None,
         "scorecard": {
             **s,
             "recall": None if recall is None else round(recall, 3),

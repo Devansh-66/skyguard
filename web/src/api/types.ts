@@ -17,6 +17,10 @@
 /** One sensor on one station, ranked for an operator's attention.
  *  GET /api/queue -> items[] */
 export interface QueueItem {
+  /** The three-agent panel's verdict, computed server-side in
+   *  api/orchestrator.py. The same shape reaches the simulated network and the
+   *  live node through POST /api/board/triage. */
+  assessment?: import('../lib/triage').Assessment
   id: string
   station: string
   /** short key: temp | pres | rh | volt | ltemp */

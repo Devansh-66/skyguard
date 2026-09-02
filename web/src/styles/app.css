@@ -779,3 +779,76 @@ details.netsec:not([open]) { padding-bottom: 4px; }
    happen. */
 .idxrow.idxlive .stncell { font-weight: 500; }
 .idxinj { margin-left: 7px; font-size: 10px; color: var(--ink-4); }
+
+/* ============================================================ the work board
+   A card answers three questions in order: what is the job, how soon, where.
+   The station name used to be the first and largest thing on it, which is the
+   wrong hierarchy for a queue -- a planner scans for the WORK, then finds the
+   place. */
+.prio-row { display: flex; gap: 1px; margin: 12px 0 14px;
+  background: var(--rule-edge); border: 1px solid var(--rule-edge); }
+.prio { flex: 1; background: var(--paper); padding: 8px 10px 9px; }
+.prio-n { display: block; font-size: 20px; font-weight: 600; line-height: 1.1; }
+.prio-k { display: block; font-family: var(--mono); font-size: 9px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+  margin-top: 3px; }
+.prio.bad .prio-n { color: var(--oxide); }
+.prio.sus .prio-n { color: var(--amber); }
+.prio.ok  .prio-n { color: var(--verdigris); }
+
+.card-do { font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase; }
+.card-when { font-family: var(--mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: .08em; text-transform: uppercase; }
+.card-when.bad { color: var(--oxide); }
+.card-when.sus { color: var(--amber); }
+.card-when.ok  { color: var(--ink-3); }
+.spine.muted { background: var(--rule-edge); }
+
+/* The job, stated once, at the top of the detail pane. */
+.actioncard { border: 1px solid var(--rule-edge); border-left: 3px solid var(--ink-4);
+  background: var(--paper-2); padding: 14px 16px; margin: 14px 0 20px; }
+.actioncard.bad { border-left-color: var(--oxide); }
+.actioncard.sus { border-left-color: var(--amber); }
+.actioncard.ok  { border-left-color: var(--verdigris); }
+.actioncard-top { display: flex; justify-content: space-between;
+  align-items: baseline; gap: 12px; }
+.actioncard-do { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+.actioncard-why { margin: 7px 0 0; font-size: 13px; color: var(--ink-2);
+  max-width: 62ch; }
+.actioncard-note { margin: 7px 0 0; font-family: var(--mono); font-size: 11px;
+  color: var(--verdigris); }
+
+/* Three opinions, each attributable. This IS the explainability: a reader can
+   see which agent fired and which one did not excuse it. */
+.verdicts { display: flex; flex-direction: column; gap: 1px;
+  background: var(--rule-edge); border: 1px solid var(--rule-edge);
+  margin: 10px 0 20px; }
+.verdict { display: grid; grid-template-columns: 12px 1fr auto; gap: 10px;
+  align-items: start; background: var(--paper); padding: 10px 13px; }
+.verdict-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px;
+  background: var(--ink-4); }
+.verdict.bad .verdict-dot { background: var(--oxide); }
+.verdict.sus .verdict-dot { background: var(--amber); }
+.verdict.ok  .verdict-dot { background: var(--verdigris); }
+.verdict-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.verdict-title { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-3); }
+.verdict-head { font-size: 13px; color: var(--ink); }
+.verdict-status { font-family: var(--mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+  white-space: nowrap; }
+.verdict.bad .verdict-status { color: var(--oxide); }
+.verdict.sus .verdict-status { color: var(--amber); }
+.verdict.ok  .verdict-status { color: var(--verdigris); }
+
+/* Where the case has got to. Steps not yet reached are dimmed rather than
+   claimed. */
+.caseflow { list-style: none; display: flex; flex-wrap: wrap; gap: 0;
+  margin: 10px 0 20px; padding: 0; }
+.caseflow li { display: flex; align-items: center; gap: 6px; padding-right: 14px;
+  font-size: 11px; color: var(--ink-4); }
+.caseflow li.done { color: var(--ink-2); }
+.caseflow-dot { width: 7px; height: 7px; border-radius: 50%;
+  background: var(--rule-edge); flex: none; }
+.caseflow li.done .caseflow-dot { background: var(--verdigris); }
