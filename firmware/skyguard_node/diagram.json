@@ -4,15 +4,49 @@
   "editor": "wokwi",
   "parts": [
     { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
-    { "type": "wokwi-bme280", "id": "bme", "top": 100, "left": 200, "attrs": {} }
+    { "type": "wokwi-bme280", "id": "bme", "top": 100, "left": 220, "attrs": {} },
+
+    { "type": "wokwi-potentiometer", "id": "vbat", "top": -120, "left": 220,
+      "attrs": { "value": "660" } },
+    { "type": "wokwi-potentiometer", "id": "ltemp", "top": -120, "left": 380,
+      "attrs": { "value": "430" } },
+
+    { "type": "wokwi-pushbutton", "id": "freeze", "top": 240, "left": 220,
+      "attrs": { "color": "orange", "label": "FREEZE" } },
+    { "type": "wokwi-slide-switch", "id": "cutlink", "top": 240, "left": 380,
+      "attrs": { "label": "CUT LINK" } },
+
+    { "type": "wokwi-text", "id": "note1", "top": -180, "left": 220,
+      "attrs": { "text": "supply (turn down to brown out)", "font": "monospace" } },
+    { "type": "wokwi-text", "id": "note2", "top": -180, "left": 380,
+      "attrs": { "text": "logger temperature", "font": "monospace" } },
+    { "type": "wokwi-text", "id": "note3", "top": 300, "left": 220,
+      "attrs": { "text": "hold: freeze the probe", "font": "monospace" } },
+    { "type": "wokwi-text", "id": "note4", "top": 300, "left": 380,
+      "attrs": { "text": "slide: cut the uplink", "font": "monospace" } }
   ],
   "connections": [
     [ "esp:TX0", "$serialMonitor:RX", "", [] ],
     [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+
     [ "bme:VCC", "esp:3V3", "red",   [ "v0" ] ],
     [ "bme:GND", "esp:GND.1", "black", [ "v0" ] ],
     [ "bme:SDA", "esp:21", "green", [ "v0" ] ],
-    [ "bme:SCL", "esp:22", "blue",  [ "v0" ] ]
+    [ "bme:SCL", "esp:22", "blue",  [ "v0" ] ],
+
+    [ "vbat:VCC", "esp:3V3", "red",   [ "v0" ] ],
+    [ "vbat:GND", "esp:GND.1", "black", [ "v0" ] ],
+    [ "vbat:SIG", "esp:34", "orange", [ "v0" ] ],
+
+    [ "ltemp:VCC", "esp:3V3", "red",   [ "v0" ] ],
+    [ "ltemp:GND", "esp:GND.1", "black", [ "v0" ] ],
+    [ "ltemp:SIG", "esp:35", "purple", [ "v0" ] ],
+
+    [ "freeze:1.l", "esp:27", "gold", [ "v0" ] ],
+    [ "freeze:2.l", "esp:GND.1", "black", [ "v0" ] ],
+
+    [ "cutlink:1", "esp:GND.1", "black", [ "v0" ] ],
+    [ "cutlink:2", "esp:26", "gold", [ "v0" ] ]
   ],
   "dependencies": {}
 }

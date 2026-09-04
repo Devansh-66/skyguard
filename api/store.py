@@ -60,6 +60,41 @@ CREATE INDEX IF NOT EXISTS readings_station_t ON readings (station, t DESC);
 """
 
 
+# SCHEMA is applied with CREATE TABLE IF NOT EXISTS, which creates a missing
+# table and does NOTHING for a table that exists with the wrong columns. Adding
+# a column to SCHEMA alone would therefore work on a fresh clone and silently
+# not work on every machine that already has data -- including the deployed
+# Space. PRAGMA user_version is the version marker; each step is idempotent and
+# additive, and no step ever drops a column.
+SCHEMA_VERSION = 2
+
+
+def _migrate(c: sqlite3.Connection) -> None:
+    have = int(c.execute("PRAGMA user_version").fetchone()[0])
+    if have >= SCHEMA_VERSION:
+        return
+    if have < 2:
+        # The housekeeping tier. Without these the hardware-health agent in
+        # api/orchestrator.py has nothing to look at and abstains on every
+        # live reading -- one of three panel members silently not voting.
+        cols = c.execute("PRAGMA table_info(readings)").fetchall()
+        existing = {row[1] for row in cols}
+        for name, decl in (
+            ("vbat_mv",       "INTEGER"),   # supply, millivolts
+            ("log_temp_c100", "INTEGER"),   # logger die temperature, 1/100 C
+            ("flat_pct",      "INTEGER"),   # % of the node's window that repeated
+            ("gap_pct",       "INTEGER"),   # % of scheduled samples missed
+            ("selftest_mask", "INTEGER"),   # bitmask, 0 = every check passed
+            ("health",        "TEXT"),      # S1..S5 from the healing ladder
+            ("boot_id",       "INTEGER"),   # distinguishes a reboot from an outage
+            ("reboot_count",  "INTEGER"),
+            ("replayed",      "INTEGER"),   # arrived from the store-and-forward spool
+        ):
+            if name not in existing:
+                c.execute(f"ALTER TABLE readings ADD COLUMN {name} {decl}")
+    c.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+
 def _connect() -> sqlite3.Connection:
     global _conn
     if _conn is not None:
@@ -73,6 +108,7 @@ def _connect() -> sqlite3.Connection:
     c.execute("PRAGMA journal_mode=WAL")
     c.execute("PRAGMA synchronous=NORMAL")
     c.executescript(SCHEMA)
+    _migrate(c)
     c.commit()
     _conn = c
     return c
@@ -91,13 +127,20 @@ def record(rec: dict) -> None:
             c = _connect()
             c.execute(
                 "INSERT INTO readings (t, station, seq, temp, rh, pres,"
-                " node_flags, server_flags, accepted)"
-                " VALUES (?,?,?,?,?,?,?,?,?)",
+                " node_flags, server_flags, accepted,"
+                " vbat_mv, log_temp_c100, flat_pct, gap_pct,"
+                " selftest_mask, health, boot_id, reboot_count, replayed)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (rec["t"], rec["station"], rec.get("seq"),
                  rec.get("temp"), rec.get("rh"), rec.get("pres"),
                  ",".join(rec.get("node_flags") or []),
                  ",".join(rec.get("server_flags") or []),
-                 1 if rec.get("accepted") else 0))
+                 1 if rec.get("accepted") else 0,
+                 rec.get("vbat_mv"), rec.get("log_temp_c100"),
+                 rec.get("flat_pct"), rec.get("gap_pct"),
+                 rec.get("selftest_mask"), rec.get("health"),
+                 rec.get("boot_id"), rec.get("reboot_count"),
+                 1 if rec.get("replayed") else 0))
             c.commit()
     except Exception:
         pass
@@ -155,3 +198,59 @@ def stats() -> dict:
                       "(a free Hugging Face Space) they do not survive a "
                       "container rebuild -- that is the host, not the store.",
     }
+
+
+def node_health(station: str, window: int = 64) -> dict | None:
+    """Latest housekeeping for one station, plus what it implies.
+
+    The node counts its own flat and gap fractions over a rolling window and
+    reports them, because it is the only tier that knows a sample was DUE and
+    never taken. The server cannot recover that from the rows it received --
+    absence of a row is exactly what is not stored. Where the node does not
+    report them, they are derived here from the sequence numbers, which is
+    weaker but better than nothing.
+    """
+    try:
+        with _lock:
+            c = _connect()
+            rows = c.execute(
+                "SELECT t, seq, vbat_mv, log_temp_c100, flat_pct, gap_pct,"
+                " selftest_mask, health, boot_id, reboot_count, temp, rh, pres"
+                " FROM readings WHERE station = ? ORDER BY t DESC LIMIT ?",
+                (station, window)).fetchall()
+    except Exception:
+        return None
+    if not rows:
+        return None
+
+    latest = rows[0]
+    out = {
+        "station": station, "t": latest[0], "seq": latest[1],
+        "vbat_mv": latest[2], "log_temp_c100": latest[3],
+        "flat_pct": latest[4], "gap_pct": latest[5],
+        "selftest_mask": latest[6], "health": latest[7],
+        "boot_id": latest[8], "reboot_count": latest[9],
+        "samples": len(rows),
+    }
+
+    # FALLBACK, CLEARLY LABELLED AS ONE.
+    #
+    # A node that reports its own fractions is believed. For one that does not,
+    # the sequence numbers still reveal missing samples: seq counts what the
+    # node TOOK, so a jump larger than the number of rows received is a gap the
+    # server never saw. This cannot see a sample the node itself failed to
+    # take, which is why the node's own count is preferred when present.
+    if out["gap_pct"] is None and len(rows) >= 2:
+        seqs = [r[1] for r in rows if r[1] is not None]
+        if len(seqs) >= 2:
+            span = max(seqs) - min(seqs) + 1
+            if span > 0:
+                out["gap_pct"] = max(0, min(100, round(100 * (1 - len(seqs) / span))))
+                out["gap_source"] = "derived from seq"
+
+    if out["flat_pct"] is None and len(rows) >= 2:
+        same = sum(1 for a, b in zip(rows, rows[1:])
+                   if a[10] is not None and a[10] == b[10])
+        out["flat_pct"] = round(100 * same / max(len(rows) - 1, 1))
+        out["flat_source"] = "derived from stored values"
+    return out

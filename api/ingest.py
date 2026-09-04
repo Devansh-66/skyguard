@@ -52,7 +52,7 @@ from collections import deque
 from threading import Lock
 from typing import Deque
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 router = APIRouter()
@@ -132,6 +132,40 @@ class Reading(BaseModel):
     scale: float | None = None         # node's P-square sigma estimate
     fw: str = ""
 
+    # ---------------------------------------------------- the housekeeping tier
+    #
+    # WHY THESE EXIST, AND WHY THEY ARE OPTIONAL.
+    #
+    # hardware_health_agent in api/orchestrator.py branches on stuck values,
+    # missing reports, logger voltage and logger temperature. None of them had
+    # anywhere to travel, so on live data that agent reached its last branch,
+    # returned "unknown" at confidence 0.2, and abstained -- one of three panel
+    # members silently not voting, on exactly the tier the node exists to
+    # report. These fields are that channel.
+    #
+    # Every one is optional. A node that does not measure its own supply is not
+    # lying about it, and the agent's honest answer to a field it cannot see is
+    # "unknown", not "ok". The simulator and older firmware keep working
+    # unchanged.
+    vbat_mv: int | None = Field(default=None, ge=0, le=20000)
+    log_temp_c100: int | None = Field(default=None, ge=-6000, le=12500)
+    # Percentages over the node's own rolling window, so the server does not
+    # have to re-derive from history what the node already counted.
+    flat_pct: int | None = Field(default=None, ge=0, le=100)
+    gap_pct: int | None = Field(default=None, ge=0, le=100)
+    # Bitmask from the boot self-test. 0 means every check passed.
+    selftest_mask: int | None = Field(default=None, ge=0)
+    # Where the node is on its own healing ladder: S1 running .. S5 latched.
+    health: str | None = Field(default=None, max_length=8)
+    # A NEW boot_id ON THE SAME STATION MEANS A REBOOT, NOT AN OUTAGE.
+    # Without it those two are indistinguishable from the server, and they
+    # call for completely different work orders.
+    boot_id: int | None = None
+    reboot_count: int | None = Field(default=None, ge=0)
+    # Arrived from the store-and-forward spool rather than in real time, so the
+    # gap it fills must not be counted against the station twice.
+    replayed: bool = False
+
 
 _buf: dict[str, Deque[dict]] = {}
 _lock = Lock()
@@ -206,6 +240,11 @@ def ingest(r: Reading) -> dict:
                "node_flags": list(r.flags), "server_flags": server_flags,
                "residual": r.residual, "scale": r.scale, "fw": r.fw,
                "dt_min": r.dt_min,
+               "vbat_mv": r.vbat_mv, "log_temp_c100": r.log_temp_c100,
+               "flat_pct": r.flat_pct, "gap_pct": r.gap_pct,
+               "selftest_mask": r.selftest_mask, "health": r.health,
+               "boot_id": r.boot_id, "reboot_count": r.reboot_count,
+               "replayed": r.replayed,
                "accepted": accepted}
         q.append(rec)
         n = len(q)
@@ -247,6 +286,46 @@ def ingest(r: Reading) -> dict:
         pass
 
     return verdict
+
+
+@router.get("/api/node/{station}/health")
+def node_health(station: str) -> dict:
+    """The housekeeping tier of one station, and the Evidence it fills.
+
+    Returned in the shape api/orchestrator.Evidence expects, so the caller does
+    not have to know which fields the hardware agent branches on -- and so
+    there is one place where the mapping from raw housekeeping to evidence is
+    written down.
+    """
+    from api import store
+    h = store.node_health(station)
+    if not h:
+        raise HTTPException(404, f"no readings stored for {station!r}")
+
+    # Voltage is a rail, not a residual: a supply below the brownout margin is
+    # a fault whatever the weather is doing. 3300 mV nominal, 3100 mV margin.
+    vb = h.get("vbat_mv")
+    low_supply = vb is not None and vb < 3100
+
+    # SELFTEST_BITS is the number of checks the boot self-test defines. A set
+    # bit is a FAILED check, so passed = defined - popcount. Counting zero bits
+    # of the mask instead gives 1 when everything passed, which is both wrong
+    # and wrong in the flattering direction.
+    SELFTEST_BITS = 12
+    mask = h.get("selftest_mask")
+    evidence = {
+        "flat_fraction": None if h.get("flat_pct") is None
+                         else h["flat_pct"] / 100.0,
+        "gap_fraction": None if h.get("gap_pct") is None
+                        else h["gap_pct"] / 100.0,
+        # housekeeping_moved stays a SERVER decision: it is a correlation
+        # between the housekeeping channels and the fault, and a correlation
+        # needs history the node does not keep. The node supplies the channels.
+        "housekeeping_moved": True if low_supply else None,
+        "checks_passed": None if mask is None
+                         else SELFTEST_BITS - bin(mask).count("1"),
+    }
+    return {**h, "low_supply": low_supply, "evidence": evidence}
 
 
 @router.get("/api/ingest/recent")

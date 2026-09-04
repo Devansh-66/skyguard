@@ -164,7 +164,15 @@ def hardware_health_agent(e: Evidence) -> AgentVerdict:
             "hardware", "Hardware health", "watch", 0.7,
             f"Failing most of its automatic checks (trust {e.trust:.2f})", m)
 
-    if e.housekeeping_moved is False or e.trust is not None:
+    # ANY housekeeping evidence is enough to say "ok". This used to require
+    # `housekeeping_moved is False or trust is not None`, which meant a node
+    # reporting a healthy supply, 0% gaps, 3% flat and twelve passed self-test
+    # checks still came back "this station reports no housekeeping channels" --
+    # a statement that was false, and false in the direction that makes a
+    # working agent look absent.
+    if any(v is not None for v in (e.gap_fraction, e.flat_fraction,
+                                   e.housekeeping_moved, e.trust,
+                                   e.checks_passed)):
         return AgentVerdict("hardware", "Hardware health", "ok", 0.7,
                             "Power, logger and link all reporting normally", m)
 
