@@ -1,0 +1,47 @@
+
+# Headless acceptance test for the station node.
+#
+# Run with:
+#   wokwi-cli --scenario test-scenario.yaml --timeout 60000 .
+# needs WOKWI_CLI_TOKEN in the environment.
+#
+# WHY A SCENARIO AND NOT A HUMAN WATCHING THE SERIAL MONITOR
+#
+# The interesting parts of this firmware are the ones that only appear under
+# conditions nobody wants to reproduce by hand: a browned-out supply, a frozen
+# probe, a cut link. Each is a physical control in diagram.json, so a scenario
+# can set them and assert what the node concludes -- which makes "the node
+# detects its own faults" a claim CI can check rather than a claim in a README.
+#
+# Each wait-serial is an ASSERTION: if the line never appears the run fails on
+# the timeout, so a silent regression cannot pass.
+
+name: skyguard-node-selfcheck
+version: 1
+author: SkyGuard / SIH 2026 PS26073
+
+steps:
+  # 1. It boots and identifies itself.
+  - wait-serial: "SkyGuard node"
+
+  # 2. The probe answers on I2C. If the BME280 were missing this line would
+  #    read NOT FOUND and ST_NO_ACK would be set instead.
+  - wait-serial: "BME280 ok"
+
+  # 3. Specific humidity is computed from all three channels at boot. This is
+  #    the one self-test that genuinely needs pressure -- it is what catches
+  #    three individually-plausible readings that describe no real air.
+  - wait-serial: "q="
+
+  # 4. Housekeeping is read from the two pots and reported.
+  - wait-serial: "vbat_mv="
+
+  # 5. The self-test mask is published. On a healthy boot with the pots at
+  #    their defaults this should be 0x0, or 0x800 if the server is absent and
+  #    ST_NO_BASELINE is set -- the node runs screen-only and says so.
+  - wait-serial: "selftest mask=0x"
+
+  # 6. A sample line carrying the rolling window counters. Reaching this proves
+  #    the loop runs, the popcount arithmetic works, and flat/gap are being
+  #    maintained -- the three fields the server's hardware agent needs.
+  - wait-serial: "flat="

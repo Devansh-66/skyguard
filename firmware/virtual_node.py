@@ -21,6 +21,7 @@ green run here means the screen is wired correctly end to end.
 from __future__ import annotations
 import argparse
 import json
+import random
 import math
 import urllib.error
 import urllib.request
@@ -28,6 +29,11 @@ import urllib.request
 RAILS = {"temp": (-40.0, 60.0), "rh": (0.0, 105.0), "pres": (500.0, 1100.0)}
 RATE = {"temp": 3.0, "rh": 20.0, "pres": 2.0}
 FW = "virtual-node-1.0.0"
+
+
+# One per process, like the firmware picks one per boot: a NEW id on the same
+# station means a reboot, a gap without one means an outage.
+BOOT_ID = random.getrandbits(32)
 
 
 def node_screen(t: float, h: float, p: float,
@@ -106,9 +112,18 @@ def main() -> None:
         # rails, and a rate flag here would be an artifact of how fast the loop
         # happens to run, not a property of the reading.
         flags = node_screen(t, h, p, prev, dt_min=60.0)
+        # HOUSEKEEPING TRAVELS TOO, so this node stays in parity with the
+        # firmware. The point of this file is that the server half can be
+        # tested without a simulator; that only holds while it sends the same
+        # fields. Healthy values here -- the faults being exercised below are
+        # sensor faults, not device faults.
         r = post(f"{args.server}/api/ingest",
                  {"station": args.station, "temp": t, "rh": h, "pres": p,
-                  "seq": seq, "flags": flags, "fw": FW, "dt_min": 60.0})
+                  "seq": seq, "flags": flags, "fw": FW, "dt_min": 60.0,
+                  "vbat_mv": 3980, "log_temp_c100": 4200,
+                  "flat_pct": 0, "gap_pct": 0,
+                  "selftest_mask": 0, "health": "S1",
+                  "boot_id": BOOT_ID, "reboot_count": 0})
         got = [f for f in r["server_flags"] if f != "edge_screen_disagreement"]
         ok = (r["accepted"] == want_ok) and (set(got) == set(want_flags))
         agree = "edge_screen_disagreement" not in r["server_flags"]

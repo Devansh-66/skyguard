@@ -78,3 +78,7 @@ ppt_build/render/
 # The ingest store. Generated at runtime; the readings in it are a record of
 # this machine, not of the project.
 data/skyguard.db*
+
+# PlatformIO build output: toolchain artefacts, ~1 MB binaries, regenerated
+# by `pio run`. Never source.
+.pio/

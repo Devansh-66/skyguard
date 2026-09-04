@@ -92,6 +92,36 @@ enum : uint16_t {
   ST_NO_BASELINE   = 1 << 11,
 };
 
+// TYPES BEFORE ANY FUNCTION, DELIBERATELY.
+//
+// The Arduino builder generates prototypes for every function in a .ino and
+// inserts them ahead of the FIRST function definition. A function whose
+// signature mentions a type declared later than that point therefore fails to
+// compile with an error pointing at a comment several lines away -- which is
+// exactly what happened when the housekeeping helpers were added above these
+// structs: baselineValue(const Baseline&) got a prototype before `Baseline`
+// existed. Keep every user-defined type above the first function.
+
+// ---------------------------------------------------------------- rails
+// A reading outside these is a broken sensor or a broken frame, not weather.
+// It must never reach the detector: a sentinel averaged into a neighbour
+// median corrupts every station around it.
+struct Rail { float lo, hi, rate; };  // rate = largest believable change/minute
+static const Rail RAIL_T = { -40.0f,  60.0f,  3.0f };
+// RH's upper rail is 105, not 100: a capacitive probe reads slightly above
+// saturation in fog and rain, and that is a healthy sensor, not a broken one.
+static const Rail RAIL_H = {   0.0f, 105.0f, 20.0f };
+static const Rail RAIL_P = { 500.0f, 1100.0f, 2.0f };
+
+// ------------------------------------------------------- harmonic baseline
+// Nine coefficients: mean, two diurnal harmonics, two annual harmonics.
+// Fetched from the server, never fitted here.
+struct Baseline {
+  float c[9];
+  bool  fitted;
+};
+Baseline baseT = {{0}, false}, baseH = {{0}, false}, baseP = {{0}, false};
+
 static inline uint8_t pct64(uint64_t bits, uint8_t fill) {
   if (!fill) return 0;
   return (uint8_t)((__builtin_popcountll(bits) * 100) / fill);
@@ -113,25 +143,7 @@ static int16_t readLogTempC100() {
 Adafruit_BME280 bme;
 bool haveSensor = false;
 
-// ---------------------------------------------------------------- rails
-// A reading outside these is a broken sensor or a broken frame, not weather.
-// It must never reach the detector: a sentinel averaged into a neighbour
-// median corrupts every station around it.
-struct Rail { float lo, hi, rate; };  // rate = largest believable change/minute
-static const Rail RAIL_T = { -40.0f,  60.0f,  3.0f };
-// RH's upper rail is 105, not 100: a capacitive probe reads slightly above
-// saturation in fog and rain, and that is a healthy sensor, not a broken one.
-static const Rail RAIL_H = {   0.0f, 105.0f, 20.0f };
-static const Rail RAIL_P = { 500.0f, 1100.0f, 2.0f };
 
-// ------------------------------------------------------- harmonic baseline
-// Nine coefficients: mean, two diurnal harmonics, two annual harmonics.
-// Fetched from the server, never fitted here.
-struct Baseline {
-  float c[9];
-  bool  fitted;
-};
-Baseline baseT = {{0}, false}, baseH = {{0}, false}, baseP = {{0}, false};
 
 static float baselineValue(const Baseline& b, float solarHour, float doy) {
   if (!b.fitted) return NAN;
