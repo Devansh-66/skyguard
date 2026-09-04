@@ -18,7 +18,6 @@ WHAT IS HERE, AND WHERE EACH COMES FROM
 
     /api/map/sim        dashboard/sim_map.json      simulate.faults_and_export
     /api/map/wdqms      dashboard/wdqms.json        dashboard.export_wdqms
-    /api/map/arm        dashboard/arm_sites.json    dashboard.export_arm_sites
     /api/map/states     vendor/india_states.min.json  dashboard.simplify_states
     /api/map/boundary   vendor/india_boundary.min.json  vendored from NCMRWF
 
@@ -42,7 +41,6 @@ _DASH = Path(os.path.dirname(os.path.dirname(__file__))) / "dashboard"
 FILES: dict[str, tuple[Path, str]] = {
     "sim": (_DASH / "sim_map.json", "python -m simulate.faults_and_export"),
     "wdqms": (_DASH / "wdqms.json", "python -m dashboard.export_wdqms"),
-    "arm": (_DASH / "arm_sites.json", "python -m dashboard.export_arm_sites"),
     "states": (_DASH / "vendor" / "india_states.min.json",
                "python -m dashboard.simplify_states"),
     "boundary": (_DASH / "vendor" / "india_boundary.min.json",

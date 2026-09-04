@@ -167,10 +167,9 @@ app.include_router(orchestrator_router)
 # for why the two frontends differ on this.
 from api.mapdata import router as mapdata_router  # noqa: E402
 app.include_router(mapdata_router)
-# /api/model served the ARM-trained classifier. Both are gone with ARM;
-# the endpoint returns when a classifier is trained on the simulated
-# network, where the injected truth is known and the belief features
-# ARM could not give the Indian stations are available.
+# /api/model is withdrawn. It served a classifier trained on a corpus this
+# project no longer carries. It returns when one is trained on the simulated
+# network, where the injected truth is known by construction.
 app.include_router(live_router)
 
 # The static console used to be mounted here at /console. It is gone: the React

@@ -174,7 +174,7 @@ def grade(data: dict, near: np.ndarray, clean_steps: int):
     # So: grade once, note who looks bad, then re-grade with those excluded from
     # everyone else's neighbour set. No ground truth is consulted -- the second
     # pass uses only the first pass's own output, which is what a deployed
-    # system would have. The ARM path does the same thing.
+    # system would have.
     def _resid(excluded):
         out = {}
         for ch in CHANNELS:
