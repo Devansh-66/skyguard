@@ -11,11 +11,20 @@
       "attrs": {}
     },
     {
-      "type": "wokwi-bme280",
-      "id": "bme",
-      "top": 100,
-      "left": 220,
+      "type": "wokwi-dht22",
+      "id": "dht",
+      "top": 90,
+      "left": 210,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pres",
+      "top": -120,
+      "left": 540,
+      "attrs": {
+        "value": "512"
+      }
     },
     {
       "type": "wokwi-potentiometer",
@@ -86,6 +95,15 @@
       "attrs": {
         "text": "slide: cut the uplink"
       }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "note5",
+      "top": -180,
+      "left": 540,
+      "attrs": {
+        "text": "pressure (stand-in for the barometer)"
+      }
     }
   ],
   "connections": [
@@ -100,38 +118,6 @@
       "$serialMonitor:TX",
       "",
       []
-    ],
-    [
-      "bme:VCC",
-      "esp:3V3",
-      "red",
-      [
-        "v0"
-      ]
-    ],
-    [
-      "bme:GND",
-      "esp:GND.1",
-      "black",
-      [
-        "v0"
-      ]
-    ],
-    [
-      "bme:SDA",
-      "esp:21",
-      "green",
-      [
-        "v0"
-      ]
-    ],
-    [
-      "bme:SCL",
-      "esp:22",
-      "blue",
-      [
-        "v0"
-      ]
     ],
     [
       "vbat:VCC",
@@ -198,7 +184,7 @@
       ]
     ],
     [
-      "cutlink:1",
+      "cutlink:3",
       "esp:GND.1",
       "black",
       [
@@ -209,6 +195,54 @@
       "cutlink:2",
       "esp:26",
       "gold",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "dht:VCC",
+      "esp:3V3",
+      "red",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "dht:GND",
+      "esp:GND.1",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "dht:SDA",
+      "esp:15",
+      "green",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "pres:VCC",
+      "esp:3V3",
+      "red",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "pres:GND",
+      "esp:GND.1",
+      "black",
+      [
+        "v0"
+      ]
+    ],
+    [
+      "pres:SIG",
+      "esp:32",
+      "brown",
       [
         "v0"
       ]

@@ -36,7 +36,25 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <Wire.h>
+// WHICH SENSOR THIS BUILD TALKS TO.
+//
+// The field station uses a BME280: one part, all three parameters, over I2C.
+// Wokwi does not have one -- its element set is dht22, an NTC, a photoresistor
+// and a handful of others, with no barometric sensor of any kind. A part named
+// "wokwi-bme280" renders as a picture with nothing behind it, so the bus scan
+// comes back empty and the node never takes a reading.
+//
+// The simulator build therefore reads temperature and humidity from a DHT22 --
+// a real driver against a real device model -- and pressure from a
+// potentiometer, which is a knob and is labelled as one. The hardware build is
+// unchanged and still compiles from this same file.
+#define SENSOR_BME280 0
+
+#if SENSOR_BME280
 #include <Adafruit_BME280.h>
+#else
+#include <DHT.h>
+#endif
 #include <ArduinoJson.h>
 #include <math.h>
 
@@ -77,6 +95,13 @@ static const int PIN_VBAT = 34;      // divider (or pot, in Wokwi) -> supply
 static const int PIN_LOGTEMP = 35;   // logger die temperature proxy
 static const int PIN_FREEZE = 27;    // demo: hold to freeze the sensor
 static const int PIN_CUTLINK = 26;   // demo: hold to cut the uplink
+static const int PIN_DHT = 15;       // DHT22 data (simulator build)
+static const int PIN_PRES = 32;      // pressure knob (simulator build), ADC1
+
+// The knob's travel, in hPa. Deliberately inside the WMO rails: pressure is a
+// stand-in here, and a stand-in that can be driven to an impossible value
+// would only test the rail check against itself.
+static const float PRES_LO = 950.0f, PRES_HI = 1050.0f;
 
 // The rolling window the flat and gap percentages are computed over. 64 fits
 // two uint64_t bitmasks, so both counts are a popcount and no history is kept.
@@ -138,11 +163,22 @@ static inline uint8_t pct64(uint64_t bits, uint8_t fill) {
   return (uint8_t)((__builtin_popcountll(bits) * 100) / fill);
 }
 
-// Supply in millivolts. The divider halves it, and the ESP32 ADC is 12-bit
-// over a nominal 3.3 V reference.
+// Supply in millivolts, 12-bit ADC over a nominal 3.3 V reference.
+//
+// On hardware the battery sits behind a 2:1 divider, because a LiPo above
+// 3.3 V would otherwise pin the ADC. The simulator's potentiometer spans the
+// 3.3 V rail directly and needs no such correction -- applying it anyway
+// reported 4258 mV on a 3.3 V system, which is not a reading any real supply
+// could produce and would have made the brownout threshold untestable.
+#if SENSOR_BME280
+static const uint32_t VBAT_NUM = 2;   // hardware: 2:1 divider
+#else
+static const uint32_t VBAT_NUM = 1;   // simulator: pot straight across 3V3
+#endif
+
 static uint16_t readVbatMv() {
   const uint32_t raw = analogRead(PIN_VBAT);
-  return (uint16_t)((raw * 3300UL * 2UL) / 4095UL);
+  return (uint16_t)((raw * 3300UL * VBAT_NUM) / 4095UL);
 }
 
 // Logger temperature in 1/100 C, mapped from the pot across -40..85 C.
@@ -151,9 +187,61 @@ static int16_t readLogTempC100() {
   return (int16_t)(-4000 + (int32_t)((raw * 12500L) / 4095L));
 }
 
+#if SENSOR_BME280
 Adafruit_BME280 bme;
+#else
+DHT dht(PIN_DHT, DHT22);
+#endif
 bool haveSensor = false;
 
+
+
+// ONE READ PATH, WHICHEVER SENSOR IS FITTED.
+//
+// setup() and loop() must not care which part is on the board. The difference
+// between hardware and simulator is confined to these two functions.
+
+static bool sensorBegin() {
+#if SENSOR_BME280
+  Wire.begin(21, 22);
+  // I2C SCAN, BEFORE TRUSTING THE DRIVER. An empty bus -- wiring, power, a
+  // missing part -- and a device answering at an address the driver did not
+  // try are different faults with opposite fixes, and begin()'s boolean
+  // cannot tell them apart.
+  Serial.print("i2c:");
+  uint8_t found = 0;
+  for (uint8_t a = 1; a < 127; a++) {
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0) { Serial.print(" 0x"); Serial.print(a, HEX); found++; }
+  }
+  if (!found) Serial.print(" nothing responded");
+  Serial.println();
+  return bme.begin(0x76) || bme.begin(0x77);
+#else
+  dht.begin();
+  // The DHT22 needs a moment after power-up before its first conversion is
+  // valid, and reports a failed read as NaN rather than an error code.
+  delay(1200);
+  return !isnan(dht.readTemperature());
+#endif
+}
+
+// Fills t/h/p. Returns false when the sensor produced no usable sample, which
+// is a DIFFERENT condition from a sample that is out of range: one is a dead
+// probe, the other is a live probe reading something impossible.
+static bool sensorRead(float& t, float& h, float& p) {
+#if SENSOR_BME280
+  t = bme.readTemperature();
+  h = bme.readHumidity();
+  p = bme.readPressure() / 100.0f;   // Pa -> hPa
+#else
+  t = dht.readTemperature();
+  h = dht.readHumidity();
+  const uint32_t raw = analogRead(PIN_PRES);
+  p = PRES_LO + (PRES_HI - PRES_LO) * (raw / 4095.0f);
+#endif
+  return !(isnan(t) || isnan(h) || isnan(p));
+}
 
 
 static float baselineValue(const Baseline& b, float solarHour, float doy) {
@@ -387,37 +475,15 @@ void setup() {
   // other is a link or power fault.
   bootId = esp_random();
 
-  Wire.begin(21, 22);
-
-  // I2C SCAN, BEFORE TRUSTING THE DRIVER.
-  //
-  // "Sensor not found" has two very different causes: nothing on the bus at
-  // all -- wiring, power, a missing part -- versus a device that is present and
-  // answering at an address the driver did not try. Those call for opposite
-  // fixes, and the driver's boolean cannot tell them apart. One pass at boot
-  // costs nothing and turns a dead end into a diagnosis.
-  Serial.print("i2c:");
-  uint8_t found = 0;
-  for (uint8_t a = 1; a < 127; a++) {
-    Wire.beginTransmission(a);
-    if (Wire.endTransmission() == 0) {
-      Serial.print(" 0x"); Serial.print(a, HEX); found++;
-    }
-  }
-  if (!found) Serial.print(" nothing responded");
-  Serial.println();
-
-  haveSensor = bme.begin(0x76) || bme.begin(0x77);
-  Serial.println(haveSensor ? "BME280 ok" : "BME280 NOT FOUND -- check wiring");
+  haveSensor = sensorBegin();
+  Serial.println(haveSensor ? "sensor ok" : "SENSOR NOT RESPONDING");
   if (!haveSensor) selftestMask |= ST_NO_ACK;
 
   // Boot self-test. A set bit is a failed check; the server turns the mask
   // into checks_passed and the hardware agent branches on it.
   if (haveSensor) {
-    const float t0 = bme.readTemperature();
-    const float h0 = bme.readHumidity();
-    const float p0 = bme.readPressure() / 100.0f;
-    if (isnan(t0) || isnan(h0) || isnan(p0)) selftestMask |= ST_NONFINITE;
+    float t0, h0, p0;
+    if (!sensorRead(t0, h0, p0)) selftestMask |= ST_NONFINITE;
     if (t0 < RAIL_T.lo || t0 > RAIL_T.hi ||
         h0 < RAIL_H.lo || h0 > RAIL_H.hi ||
         p0 < RAIL_P.lo || p0 > RAIL_P.hi) selftestMask |= ST_OUT_OF_RANGE;
@@ -447,9 +513,17 @@ void setup() {
 void loop() {
   if (!haveSensor) { delay(SAMPLE_MS); return; }
 
-  float t = bme.readTemperature();
-  float h = bme.readHumidity();
-  float p = bme.readPressure() / 100.0f;   // Pa -> hPa
+  float t, h, p;
+  if (!sensorRead(t, h, p)) {
+    // A failed read is not a reading with a bad value in it. Say so, count it
+    // against the window the way a missed sample is counted, and do not
+    // manufacture a number to keep the record tidy.
+    Serial.println("  sensor read failed");
+    gapBits = (gapBits << 1) | 1ULL;
+    if (winFill < WIN) winFill++;
+    delay(SAMPLE_MS);
+    return;
+  }
 
   // DEMO CONTROLS, and why they are honest.
   //
@@ -498,8 +572,22 @@ void loop() {
   const bool flagged = flags.length() > 0;
   const bool due = sinceUplink >= HEARTBEAT_EVERY;
 
-  Serial.printf("[%lu] T=%.2f RH=%.1f P=%.1f %s\n", (unsigned long)seq, t, h, p,
-                flagged ? ("FLAG " + flags).c_str() : "");
+  // THE LINE THAT MAKES THE NODE DEBUGGABLE.
+  //
+  // Readings alone do not explain behaviour. vbat, flat and gap are what the
+  // server's hardware agent judges, and the link state is why an uplink did or
+  // did not happen -- without them "no uplink" is indistinguishable from "the
+  // uplink failed", which is the exact confusion this line was added to end.
+  Serial.print("["); Serial.print(seq); Serial.print("] T=");
+  Serial.print(t, 2); Serial.print(" RH="); Serial.print(h, 1);
+  Serial.print(" P="); Serial.print(p, 1);
+  Serial.print(" vbat="); Serial.print(readVbatMv());
+  Serial.print(" flat="); Serial.print(pct64(flatBits, winFill));
+  Serial.print("% gap="); Serial.print(pct64(gapBits, winFill));
+  Serial.print("%");
+  if (cutlink) Serial.print(" [LINK CUT]");
+  if (flagged) { Serial.print(" FLAG "); Serial.print(flags); }
+  Serial.println();
 
   // Conditional uplink: radio TX dominates the power budget, so a clean
   // reading between heartbeats is simply not sent.
