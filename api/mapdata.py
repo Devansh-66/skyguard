@@ -137,9 +137,10 @@ def summary() -> dict:
                     "residual to difference -- it is NO DATA, not a fault.",
         },
         "validation": {
-            "corpus": "ARM (US DOE), nine instruments",
-            "why": "The only corpus available with faults a human analyst "
-                   "confirmed. India contributes real station locations, not "
-                   "labelled faults.",
+            "corpus": "the injected faults in this network",
+            "why": "Truth is known by construction: the generator records what "
+                   "it injected and where, and the grader is never shown it. "
+                   "That is what makes recall and precision exact figures here "
+                   "rather than estimates.",
         },
     }

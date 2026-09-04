@@ -24,10 +24,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from api.engine import Engine, DEFAULT_DATA, DEFAULT_GRAPH
 from api.tiles import router as tiles_router
 from api.ingest import router as ingest_router
-from api.ai import router as ai_router
-from api.queue import router as queue_router
 from api.orchestrator import router as orchestrator_router
-from api.model import router as model_router
 from api.live import router as live_router
 
 ENGINE: Engine | None = None
@@ -164,15 +161,16 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 app.include_router(tiles_router)
 app.include_router(ingest_router)
-app.include_router(ai_router)
-app.include_router(queue_router)
 app.include_router(orchestrator_router)
 
 # The map datasets the React app fetches instead of inlining. See api/mapdata.py
 # for why the two frontends differ on this.
 from api.mapdata import router as mapdata_router  # noqa: E402
 app.include_router(mapdata_router)
-app.include_router(model_router)
+# /api/model served the ARM-trained classifier. Both are gone with ARM;
+# the endpoint returns when a classifier is trained on the simulated
+# network, where the injected truth is known and the belief features
+# ARM could not give the Indian stations are available.
 app.include_router(live_router)
 
 # The static console used to be mounted here at /console. It is gone: the React

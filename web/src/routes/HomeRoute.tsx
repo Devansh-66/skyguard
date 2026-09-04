@@ -8,8 +8,9 @@
  * error -- the first screen said the system watches nine American instruments,
  * when it watches 344 Indian locations and a node reporting now.
  *
- * ARM is still how the detector was validated and that is said plainly further
- * down, in a sentence, where it belongs. It is evidence, not the subject.
+ * The ARM corpus that used to be named here is gone from the project. It was
+ * nine American masts, and a validation story about Oklahoma was never what
+ * this problem statement asks for.
  *
  * WHAT THIS PAGE IS FOR
  *
@@ -208,17 +209,11 @@ export function HomeRoute() {
                 <td>real departures</td>
                 <td>none published</td>
               </tr>
-              <tr>
-                <td className="k">ARM validation</td>
-                <td>real, United States</td>
-                <td>real archive</td>
-                <td>confirmed by analysts</td>
-              </tr>
             </tbody>
           </table>
         </div>
         <p className="scored-note muted">
-          {sum.data?.validation.why} The readings on the map are generated and
+          The readings on the map are generated and
           will stay generated through the finals; what is being demonstrated is
           the pipeline that judges them, which is the same pipeline an ESP32
           will post into.

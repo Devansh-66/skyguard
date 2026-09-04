@@ -3,38 +3,33 @@
  * WHO THIS SCREEN IS FOR
  *
  * A maintenance planner and the technician they dispatch. Not the person
- * tuning the detector. The previous version led every card with a sigma, a
- * drift rate and a trust posterior, which are the right numbers for judging
- * the ALGORITHM and useless for judging the JOB -- none of them says whether
- * to bring a spare probe or a multimeter. Those numbers still exist, one click
- * away in the detail pane, for whoever wants to audit a call.
+ * tuning the detector. An earlier version led every card with a sigma, a drift
+ * rate and a trust posterior, which are the right numbers for judging the
+ * ALGORITHM and useless for judging the JOB -- none of them says whether to
+ * bring a spare probe or a multimeter.
  *
- * Every card now answers three questions in this order: what is the job, how
- * soon, and where. The verdict comes from the three-agent panel in
- * api/orchestrator.py -- the same panel for ARM, the simulated network and the
- * live node, so the board cannot give two answers about the same evidence.
+ * Every card answers three questions in this order: what is the job, how soon,
+ * and where. The verdict comes from the three-agent panel in
+ * api/orchestrator.py, which judges the simulated network and the live node
+ * with one set of rules.
  *
- * WHY MASTER-DETAIL
+ * THE ARM HALF IS GONE
  *
- * Triage is a sequence, not a destination. An operator works down the list
- * comparing one sensor against the last, and a full page navigation between
- * each throws away that comparison along with the scroll position.
- *
- * The selection lives in the URL (/board/<id>) so a specific instrument can be
- * linked to a colleague.
+ * This board used to carry sixteen American masts above the Indian stations,
+ * ranked by a different number, with a filter to switch between them and two
+ * paragraphs explaining why the two halves could not be compared. All of that
+ * was scaffolding around a corpus that is not what this project is for. One
+ * network, one ranking, no filter, no explanation needed.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { usePageTitle } from '../lib/title'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { useLiveStanding, useQueue, useSimMap } from '../api/queries'
+import { useLiveStanding, useSimMap } from '../api/queries'
 import { StationChannels } from '../components/StationChannels'
 import { type Band, type SimMap, type SimStation } from '../api/mapTypes'
 import { alertsFor } from '../lib/alerts'
-import { siteInfo } from '../api/sites'
-import { Async } from '../components/Async'
 import { Badge } from '../components/Badge'
 import { Callout } from '../components/Callout'
-import { ItemDetail } from '../components/ItemDetail'
 import { ActionCard, AgentVerdicts, CaseProgress } from '../components/AgentPanel'
 import {
   type Assessment, type EvidenceIn, useTriage,
@@ -47,10 +42,8 @@ export function BoardRoute() {
   usePageTitle('Maintenance board')
   const selected = useParams()['*'] || ''
   const navigate = useNavigate()
-  const q = useQueue()
   const sim = useSimMap()
   const node = useLiveStanding()
-  const [show, setShow] = useState<'all' | 'arm' | 'india'>('all')
 
   const sims = useMemo(() => simItems(sim.data), [sim.data])
 
@@ -64,7 +57,7 @@ export function BoardRoute() {
         band: node.data.band,
         bias_sigma: node.data.z,
         evidence_n: node.data.readings ?? null,
-        neighbours_agree: node.data.band === 'ok' ? true : false,
+        neighbours_agree: node.data.band === 'ok',
         days_open: node.data.open_seconds
           ? node.data.open_seconds / 86400 : null,
       })
@@ -76,109 +69,93 @@ export function BoardRoute() {
   const verdictOf = (id: string): Assessment | undefined =>
     tri.data?.assessments[id]
 
-  const items = q.data?.items
-  useEffect(() => {
-    if (!selected && items && items.length) {
-      navigate('/board/' + items[0].id, { replace: true })
-    }
-  }, [selected, items, navigate])
+  const all = Object.values(tri.data?.assessments ?? {})
+  const byP = (p: number) => all.filter((a) => a.priority === p).length
+
+  const ordered = useMemo(
+    () => [...sims].sort((a, b) =>
+      (verdictOf(a.id)?.priority ?? 9) - (verdictOf(b.id)?.priority ?? 9)
+      || Number(b.open) - Number(a.open)
+      || b.hours - a.hours),
+    [sims, tri.data],
+  )
+  const shown = ordered.slice(0, 40)
+  const liveOpen = node.data && node.data.band !== 'learning'
+                   && node.data.band !== 'ok'
 
   return (
     <div className="board">
-      <Async query={q}>
-        {(data) => {
-          // Counts a planner actually schedules against.
-          const all: Assessment[] = [
-            ...data.items.map((i) => i.assessment).filter(Boolean) as Assessment[],
-            ...Object.values(tri.data?.assessments ?? {}),
-          ]
-          const byP = (p: number) => all.filter((a) => a.priority === p).length
+      <aside className="board-list">
+        <header className="board-head">
+          <h1>Maintenance board</h1>
+          <div className="prio-row">
+            <PrioCount n={byP(1)} label="Today" tone="bad" />
+            <PrioCount n={byP(2)} label="This week" tone="sus" />
+            <PrioCount n={byP(3)} label="Next visit" tone="ok" />
+          </div>
+        </header>
 
-          return (
+        {liveOpen && node.data && (
           <>
-            <aside className="board-list">
-              <header className="board-head">
-                <h1>Maintenance board</h1>
-                <div className="prio-row">
-                  <PrioCount n={byP(1)} label="Today" tone="bad" />
-                  <PrioCount n={byP(2)} label="This week" tone="sus" />
-                  <PrioCount n={byP(3)} label="Next visit" tone="ok" />
-                </div>
-              </header>
-
-              <label className="board-filter">
-                Show
-                <select value={show} onChange={(e) => setShow(e.target.value as never)}>
-                  <option value="all">Both networks</option>
-                  <option value="india">Simulated — India</option>
-                  <option value="arm">ARM — analyst-confirmed</option>
-                </select>
-              </label>
-
-              {node.data && node.data.band !== 'learning' && node.data.band !== 'ok' && (
-                <>
-                  <div className="group-head">Reporting now</div>
-                  <ul className="cards">
-                    <WorkCard
-                      id="live"
-                      place={node.data.station.name}
-                      where={`${node.data.station.state} · ${node.data.station.elev} m`}
-                      sensor="Temperature"
-                      age={node.data.open_seconds
-                        ? `open ${Math.round(node.data.open_seconds)}s` : 'just now'}
-                      a={verdictOf('live')}
-                      badge={<Badge tone="accent">live</Badge>}
-                      active={selected === 'live'}
-                      onPick={() => navigate('/board/live')}
-                    />
-                  </ul>
-                </>
-              )}
-
-              {show !== 'india' && (<>
-                <div className="group-head">ARM instruments · {data.items.length}</div>
-                <ul className="cards">
-                  {[...data.items]
-                    .sort((a, b) => (a.assessment?.priority ?? 9)
-                                  - (b.assessment?.priority ?? 9))
-                    .map((it) => (
-                      <WorkCard
-                        key={it.id}
-                        id={it.id}
-                        place={siteInfo(it.station)?.place ?? it.station}
-                        where={siteInfo(it.station)?.region ?? it.station}
-                        sensor={it.label}
-                        age={it.days_since_onset != null
-                          ? `wrong for ${it.days_since_onset.toFixed(0)} d` : ''}
-                        a={it.assessment}
-                        badge={it.confirmed_by_analyst
-                          ? <Badge tone="ok">confirmed</Badge> : null}
-                        active={it.id === selected}
-                        onPick={() => navigate('/board/' + it.id)}
-                      />
-                    ))}
-                </ul>
-              </>)}
-
-              {show !== 'arm' && (
-                <SimItems items={sims} selected={selected} verdictOf={verdictOf}
-                          onPick={(id) => navigate('/board/' + id)} />
-              )}
-            </aside>
-
-            <section className="board-detail">
-              {selected.startsWith('sim:') ? (
-                <SimDetail id={selected} sim={sim.data} a={verdictOf(selected)} />
-              ) : selected ? (
-                <ItemDetail id={selected} />
-              ) : (
-                <p className="muted">Select a sensor to see what needs doing.</p>
-              )}
-            </section>
+            <div className="group-head">Reporting now</div>
+            <ul className="cards">
+              <WorkCard
+                place={node.data.station.name}
+                where={`${node.data.station.state} · ${node.data.station.elev} m`}
+                sensor="Temperature"
+                age={node.data.open_seconds
+                  ? `open ${Math.round(node.data.open_seconds)}s` : 'just now'}
+                a={verdictOf('live')}
+                badge={<Badge tone="accent">live</Badge>}
+                active={selected === 'live'}
+                onPick={() => navigate('/board/live')}
+              />
+            </ul>
           </>
-          )
-        }}
-      </Async>
+        )}
+
+        <div className="group-head">
+          {sims.filter((i) => i.open).length} open ·{' '}
+          {sims.length - sims.filter((i) => i.open).length} awaiting check
+        </div>
+        {!sim.data ? (
+          <p className="muted small">Loading the network…</p>
+        ) : !sims.length ? (
+          <p className="muted small">Nothing is flagged. Nobody needs dispatching.</p>
+        ) : (
+          <ul className="cards">
+            {shown.map((it) => (
+              <WorkCard
+                key={it.id}
+                place={it.s.name}
+                where={`${it.s.state} · ${it.s.elev} m`}
+                sensor={CH_LABEL[it.ch]}
+                age={it.open
+                  ? `wrong for ${Math.max(1, Math.round(it.openDays))} d`
+                  : 'cleared, awaiting check'}
+                a={verdictOf(it.id)}
+                active={it.id === selected}
+                onPick={() => navigate('/board/' + it.id)}
+              />
+            ))}
+          </ul>
+        )}
+        {sims.length > shown.length && (
+          <p className="muted small" style={{ padding: '8px 2px' }}>
+            {shown.length} of {sims.length} shown. The rest are on the map.
+          </p>
+        )}
+      </aside>
+
+      <section className="board-detail">
+        {selected === 'live' ? (
+          <LiveDetail a={verdictOf('live')} />
+        ) : selected.startsWith('sim:') ? (
+          <SimDetail id={selected} sim={sim.data} a={verdictOf(selected)} />
+        ) : (
+          <p className="muted">Select a sensor to see what needs doing.</p>
+        )}
+      </section>
     </div>
   )
 }
@@ -192,14 +169,9 @@ function PrioCount({ n, label, tone }: { n: number; label: string; tone: string 
   )
 }
 
-/* ONE CARD, EVERY SOURCE.
- *
- * ARM sensors, simulated stations and the live node all reach a technician the
- * same way, so they get the same card. The differences between the corpora are
- * real but they are a property of the EVIDENCE, not of the job, and they live
- * in the detail pane. */
-function WorkCard({ id, place, where, sensor, age, a, badge, active, onPick }: {
-  id: string
+/* ONE CARD, EVERY SOURCE. A simulated station and the live node reach a
+ * technician the same way, so they get the same card. */
+function WorkCard({ place, where, sensor, age, a, badge, active, onPick }: {
   place: string
   where: string
   sensor: string
@@ -213,14 +185,11 @@ function WorkCard({ id, place, where, sensor, age, a, badge, active, onPick }: {
   return (
     <li>
       <button type="button" className={'card' + (active ? ' active' : '')}
-              onClick={onPick} aria-current={active ? 'true' : undefined}
-              data-id={id}>
+              onClick={onPick} aria-current={active ? 'true' : undefined}>
         <span className={'spine ' + tone} aria-hidden="true" />
         <span className="card-main">
           <span className="card-top">
-            <span className="card-do">
-              {a ? ACTION_SHORT[a.action] : '—'}
-            </span>
+            <span className="card-do">{a ? ACTION_SHORT[a.action] : '—'}</span>
             <span className={'card-when ' + tone}>
               {a ? PRIORITY_LABEL[a.priority] : ''}
             </span>
@@ -248,14 +217,17 @@ type SimItem = {
   episodes: number
   open: boolean
   from: number
+  /** Days the current episode has been running. */
+  openDays: number
   /** Share of the record with no observation at all, read from the grade
-   *  string. This is an OBSERVABLE property -- '-' means nothing arrived --
-   *  not the injection label, which the panel is never shown. */
+   *  string. An OBSERVABLE property -- '-' means nothing arrived -- not the
+   *  injection label, which the panel is never shown. */
   gapFraction: number
 }
 
 export function simItems(sim: SimMap | undefined): SimItem[] {
   if (!sim) return []
+  const stepMin = sim.step_minutes || 15
   const out: SimItem[] = []
   for (const st of sim.stations) {
     for (const ch of ['temp', 'rh', 'pres'] as const) {
@@ -264,24 +236,28 @@ export function simItems(sim: SimMap | undefined): SimItem[] {
       const hours = eps.reduce((n, e) => n + e.hours, 0)
       const band: Band = eps.some((e) => e.band === 'FAULT') ? 'FAULT' : 'WATCH'
       const last = eps[eps.length - 1]
+      // DAYS OF THE CURRENT EPISODE, IN REAL DAYS.
+      //
+      // Two bugs met here and produced "wrong for 34 d" on a 30-day record.
+      // Summing every episode ever answered a different question than the
+      // label asked; and `episode.hours` is a misnomer -- alerts.ts counts
+      // characters of the grade string, and one character is one STEP, which
+      // is fifteen minutes, not an hour. Both are fixed by taking the last
+      // episode and converting through step_minutes.
+      const openDays = last.hours * stepMin / (60 * 24)
       const g = ch === 'temp' ? st.gt : ch === 'rh' ? st.gh : st.gp
       let gaps = 0
       for (const c of g) if (c === '-') gaps++
       out.push({ id: `sim:${st.id}:${ch}`, s: st, ch, band, hours,
                  episodes: eps.length, open: last.to === null, from: last.from,
-                 gapFraction: g.length ? gaps / g.length : 0 })
+                 openDays, gapFraction: g.length ? gaps / g.length : 0 })
     }
   }
-  return out.sort((a, b) =>
-    Number(b.open) - Number(a.open)
-    || (b.band === 'FAULT' ? 1 : 0) - (a.band === 'FAULT' ? 1 : 0)
-    || b.hours - a.hours)
+  return out
 }
 
-/** What the panel is allowed to see about a simulated sensor. Note what is
- *  NOT here: the injected fault. The grader never saw it and neither does the
- *  panel; it appears only in the detail pane, beside the verdict, so a reader
- *  can mark our own homework. */
+/** What the panel is allowed to see. Note what is NOT here: the injected
+ *  fault. The grader never saw it and neither does the panel. */
 function simEvidence(it: SimItem): EvidenceIn {
   return {
     id: it.id,
@@ -299,42 +275,30 @@ function simEvidence(it: SimItem): EvidenceIn {
   }
 }
 
-function SimItems({ items, selected, verdictOf, onPick }: {
-  items: SimItem[]
-  selected: string
-  verdictOf: (id: string) => Assessment | undefined
-  onPick: (id: string) => void
-}) {
-  if (!items.length) return null
-  const shown = [...items]
-    .sort((a, b) => (verdictOf(a.id)?.priority ?? 9) - (verdictOf(b.id)?.priority ?? 9))
-    .slice(0, 40)
+/** The live node, judged by the same panel as everything else. */
+function LiveDetail({ a }: { a: Assessment | undefined }) {
+  const node = useLiveStanding()
+  if (!node.data) return <p className="muted">Waiting for the node…</p>
+  const s = node.data.station
   return (
-    <>
-      <div className="group-head">
-        Simulated network · {items.filter((i) => i.open).length} open
-      </div>
-      <ul className="cards">
-        {shown.map((it) => (
-          <WorkCard
-            key={it.id}
-            id={it.id}
-            place={it.s.name}
-            where={`${it.s.state} · ${it.s.elev} m`}
-            sensor={CH_LABEL[it.ch]}
-            age={it.open ? `wrong for ${Math.round(it.hours / 24)} d` : 'cleared'}
-            a={verdictOf(it.id)}
-            active={it.id === selected}
-            onPick={() => onPick(it.id)}
-          />
-        ))}
-      </ul>
-      {items.length > shown.length && (
-        <p className="muted small" style={{ padding: '8px 2px' }}>
-          {shown.length} of {items.length} shown. The rest are on the map.
-        </p>
-      )}
-    </>
+    <article className="simdetail">
+      <header className="stnhead">
+        <h2>{s.name}</h2>
+        <span className="mono muted">
+          Temperature · {s.state} · {s.elev} m · reporting now
+        </span>
+      </header>
+      {a ? <ActionCard a={a} /> : <p className="muted small">Asking the panel…</p>}
+      <div className="belowhead">Why the panel says so</div>
+      {a && <AgentVerdicts a={a} />}
+      <div className="belowhead">Case</div>
+      <CaseProgress at={2} />
+      <p className="muted small">
+        This node posts through the same ingest endpoint an ESP32 would use, and
+        is graded against its neighbours by the same bands as the map.{' '}
+        <Link to="/network">Open it on the map</Link>.
+      </p>
+    </article>
   )
 }
 
@@ -359,11 +323,10 @@ function SimDetail({ id, sim, a }: {
         </span>
       </header>
 
-      {a && <ActionCard a={a} />}
+      {a ? <ActionCard a={a} /> : <p className="muted small">Asking the panel…</p>}
 
       <div className="belowhead">Why the panel says so</div>
-      {a ? <AgentVerdicts a={a} />
-         : <p className="muted small">Asking the panel…</p>}
+      {a && <AgentVerdicts a={a} />}
 
       <div className="belowhead">Case</div>
       <CaseProgress at={it?.open ? 2 : 5} />

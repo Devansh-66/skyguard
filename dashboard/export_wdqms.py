@@ -397,7 +397,8 @@ def main() -> None:
         "note": ("Daily average departures from four independent forecast "
                  "centres. Real stations operated by India. No per-instrument "
                  "fault reports exist for these, which is why the maintenance "
-                 "board is validated on ARM instead."),
+                 "board is measured against the injected faults in the "
+                 "simulated network, where the truth is known."),
         "stations": stations,
     }
     OUT.write_text(json.dumps(out, separators=(",", ":")), encoding="utf-8")

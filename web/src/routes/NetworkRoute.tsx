@@ -26,7 +26,7 @@
 import { GeoJSON, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  useArmMap, useBoundaryGeo, useLiveStation, useSimMap, useStatesGeo,
+  useBoundaryGeo, useLiveStation, useSimMap, useStatesGeo,
   useTileStatus, useWdqmsMap,
 } from '../api/queries'
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
@@ -40,7 +40,7 @@ import { Async } from '../components/Async'
 import { liveCommand, resetTrace, useLive } from '../lib/useLive'
 import { usePageTitle } from '../lib/title'
 
-type Net = 'sim' | 'wdqms' | 'arm'
+type Net = 'sim' | 'wdqms'
 type BaseKey = 'imagery' | 'muted' | 'dark'
 type Channel = 'health' | 'temp' | 'rh' | 'pres'
 type IndexCol = 'name' | 'state' | 'elev' | 'status'
@@ -160,7 +160,6 @@ export function NetworkRoute() {
   const tiles = useTileStatus()
   const sim = useSimMap()
   const wdqms = useWdqmsMap()
-  const arm = useArmMap()
   const states = useStatesGeo()
   const boundary = useBoundaryGeo()
   const node = useLiveStation()
@@ -392,7 +391,6 @@ export function NetworkRoute() {
           <select value={net} onChange={(e) => setNet(e.target.value as Net)}>
             <option value="sim">Simulated — 344 locations</option>
             <option value="wdqms">Real — IMD via WDQMS</option>
-            <option value="arm">Validation — 9 ARM masts</option>
           </select>
         </label>
         <label>Base
@@ -439,8 +437,7 @@ export function NetworkRoute() {
         </label>
         <span className="ctxnote">
           {net === 'sim' ? '344 IMD locations · 30 days · simulated'
-            : net === 'wdqms' ? 'Real IMD stations · WMO quality monitoring'
-              : '9 ARM instruments · validation'}
+            : 'Real IMD stations · WMO quality monitoring'}
         </span>
         <label className="cbx">
           <input type="checkbox" checked={showStates}
@@ -594,17 +591,6 @@ export function NetworkRoute() {
                 )
               })}
 
-              {net === 'arm' && arm.data?.stations.map((s) => (
-                <CircleMarker key={s.id} center={[s.latitude, s.longitude]}
-                  radius={s.reports > 0 ? 7 : 5}
-                  pathOptions={{ color: '#E01B24', fillColor: '#E01B24',
-                                 fillOpacity: 0.95, weight: 0, stroke: false }}>
-                  <Tooltip direction="top" offset={[0, -6]}>
-                    <b>{s.place}</b><br />{s.observatory} {s.facility}<br />
-                    {s.reports} analyst fault report{s.reports === 1 ? '' : 's'} held
-                  </Tooltip>
-                </CircleMarker>
-              ))}
             </MapContainer>
           </div>
         )}

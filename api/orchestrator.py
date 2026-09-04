@@ -30,9 +30,9 @@ inspectable -- not an LLM in a loop. The value is the same either way: the
 board can show three separate opinions and say which one carried the decision,
 which a single if/else could never do.
 
-The panel is the only place these rules live. `api/queue.py` calls it for ARM
-items and `POST /api/board/triage` calls it for the simulated network and the
-live node, so one board cannot disagree with another about what to do.
+The panel is the only place these rules live. `POST /api/board/triage` serves
+the simulated network and the live node from it, so two screens cannot
+disagree about the same evidence.
 """
 from __future__ import annotations
 
@@ -63,13 +63,14 @@ RAISE_AT = 3.0
 class Evidence:
     """Everything the panel is allowed to look at, from any of the three sources.
 
-    Fields are optional because the sources genuinely differ: the ARM archive
-    carries housekeeping channels and an analyst's report, the simulated export
-    carries neither, and the live node carries neither but is happening now. An
-    agent that cannot see its evidence returns `unknown` and says so, rather
-    than defaulting to ok and quietly voting.
+    Fields are optional because the sources genuinely differ: the simulated
+    export carries grades and gaps but no housekeeping channels, and the live
+    node carries the same but is happening now. A real AWS will carry logger
+    voltage and temperature, which is why those fields exist unused. An agent
+    that cannot see its evidence returns `unknown` and says so, rather than
+    defaulting to ok and quietly voting.
     """
-    source: str = "sim"                 # arm | sim | live
+    source: str = "sim"                 # sim | live | (aws, later)
     sensor: str = ""
     label: str = ""
     band: str | None = None             # ok | watch | fault
@@ -350,7 +351,7 @@ class EvidenceIn(BaseModel):
 
 @router.post("/api/board/triage")
 def triage(items: list[EvidenceIn]) -> dict:
-    """Assess a batch of items with the same panel the ARM queue uses.
+    """Assess a batch of items.
 
     Batched because the board holds the whole simulated network: one request
     per item would be hundreds of round trips to answer one screen.

@@ -17,8 +17,7 @@
  */
 import { useQuery } from '@tanstack/react-query'
 import { get } from './client'
-import type { CatalogResponse, QueueItemDetail, QueueResponse } from './types'
-import type { ArmMap, SimMap, WdqmsMap } from './mapTypes'
+import type { SimMap, WdqmsMap } from './mapTypes'
 
 const ARCHIVE_STALE_MS = 5 * 60 * 1000
 
@@ -30,38 +29,8 @@ export const keys = {
   tiles: ['tiles', 'status'] as const,
 }
 
-export function useQueue() {
-  return useQuery({
-    queryKey: keys.queue,
-    queryFn: ({ signal }) => get<QueueResponse>('/api/queue', signal),
-    staleTime: ARCHIVE_STALE_MS,
-  })
-}
 
-export function useQueueItem(id: string | undefined) {
-  return useQuery({
-    // The id is COLON-separated, not slash-separated:
-    // "sgpmetE37:D160930.5:rh". It is still encoded whole, because a raw colon
-    // in a path segment is legal but ambiguous, and because the router mounts
-    // this as a splat -- so an id that ever gains a slash keeps working.
-    queryKey: keys.queueItem(id ?? ''),
-    queryFn: ({ signal }) =>
-      get<QueueItemDetail>(
-        '/api/queue/' + (id ?? '').split('/').map(encodeURIComponent).join('/'),
-        signal,
-      ),
-    enabled: Boolean(id),
-    staleTime: ARCHIVE_STALE_MS,
-  })
-}
 
-export function useCatalog() {
-  return useQuery({
-    queryKey: keys.catalog,
-    queryFn: ({ signal }) => get<CatalogResponse>('/api/ai/catalog', signal),
-    staleTime: ARCHIVE_STALE_MS,
-  })
-}
 
 
 /* The map datasets. These are build artefacts, not live readings -- an export
@@ -87,13 +56,6 @@ export function useWdqmsMap() {
   })
 }
 
-export function useArmMap() {
-  return useQuery({
-    queryKey: keys.map('arm'),
-    queryFn: ({ signal }) => get<ArmMap>('/api/map/arm', signal),
-    ...BUILD_ARTEFACT,
-  })
-}
 
 /** The official NCMRWF boundary as geometry.
  *
