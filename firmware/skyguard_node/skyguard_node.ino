@@ -34,6 +34,7 @@
 
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <Wire.h>
 #include <Adafruit_BME280.h>
 #include <ArduinoJson.h>
@@ -45,8 +46,18 @@ static const char* WIFI_PASS = "";
 
 // host.wokwi.internal is the simulated node's route to a service on the host
 // machine. Change to a LAN address or a real hostname for hardware.
-static const char* SERVER = "http://host.wokwi.internal:8000";
-static const char* STATION = "Pune";
+// WHERE THE READINGS GO. Pick one; the code handles either scheme.
+//
+//   host.wokwi.internal  resolves ONLY under the Wokwi VS Code extension,
+//                        whose private gateway routes it to the developer's
+//                        machine. From wokwi.com there is no such route --
+//                        "localhost" there means Wokwi's own container.
+//   the https URL        is the deployed Space, which IS reachable from
+//                        wokwi.com, and is what the public demo uses.
+//
+// static const char* SERVER = "http://host.wokwi.internal:8000";
+static const char* SERVER = "https://dev-66-skyguard-api.hf.space";
+static const char* STATION = "WOKWI-ESP32";
 static const char* FW_VERSION = "skyguard-node-1.0.0";
 
 static const uint32_t SAMPLE_MS = 2000;      // demo cadence; 15 min in the field
@@ -276,9 +287,26 @@ static String physicsScreen(float t, float h, float p, float dtMin) {
   return f;
 }
 
+// TLS WITHOUT A CERTIFICATE STORE, DELIBERATELY AND ONLY HERE.
+//
+// setInsecure() skips certificate validation. That is acceptable for a
+// simulator posting public weather readings and is NOT acceptable on a
+// deployed station: a real node must pin the CA, or an attacker on the path
+// can rewrite observations that a forecast depends on. Flagged here rather
+// than left as a quiet default.
+static bool beginHttp(HTTPClient& http, const String& url) {
+  if (url.startsWith("https:")) {
+    static WiFiClientSecure tls;
+    tls.setInsecure();
+    return http.begin(tls, url);
+  }
+  return http.begin(url);
+}
+
+
 static void fetchBaseline() {
   HTTPClient http;
-  http.begin(String(SERVER) + "/api/baseline/" + STATION);
+  beginHttp(http, String(SERVER) + "/api/baseline/" + STATION);
   const int code = http.GET();
   if (code == 200) {
     StaticJsonDocument<2048> doc;
@@ -305,7 +333,7 @@ static void fetchBaseline() {
 static bool uplink(float t, float h, float p, const String& flags,
                    float residual, float scale) {
   HTTPClient http;
-  http.begin(String(SERVER) + "/api/ingest");
+  beginHttp(http, String(SERVER) + "/api/ingest");
   http.addHeader("Content-Type", "application/json");
 
   StaticJsonDocument<512> doc;
@@ -360,6 +388,25 @@ void setup() {
   bootId = esp_random();
 
   Wire.begin(21, 22);
+
+  // I2C SCAN, BEFORE TRUSTING THE DRIVER.
+  //
+  // "Sensor not found" has two very different causes: nothing on the bus at
+  // all -- wiring, power, a missing part -- versus a device that is present and
+  // answering at an address the driver did not try. Those call for opposite
+  // fixes, and the driver's boolean cannot tell them apart. One pass at boot
+  // costs nothing and turns a dead end into a diagnosis.
+  Serial.print("i2c:");
+  uint8_t found = 0;
+  for (uint8_t a = 1; a < 127; a++) {
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0) {
+      Serial.print(" 0x"); Serial.print(a, HEX); found++;
+    }
+  }
+  if (!found) Serial.print(" nothing responded");
+  Serial.println();
+
   haveSensor = bme.begin(0x76) || bme.begin(0x77);
   Serial.println(haveSensor ? "BME280 ok" : "BME280 NOT FOUND -- check wiring");
   if (!haveSensor) selftestMask |= ST_NO_ACK;

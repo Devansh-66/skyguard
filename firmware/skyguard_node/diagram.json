@@ -90,13 +90,13 @@
   ],
   "connections": [
     [
-      "esp:TX0",
+      "esp:TX",
       "$serialMonitor:RX",
       "",
       []
     ],
     [
-      "esp:RX0",
+      "esp:RX",
       "$serialMonitor:TX",
       "",
       []
