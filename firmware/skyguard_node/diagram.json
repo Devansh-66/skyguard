@@ -11,7 +11,7 @@
       "attrs": {}
     },
     {
-      "type": "board-bme280",
+      "type": "wokwi-bme280",
       "id": "bme",
       "top": 100,
       "left": 220,
@@ -89,6 +89,18 @@
     }
   ],
   "connections": [
+    [
+      "esp:TX0",
+      "$serialMonitor:RX",
+      "",
+      []
+    ],
+    [
+      "esp:RX0",
+      "$serialMonitor:TX",
+      "",
+      []
+    ],
     [
       "bme:VCC",
       "esp:3V3",
