@@ -112,3 +112,33 @@ simply not sent. The node transmits when a reading is flagged or when the
 heartbeat falls due — currently every 15 samples. The bytes-per-station-day
 saving that implies has **not been measured**; it is a design intent, not a
 result, until it is.
+
+## The Wokwi CLI and the Wokwi simulator disagree about this diagram
+
+Measured, both directions, on 4 Sep 2026:
+
+| Part / pin | `wokwi-cli lint` | the simulator (web and VS Code) |
+|---|---|---|
+| `wokwi-bme280` | rejects: "unknown part type" | **runs** |
+| `board-bme280` | accepts | rejects: "Board not found" |
+| `esp:TX0` / `esp:RX0` | rejects: "invalid pin" | **runs**, and the serial monitor needs them |
+
+`diagram.json` is written for the SIMULATOR, because that is what actually
+executes the firmware. `wokwi-cli lint` will therefore report two errors on this
+file and both are false. Do not "fix" them: taking the CLI's advice removes the
+sensor and the serial monitor at the same time, which is how an afternoon
+disappears.
+
+The CLI is still worth running -- it found two real defects here first, and
+`test-scenario.yaml` turns the boot self-test into an assertion. Its part
+catalogue simply is not the simulator's.
+
+## Building
+
+`pio run` from `skyguard_node/`. The sketch sits at the project root rather
+than in `src/`, because Wokwi's web IDE and the Arduino IDE both expect it
+beside `diagram.json`; `src_dir = .` in platformio.ini is what makes that work.
+
+Keep every user-defined type above the first function. The Arduino builder
+inserts generated prototypes ahead of the first function definition, so a type
+declared below it produces an error pointing at an unrelated line.
