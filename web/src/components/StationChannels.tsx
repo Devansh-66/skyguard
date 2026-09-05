@@ -53,7 +53,7 @@ export function StationChannels({ sim, s, hour, windowH = 0, live }: {
 
   return (
     <>
-      <div className="chanrow">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr))]">
       {CH.map((ch) => {
         const vals = live
           ? Array.from({ length: nf }, (_, i) => live.byFrame[ch][i] ?? null)
@@ -164,23 +164,41 @@ export function StationChannels({ sim, s, hour, windowH = 0, live }: {
         // A reading with no grade is not a missing reading.
         const ungraded = band === 'NODATA' && now != null
         return (
-          <div className="chan" key={ch}>
-            <div className="chan-head">
-              <strong>{NAME[ch]}</strong>
-              {band !== 'OK' && (
-                <span className="badge" title={why(band)}
-                      style={{ color: HUE[band] ?? 'var(--ink-3)',
-                               borderColor: HUE[band] ?? 'var(--rule-edge)' }}>
-                  {ungraded ? UNGRADED : BAND_LABEL[band]}
-                </span>)}
-              <span className="chan-range mono">
-                {drawn.length
-                  ? `${Math.min(...drawn).toFixed(1)}–${Math.max(...drawn).toFixed(1)}`
-                  : '—'}
-              </span>
-              <span className="chan-now-val mono">
-                {now == null ? 'no data' : now.toFixed(1) + ' ' + UNIT[ch]}
-              </span>
+          <div className="rounded-[--radius-lg] border border-rule bg-surface p-4" key={ch}>
+            {/* EACH CHANNEL IS A PANEL, NOT A LOOSE TRACE. The three charts sat
+                on the page under a row of small grey text: the name, a bare
+                range like "18.6-42.9" with no label saying what it was, and the
+                current value in the same size as everything else. Nothing said
+                which number mattered. The reading now is the largest thing
+                here, because it is the one a reader is looking for. */}
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold tracking-tight">{NAME[ch]}</div>
+                <div className="mt-1 font-mono text-[10px] uppercase tracking-widest text-ink-3">
+                  {drawn.length
+                    ? `range ${Math.min(...drawn).toFixed(1)}–${Math.max(...drawn).toFixed(1)} ${UNIT[ch]}`
+                    : 'no readings in this window'}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {band !== 'OK' && (
+                  <span className="badge" title={why(band)}
+                        style={{ color: HUE[band] ?? 'var(--ink-3)',
+                                 borderColor: HUE[band] ?? 'var(--rule-edge)' }}>
+                    {ungraded ? UNGRADED : BAND_LABEL[band]}
+                  </span>)}
+                <div className="text-right">
+                  <div className="tnum text-lg font-semibold leading-none">
+                    {now == null ? '—' : now.toFixed(1)}
+                    {now != null && (
+                      <span className="ml-0.5 text-xs font-medium text-ink-3">{UNIT[ch]}</span>
+                    )}
+                  </div>
+                  <div className="mt-1 font-mono text-[10px] uppercase tracking-widest text-ink-3">
+                    {now == null ? 'no data' : 'now'}
+                  </div>
+                </div>
+              </div>
             </div>
             <svg viewBox={`0 0 ${W} ${H}`} className="chansvg" role="img"
                  aria-label={`${NAME[ch]} at ${s.name} over 30 days, `

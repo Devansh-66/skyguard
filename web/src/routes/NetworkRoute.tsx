@@ -492,18 +492,6 @@ export function NetworkRoute() {
         </label>
       </div>
 
-      {/* MAP BESIDE THE STATION, NOT ABOVE IT.
-        *
-        * An older note here argued for full-width stacking, and it was right
-        * about THREE columns: rail, station and alerts got about 260px each
-        * and none of them worked. Two is a different question. India spans 30
-        * degrees of latitude and 29.5 of longitude -- very nearly square -- so
-        * a full-width map is a 2.5:1 letterbox that can never be filled, and
-        * the country sat small in an ocean of Asia however tall the box got.
-        * Narrowing the map to a column fixes the framing, and the station it
-        * refers to is then beside it instead of a screen further down. */}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,1fr)]">
-      <div className="min-w-0">
       <Async query={tiles}>
         {(t) => (
           <div className="mapwrap overflow-hidden rounded-[--radius-lg] border border-rule">
@@ -534,14 +522,7 @@ export function NetworkRoute() {
                           scrollWheelZoom wheelPxPerZoomLevel={220}
                           zoomSnap={1} zoomDelta={1} zoomAnimation
                           markerZoomAnimation fadeAnimation
-                          /* THE BOX DECIDES THE FRAMING, NOT fitBounds.
-                             India spans about 30 degrees of latitude and 29.5
-                             of longitude -- very nearly square. Fitting that
-                             into a 2.5:1 letterbox forced a zoom that showed
-                             half of Asia to satisfy the vertical, which is why
-                             the country sat small in an ocean. A taller box
-                             lets the same fitBounds fill the frame. */
-                          className="netmap !h-[min(78vh,760px)] min-h-[520px]">
+                          className="netmap">
               <Extent />
               <TilePaneFilter filter={b.filter} />
               <FieldOverlay ch={field}
@@ -726,9 +707,6 @@ export function NetworkRoute() {
           </span>
         </div>
       )}
-      </div>
-
-      <div className="min-w-0">
 
       {/* NOT THREE COLUMNS.
         *
@@ -842,8 +820,6 @@ export function NetworkRoute() {
               </>)}
         </details>
       )}
-      </div>
-      </div>
 
       {net === 'sim' && (
         <details className="mt-6 rounded-[--radius-lg] border border-rule bg-surface" open>

@@ -118,3 +118,52 @@
     outline-offset: 2px;
   }
 }
+
+/* ============================================================ THE BRIDGE
+ *
+ * The legacy stylesheet has its own palette -- --paper-2, --ink-3, --rule-edge
+ * and a dozen more -- fixed at light values and answering to nothing. So every
+ * part of the site still drawn by it (the station charts, the alert ledger,
+ * the station index) stayed light while the rest went dark, which is worse
+ * than not having a dark theme at all.
+ *
+ * Rather than convert all of it at once, the old names are redefined in terms
+ * of the new tokens. One definition, and everything the legacy CSS paints
+ * follows the theme immediately. When a component is converted it stops
+ * reading these; when the last one is, this block and the files it serves are
+ * deleted together.
+ *
+ * Placed after the @theme block so these win, and left OUTSIDE @layer legacy
+ * on purpose -- they are variable definitions, not rules competing for
+ * specificity, and they must reach the legacy layer.
+ */
+:root,
+:root[data-theme="dark"] {
+  --paper: var(--color-paper);
+  --paper-2: var(--color-surface);
+  --paper-edge: var(--color-rule);
+  --rule-minor: color-mix(in srgb, var(--color-ink) 8%, transparent);
+  --rule-major: color-mix(in srgb, var(--color-ink) 20%, transparent);
+  --rule-edge: var(--color-rule);
+
+  --ink: var(--color-ink);
+  --ink-2: var(--color-ink-2);
+  --ink-3: var(--color-ink-3);
+  --ink-4: color-mix(in srgb, var(--color-ink-3) 70%, var(--color-paper));
+
+  --oxide: var(--color-fault);
+  --signal-red: var(--color-fault);
+  --oxide-wash: color-mix(in srgb, var(--color-fault) 12%, transparent);
+  --verdigris: var(--color-ok);
+  --verdigris-wash: color-mix(in srgb, var(--color-ok) 12%, transparent);
+  --amber: var(--color-watch);
+  --amber-wash: color-mix(in srgb, var(--color-watch) 14%, transparent);
+  --indigo: var(--color-brand);
+  --indigo-wash: color-mix(in srgb, var(--color-brand) 12%, transparent);
+
+  /* One typeface family across old and new, or the page has two voices. */
+  --display: var(--font-sans);
+  --sans: var(--font-sans);
+  --mono: var(--font-mono);
+  --radius: var(--radius-md);
+}
