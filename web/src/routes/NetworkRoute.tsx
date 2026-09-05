@@ -24,7 +24,7 @@
  *   reads on satellite imagery and disappears on a pale one.
  */
 import { GeoJSON, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   useBoundaryGeo, useLiveStation, useSimMap, useStatesGeo,
   useTileStatus, useWdqmsMap,
@@ -39,6 +39,7 @@ import L from 'leaflet'
 import { Async } from '../components/Async'
 import { liveCommand, resetTrace, useLive } from '../lib/useLive'
 import { usePageTitle } from '../lib/title'
+import { useSticky } from '../lib/sticky'
 
 type Net = 'sim' | 'wdqms'
 type BaseKey = 'imagery' | 'muted' | 'dark'
@@ -214,18 +215,18 @@ export function NetworkRoute() {
   const node = useLiveStation()
   const live = useLive(import.meta.env.VITE_API_BASE ?? '')
 
-  const [net, setNet] = useState<Net>('sim')
-  const [base, setBase] = useState<BaseKey>('imagery')
-  const [channel, setChannel] = useState<Channel>('health')
-  const [showStates, setShowStates] = useState(false)
+  const [net, setNet] = useSticky<Net>('net', 'sim')
+  const [base, setBase] = useSticky<BaseKey>('base', 'imagery')
+  const [channel, setChannel] = useSticky<Channel>('channel', 'health')
+  const [showStates, setShowStates] = useSticky('showStates', false)
   /* HOW FAR THE CLOCK MOVES, and HOW MUCH CHART IS SHOWN. Both were fixed
    * constants -- an hour per tick and the whole month on every axis -- which
    * are reasonable defaults and terrible rules. A drift is invisible at
    * 30 days and obvious at 24 hours. */
-  const [stepMin, setStepMin] = useState(60)
-  const [windowH, setWindowH] = useState(0)      // 0 = the whole record
-  const [hour, setHour] = useState(0)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [stepMin, setStepMin] = useSticky('stepMin', 60)
+  const [windowH, setWindowH] = useSticky('windowH', 0)   // 0 = the whole record
+  const [hour, setHour] = useSticky('hour', 0)
+  const [selected, setSelected] = useSticky<string | null>('selected', null)
 
   /* FINDING A STATION IN 344 OF THEM.
    *
@@ -236,12 +237,12 @@ export function NetworkRoute() {
    * "Flagged only" is the other question this list is asked -- what needs
    * attention -- and answering it by expanding 33 groups and scanning is not
    * answering it. */
-  const [query, setQuery] = useState('')
-  const [flaggedOnly, setFlaggedOnly] = useState(false)
+  const [query, setQuery] = useSticky('query', '')
+  const [flaggedOnly, setFlaggedOnly] = useSticky('flaggedOnly', false)
   /** How the index is ordered. State first, because that is how a person who
    *  knows the network thinks about it; the header switches it. */
-  const [sort, setSort] = useState<{ col: IndexCol; desc: boolean }>(
-    { col: 'state', desc: false })
+  const [sort, setSort] = useSticky<{ col: IndexCol; desc: boolean }>(
+    'sort', { col: 'state', desc: false })
 
   const nSteps = sim.data?.n_steps ?? 1
 
