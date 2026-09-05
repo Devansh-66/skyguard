@@ -23,9 +23,14 @@ import App from './App'
 // are the previous hand-written stylesheet and are being retired screen by
 // screen -- they stay until the last route stops depending on them, because
 // deleting them in one go would take three working screens down at once.
+// theme.css imports Tailwind AND the legacy stylesheets, in that order and
+// into the right cascade layers. Importing the legacy files here as well would
+// re-add them unlayered and undo the whole arrangement.
 import './styles/theme.css'
-import './styles/tokens.css'
-import './styles/app.css'
+import { applyTheme, readTheme } from './lib/theme'
+
+// Set before first paint, so the page never flashes the wrong theme.
+applyTheme(readTheme())
 
 const client = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },

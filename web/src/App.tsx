@@ -10,6 +10,7 @@
  * and there is one frontend rather than two drifting apart.
  */
 import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { ThemeToggle } from './components/ThemeToggle'
 import { Suspense, lazy } from 'react'
 import { BoardRoute } from './routes/BoardRoute'
 import { HomeRoute } from './routes/HomeRoute'
@@ -23,7 +24,7 @@ const NetworkRoute = lazy(() =>
 export default function App() {
   return (
     <div className="min-h-screen bg-paper text-ink">
-      <header className="sticky top-0 z-50 border-b border-rule bg-paper/90 backdrop-blur">
+      <header className="sticky top-0 z-50 border-b border-rule bg-paper/85 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-8 px-5">
           <Link to="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
             <Glyph />
@@ -35,6 +36,9 @@ export default function App() {
             <Tab to="/board">Maintenance</Tab>
             <Tab to="/network">Network</Tab>
           </nav>
+          <div className="ml-auto flex items-center gap-3">
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 

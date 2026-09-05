@@ -1,113 +1,118 @@
+/* LAYER ORDER, DECLARED FIRST AND ON PURPOSE.
+ *
+ * Tailwind v4 puts its utilities in a cascade LAYER. Unlayered CSS beats any
+ * layered rule no matter what order the files are imported in, so the old
+ * hand-written stylesheet was silently winning every conflict -- which is why
+ * a button styled `bg-ink text-paper` rendered as black text on black, and why
+ * pages that had been converted still looked unconverted.
+ *
+ * Naming `legacy` first makes it the weakest layer. The old stylesheet keeps
+ * working for the routes that still depend on it and stops overriding the ones
+ * that do not. It leaves entirely when the last route stops needing it.
+ */
+@layer legacy, theme, base, components, utilities;
+
 @import "tailwindcss";
+@import "./tokens.css" layer(legacy);
+@import "./app.css" layer(legacy);
 
 /* SkyGuard design tokens.
  *
- * WHY LIGHT-FIRST AND HIGH CONTRAST
+ * LIGHT IS THE DESIGN. DARK IS A CHOICE THE READER MAKES.
  *
- * This screen has to survive a projector in a room with the lights on. Dark
- * themes wash out badly under those conditions -- the greys collapse into one
- * another and a severity colour stops being readable at the exact moment it
- * matters. So the primary theme is light with deliberately strong contrast,
- * and the dark theme is a courtesy for people reading it on a laptop.
+ * The previous version keyed the theme off prefers-color-scheme, so a laptop
+ * set to dark got a dark site nobody asked for, including on a projector where
+ * dark washes out and severity colours stop being readable. The theme is now
+ * light unless the reader explicitly asks for dark with the toggle, which sets
+ * data-theme on <html>. The OS is not consulted.
  *
- * WHY SLATE AND NOT GREY
+ * THE PALETTE IS WARM PAPER, NOT COOL GREY
  *
- * A pure neutral grey reads as unconsidered. The neutral here is cool, biased a
- * few degrees toward the accent, so the whole surface feels like one decision
- * rather than a default.
+ * A cold slate reads as a developer tool. This is an instrument that a
+ * meteorological service would put on a wall, and warm paper carries that
+ * better -- the same reason scientific charts have been printed on cream stock
+ * for a century.
  *
- * SEMANTIC COLOUR IS NOT THE ACCENT
+ * SEMANTIC COLOUR IS NEVER DECORATION
  *
- * ok / watch / fault mean something and are never used for decoration. The
- * accent is a separate hue precisely so that "this is interactive" and "this is
- * broken" can never be confused, which is the failure mode that makes an
- * operations screen untrustworthy.
+ * ok / watch / fault mean something. The accent is a separate hue so that
+ * "this is interactive" and "this is broken" can never be confused, which is
+ * the failure that makes an operations screen untrustworthy.
  */
 
 @theme {
-  /* type */
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Display and UI: a grotesque with real character at large sizes.
+     Prose: a serif, because long text set in a UI sans reads like a form. */
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* neutrals, cool-biased */
-  --color-paper: #FFFFFF;
-  --color-surface: #F7F9FB;
-  --color-sunk: #EEF2F6;
-  --color-ink: #0B1420;
-  --color-ink-2: #46586B;
-  --color-ink-3: #7A8B9C;
-  --color-rule: #DDE5ED;
+  /* warm paper neutrals */
+  --color-paper: #FAF9F5;
+  --color-surface: #FFFFFF;
+  --color-sunk: #F1EFE8;
+  --color-ink: #141413;
+  --color-ink-2: #57544C;
+  --color-ink-3: #8C877C;
+  --color-rule: #E4E0D6;
 
   /* accent: interactive, never severity */
-  --color-brand: #1B4F8F;
-  --color-brand-soft: #EAF1FA;
+  --color-brand: #1A5C7A;
+  --color-brand-soft: #E8F1F4;
 
   /* severity: meaning, never decoration */
-  --color-ok: #10714E;
-  --color-ok-soft: #E6F5EE;
-  --color-watch: #8A5A00;
-  --color-watch-soft: #FDF3E0;
-  --color-fault: #A8231C;
-  --color-fault-soft: #FCEBEA;
+  --color-ok: #2F6F4E;
+  --color-ok-soft: #E9F2EC;
+  --color-watch: #96650C;
+  --color-watch-soft: #FAF0DF;
+  --color-fault: #A93226;
+  --color-fault-soft: #F8EAE7;
 
-  /* radius scale, tight -- instrumentation, not a consumer app */
-  --radius-sm: 3px;
-  --radius-md: 5px;
-  --radius-lg: 8px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --color-paper: #0C121A;
-    --color-surface: #121A24;
-    --color-sunk: #0E1620;
-    --color-ink: #E6EDF5;
-    --color-ink-2: #9DB0C2;
-    --color-ink-3: #6E8298;
-    --color-rule: #223040;
-    --color-brand: #6FA8E8;
-    --color-brand-soft: #14263C;
-    --color-ok: #4FC08D;
-    --color-ok-soft: #10281F;
-    --color-watch: #D9A441;
-    --color-watch-soft: #2A2113;
-    --color-fault: #F0736A;
-    --color-fault-soft: #2C1614;
-  }
-}
-
+/* Dark is opt-in only, via the toggle. There is deliberately no
+   prefers-color-scheme block: the OS does not get a vote. */
 :root[data-theme="dark"] {
-  --color-paper: #0C121A;
-  --color-surface: #121A24;
-  --color-sunk: #0E1620;
-  --color-ink: #E6EDF5;
-  --color-ink-2: #9DB0C2;
-  --color-ink-3: #6E8298;
-  --color-rule: #223040;
-  --color-brand: #6FA8E8;
-  --color-brand-soft: #14263C;
-  --color-ok: #4FC08D;
-  --color-ok-soft: #10281F;
-  --color-watch: #D9A441;
-  --color-watch-soft: #2A2113;
-  --color-fault: #F0736A;
-  --color-fault-soft: #2C1614;
+  --color-paper: #14130F;
+  --color-surface: #1C1A16;
+  --color-sunk: #191713;
+  --color-ink: #F2F0E9;
+  --color-ink-2: #B3AEA1;
+  --color-ink-3: #857F72;
+  --color-rule: #2E2B24;
+  --color-brand: #6FB3CE;
+  --color-brand-soft: #14262E;
+  --color-ok: #6BBF8E;
+  --color-ok-soft: #16261C;
+  --color-watch: #D6A250;
+  --color-watch-soft: #2A2116;
+  --color-fault: #E8796B;
+  --color-fault-soft: #2C1815;
 }
 
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   body {
     background: var(--color-paper);
     color: var(--color-ink);
     font-family: var(--font-sans);
   }
-  /* Digits that sit in columns must line up. Every number on this site is
-     compared with another number, so this is not a nicety. */
-  .tnum {
-    font-variant-numeric: tabular-nums;
+  /* Headings are set tight and dark. At the sizes this design uses, default
+     tracking opens them up until they stop reading as one phrase. */
+  h1, h2, h3 {
+    letter-spacing: -0.022em;
+    text-wrap: balance;
   }
+  /* Digits that sit in columns must line up. Every number here is compared
+     with another number, so this is structural, not decorative. */
+  .tnum { font-variant-numeric: tabular-nums; }
   :focus-visible {
     outline: 2px solid var(--color-brand);
     outline-offset: 2px;
