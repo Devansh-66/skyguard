@@ -22,7 +22,7 @@ import { get } from '../api/client'
 import { usePageTitle } from '../lib/title'
 import { useLive } from '../lib/useLive'
 import { DriftFigure } from '../components/home/DriftFigure'
-import { Barograph } from '../components/home/Barograph'
+import { SkyPanel } from '../components/home/SkyPanel'
 import { Reveal } from '../components/home/Reveal'
 import { cn } from '@/lib/cn'
 
@@ -76,10 +76,11 @@ export function HomeRoute() {
           <LiveDot live={live} />
         </div>
 
-        {/* The instrument, not a network diagram. Wide and short: it sits
-            under the headline rather than instead of it. */}
+        {/* The sky, because that is the subject. The page was two colours and
+            nothing else, which is a strange thing for a product about the
+            atmosphere to look like. */}
         <Reveal delay={120} className="mt-12">
-          <Barograph />
+          <SkyPanel />
         </Reveal>
       </section>
 

@@ -195,3 +195,29 @@
 @media (prefers-reduced-motion: reduce) {
   .sg-reveal { animation: none; }
 }
+
+/* Cloud parallax and the station ping.
+ *
+ * Each band is duplicated end to end and translated by exactly its own width,
+ * so the loop closes with no visible seam. Speeds differ by layer because that
+ * difference is the only thing that makes a flat gradient read as depth: high
+ * cirrus barely moves, low scud crosses quickly.
+ *
+ * transform and opacity on a decorative ring only -- nothing here can hide
+ * content if it stalls.
+ */
+@keyframes sg-drift { from { transform: translateX(0); } to { transform: translateX(-1200px); } }
+.sg-drift-slow { animation: sg-drift 150s linear infinite; }
+.sg-drift-mid  { animation: sg-drift  90s linear infinite; }
+.sg-drift-fast { animation: sg-drift  52s linear infinite; }
+
+@keyframes sg-ping {
+  0%   { transform: scale(0.55); opacity: 0.9; }
+  70%  { transform: scale(1.5);  opacity: 0; }
+  100% { transform: scale(1.5);  opacity: 0; }
+}
+.sg-ping { animation: sg-ping 3.2s ease-out infinite; transform-origin: center; transform-box: fill-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-drift-slow, .sg-drift-mid, .sg-drift-fast, .sg-ping { animation: none; }
+}
