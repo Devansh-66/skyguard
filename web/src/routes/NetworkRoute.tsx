@@ -55,12 +55,18 @@ function Th({ col, sort, set, children }: {
 }) {
   const active = sort.col === col
   return (
-    <th className={active ? 'sorted' : undefined}
-        aria-sort={active ? (sort.desc ? 'descending' : 'ascending') : 'none'}>
+    <th
+      aria-sort={active ? (sort.desc ? 'descending' : 'ascending') : 'none'}
+      className={'sticky top-0 z-10 whitespace-nowrap border-b border-rule bg-sunk '
+                 + 'px-4 py-2.5 text-left font-mono text-[10px] font-semibold '
+                 + 'uppercase tracking-widest '
+                 + (active ? 'text-ink' : 'text-ink-3')}
+    >
       <button type="button"
+              className="inline-flex items-center gap-1 hover:text-ink"
               onClick={() => set({ col, desc: active ? !sort.desc : false })}>
         {children}
-        <span className="sortmark" aria-hidden="true">
+        <span aria-hidden="true" className="text-[8px]">
           {active ? (sort.desc ? '▼' : '▲') : ''}
         </span>
       </button>
@@ -403,8 +409,19 @@ export function NetworkRoute() {
    */
   useEffect(() => {
     if (selected || !graded.length) return
+    // A NAMED DEFAULT, not "whichever is worst".
+    //
+    // Picking the worst station meant the page opened on a different place
+    // every time the record was regenerated, which is no way to demonstrate
+    // anything twice. Ahmadabad is chosen because it is a large, recognisable
+    // station near the live node.
+    //
+    // Spelled AHMADABAD in the WMO list, not "Ahmedabad", and matched exactly:
+    // a loose /ahm/ selects AHMADNAGAR in Maharashtra first. Falling back to
+    // the worst keeps the page useful if the name ever leaves the export.
+    const preferred = graded.find((g) => g.s.name.trim().toUpperCase() === 'AHMADABAD')
     const worst = [...graded].sort((a, c) => BAND_ORDER[c.band] - BAND_ORDER[a.band])[0]
-    setSelected(worst.s.id)
+    setSelected((preferred ?? worst).s.id)
     // graded is deliberately absent from the deps: this must run on the first
     // load and never again, and listing it would re-arm the effect every hour.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -844,18 +861,23 @@ export function NetworkRoute() {
             </span>
           </summary>
 
-          <div className="idxbar">
-            <input type="search" className="idxsearch" value={query}
+          <div className="flex flex-wrap items-center gap-4 px-5 pb-3">
+            <input type="search" value={query}
                    placeholder="Find a station or state"
                    aria-label="Find a station or state"
-                   onChange={(e) => setQuery(e.target.value)} />
-            <label className="cbx">
-              <input type="checkbox" checked={flaggedOnly}
+                   onChange={(e) => setQuery(e.target.value)}
+                   className="h-9 w-full max-w-[280px] rounded-[--radius-md] border border-rule
+                              bg-paper px-3 text-sm outline-none
+                              placeholder:text-ink-3 focus-visible:ring-2
+                              focus-visible:ring-[var(--color-brand)]" />
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-2">
+              <input type="checkbox" className="size-4 accent-[var(--color-brand)]"
+                     checked={flaggedOnly}
                      onChange={(e) => setFlaggedOnly(e.target.checked)} />
               Flagged only
             </label>
             {(query || flaggedOnly) && (
-              <span className="mono muted idxcount">
+              <span className="tnum font-mono text-xs text-ink-3">
                 {indexRows.length} of {graded.length}
               </span>
             )}
@@ -872,8 +894,8 @@ export function NetworkRoute() {
             * row per station, every row the same height, nothing to open. The
             * state is a column rather than a container, so it can be sorted by
             * and searched on without hiding anything behind it. */}
-          <div className="tabwrap idxbox">
-            <table className="idxtab">
+          <div className={TWRAP + ' max-h-[520px]'}>
+            <table className={TABLE}>
               <thead>
                 <tr>
                   <Th col="name" sort={sort} set={setSort}>Station</Th>
@@ -884,14 +906,16 @@ export function NetworkRoute() {
               </thead>
               <tbody>
                 {node.data && !query.trim() && !flaggedOnly && (
-                  <tr className={'idxrow idxlive' + (nodeSelected ? ' on' : '')}
+                  <tr className={TROW + (nodeSelected ? ' bg-brand-soft' : '')}
                       tabIndex={0}
                       onClick={() => setSelected(node.data!.id)}
                       onKeyDown={(e) => { if (e.key === 'Enter') setSelected(node.data!.id) }}>
-                    <td className="stncell">{node.data.name}</td>
-                    <td className="mono muted">{node.data.state}</td>
-                    <td className="mono num">{node.data.elev} m</td>
-                    <td>
+                    <td className={TD + ' font-medium'}>{node.data.name}</td>
+                    <td className={TD + ' text-ink-2'}>{node.data.state}</td>
+                    <td className={TD + ' tnum text-right font-mono text-xs text-ink-2'}>
+                      {node.data.elev} m
+                    </td>
+                    <td className={TD}>
                       <span className="badge" style={{ color: 'var(--ink-2)' }}>live</span>
                       {live.grade && live.grade.band !== 'ok'
                         && live.grade.band !== 'learning' && (
@@ -905,13 +929,15 @@ export function NetworkRoute() {
                 )}
                 {indexRows.map(({ s, band }) => (
                   <tr key={s.id} tabIndex={0}
-                      className={'idxrow' + (s.id === selected ? ' on' : '')}
+                      className={TROW + (s.id === selected ? ' bg-brand-soft' : '')}
                       onClick={() => setSelected(s.id)}
                       onKeyDown={(e) => { if (e.key === 'Enter') setSelected(s.id) }}>
-                    <td className="stncell">{s.name}</td>
-                    <td className="mono muted">{s.state}</td>
-                    <td className="mono num">{s.elev} m</td>
-                    <td>
+                    <td className={TD + ' font-medium'}>{s.name}</td>
+                    <td className={TD + ' text-ink-2'}>{s.state}</td>
+                    <td className={TD + ' tnum text-right font-mono text-xs text-ink-2'}>
+                      {s.elev} m
+                    </td>
+                    <td className={TD}>
                       {band !== 'OK' && (
                         <span className="badge" title={why(band)}
                               style={{ color: HUE[band] ?? 'var(--ink-3)',
@@ -971,6 +997,21 @@ export function NetworkRoute() {
  * What replaces it is the thing a watcher actually wanted: the row opens the
  * station.
  */
+
+/* ONE TABLE STYLE, USED BY BOTH TABLES.
+ *
+ * The alert ledger and the station index were the last two things on this page
+ * still drawn entirely by the old stylesheet: 10px mono in every cell, no
+ * separation between header and body, and rows that gave no sign they could be
+ * clicked. They are the two places a reader actually goes hunting, so they were
+ * the worst two to leave dense. */
+const TWRAP = 'overflow-auto border-t border-rule'
+const TABLE = 'w-full border-collapse text-sm'
+const TH = 'sticky top-0 z-10 whitespace-nowrap border-b border-rule bg-sunk px-4 py-2.5 '
+         + 'text-left font-mono text-[10px] font-semibold uppercase tracking-widest text-ink-3'
+const TD = 'border-b border-rule/60 px-4 py-2.5 align-middle'
+const TROW = 'cursor-pointer transition-colors hover:bg-sunk'
+
 function AlertList({ sim, rows, hour, onSelect }: {
   sim: SimMap | undefined
   rows: ReturnType<typeof ledgerAt>
@@ -981,29 +1022,38 @@ function AlertList({ sim, rows, hour, onSelect }: {
   if (!rows.length) {
     // The same box, empty. Collapsing it would move the page exactly as
     // growing it does, which is what this box exists to stop.
-    return <div className="alertbox"><p className="muted small empty">
-      No alert has been raised yet. Run the clock.
-    </p></div>
+    return (
+      <p className="border-t border-rule px-5 py-8 text-center text-sm text-ink-3">
+        No alert has been raised yet. Press Play to run the record.
+      </p>
+    )
   }
   return (
-    <div className="alertbox">
-      <table className="alerttab">
+    <div className={TWRAP + ' max-h-[420px]'}>
+      <table className={TABLE}>
         <thead>
           <tr>
-            <th>Raised</th><th>Station</th><th>State</th>
-            <th>Channel</th><th>Status</th><th>Grade</th>
+            <th className={TH}>Raised</th>
+            <th className={TH}>Station</th>
+            <th className={TH}>State</th>
+            <th className={TH}>Channel</th>
+            <th className={TH}>Status</th>
+            <th className={TH}>Grade</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((a) => (
-            <tr key={a.id} className={a.status === 'CLOSED' ? 'closed' : undefined}
+            <tr key={a.id}
+                className={TROW + (a.status === 'CLOSED' ? ' opacity-60' : '')}
                 onClick={() => onSelect(a.s.id)} tabIndex={0}
                 onKeyDown={(e) => { if (e.key === 'Enter') onSelect(a.s.id) }}>
-              <td className="mono when">{sim ? timeLabel(sim, a.from) : '—'}</td>
-              <td className="stncell">{a.s.name}</td>
-              <td className="mono muted">{a.s.state}</td>
-              <td className="mono">{CH[a.ch]}</td>
-              <td className="mono status">
+              <td className={TD + ' tnum whitespace-nowrap font-mono text-xs text-ink-3'}>
+                {sim ? timeLabel(sim, a.from) : '—'}
+              </td>
+              <td className={TD + ' font-medium'}>{a.s.name}</td>
+              <td className={TD + ' text-ink-2'}>{a.s.state}</td>
+              <td className={TD + ' text-ink-2'}>{CH[a.ch]}</td>
+              <td className={TD + ' whitespace-nowrap font-mono text-xs'}>
                 {a.status === 'OPEN'
                   ? <span className="st-open">
                       open · {(a as { openLabel?: string | null }).openLabel
@@ -1011,7 +1061,7 @@ function AlertList({ sim, rows, hour, onSelect }: {
                     </span>
                   : <span className="st-closed">closed · {a.closedAt! - a.from} h</span>}
               </td>
-              <td>
+              <td className={TD}>
                 <span className="badge" style={{ color: HUE[a.band]!, borderColor: HUE[a.band]! }}>
                   {BAND_LABEL[a.band]}
                 </span>
