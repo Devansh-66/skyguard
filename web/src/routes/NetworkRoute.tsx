@@ -155,6 +155,49 @@ function perSecond(stepMin: number): number {
   return Math.max(0.5, 60 / stepMin * 2)
 }
 
+
+/* A labelled control. The toolbar was a row of bare dropdowns whose meaning
+ * you had to infer from their contents -- "1 hour" of what? -- so every one
+ * now carries the question it answers. */
+const SUMMARY = 'cursor-pointer select-none px-5 py-3.5 text-[15px] font-semibold '
+              + 'tracking-tight marker:text-ink-3'
+
+const SELECT = 'h-9 rounded-[--radius-md] border border-rule bg-paper px-2.5 '
+             + 'text-sm text-ink outline-none focus-visible:ring-2 '
+             + 'focus-visible:ring-[var(--color-brand)]'
+
+
+function Readout({ label, v, mono, tone }: {
+  label: string; v: string; mono?: boolean
+  tone?: 'fault' | 'watch'
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="font-mono text-[9.5px] uppercase tracking-widest text-ink-3">
+        {label}
+      </span>
+      <span className={
+        'tnum text-sm font-medium '
+        + (mono ? 'font-mono ' : '')
+        + (tone === 'fault' ? 'text-fault' : tone === 'watch' ? 'text-watch' : 'text-ink')
+      }>
+        {v}
+      </span>
+    </div>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="font-mono text-[10px] uppercase tracking-widest text-ink-3">
+        {label}
+      </span>
+      {children}
+    </label>
+  )
+}
+
 export function NetworkRoute() {
   usePageTitle('Network')
   const tiles = useTileStatus()
@@ -377,42 +420,48 @@ export function NetworkRoute() {
 
 
   return (
-    <div className="sheet network">
-      {/* No VISIBLE page title: the top bar already says which page this is,
-          and a page-sized heading repeating it pushed the map -- the actual
-          content -- below the fold on a laptop.
-          The heading still has to exist. A document with no h1 gives a screen
-          reader nothing to announce and no way to jump to the content, and
-          removing the visible one had quietly removed the only one. */}
-      <h1 className="sr-only">Network</h1>
+    <div className="mx-auto max-w-[1600px] px-5 py-6">
+      {/* A REAL PAGE HEADING.
+          The previous version hid the title to save vertical space and left
+          the reader facing a row of unlabelled dropdowns and a map, with
+          nothing saying what any of it was. Space is cheaper than confusion. */}
+      <header className="mb-5">
+        <h1 className="text-2xl font-semibold tracking-tight">Network</h1>
+        <p className="mt-1 max-w-[70ch] text-sm text-ink-2">
+          Every station, graded against its neighbours. Play the record to watch
+          faults appear, or pick a station to see its three channels.
+        </p>
+      </header>
 
-      <div className="mapctl">
-        <label>Network
-          <select value={net} onChange={(e) => setNet(e.target.value as Net)}>
+      <div className="mb-3 flex flex-wrap items-end gap-x-5 gap-y-3
+                      rounded-[--radius-lg] border border-rule bg-surface px-4 py-3">
+        <Field label="Network">
+          <select className={SELECT} value={net} onChange={(e) => setNet(e.target.value as Net)}>
             <option value="sim">Simulated — 344 locations</option>
             <option value="wdqms">Real — IMD via WDQMS</option>
           </select>
-        </label>
-        <label>Base
-          <select value={base} onChange={(e) => setBase(e.target.value as BaseKey)}>
+        </Field>
+        <Field label="Base map">
+          <select className={SELECT} value={base} onChange={(e) => setBase(e.target.value as BaseKey)}>
             {Object.entries(BASES).map(([k, v]) =>
               <option key={k} value={k}>{v.label}</option>)}
           </select>
-        </label>
+        </Field>
         {net === 'sim' && (
-          <label>Channel
-            <select value={channel} onChange={(e) => setChannel(e.target.value as Channel)}>
+          <Field label="Colour by">
+            <select className={SELECT} value={channel}
+                    onChange={(e) => setChannel(e.target.value as Channel)}>
               <option value="health">Worst channel</option>
               <option value="temp">Temperature</option>
               <option value="rh">Humidity</option>
               <option value="pres">Pressure</option>
             </select>
-          </label>
+          </Field>
         )}
         {/* Step sets how fast the node reports, because a reading arriving is
             the only thing that advances time on this page now. */}
-        <label>Speed
-          <select value={stepMin} onChange={(e) => {
+        <Field label="Play speed">
+          <select className={SELECT} value={stepMin} onChange={(e) => {
             const min = +e.target.value
             setStepMin(min)
             // Retune, do not restart. Posting /api/live/replay here returned
@@ -426,29 +475,38 @@ export function NetworkRoute() {
             <option value={60}>1 hour</option>
             <option value={180}>3 hours</option>
           </select>
-        </label>
-        <label>Chart
-          <select value={windowH} onChange={(e) => setWindowH(+e.target.value)}>
+        </Field>
+        <Field label="Chart window">
+          <select className={SELECT} value={windowH} onChange={(e) => setWindowH(+e.target.value)}>
             <option value={24}>Last 24 hours</option>
             <option value={72}>Last 3 days</option>
             <option value={168}>Last 7 days</option>
             <option value={0}>Whole record</option>
           </select>
-        </label>
-        <span className="ctxnote">
-          {net === 'sim' ? '344 IMD locations · 30 days · simulated'
-            : 'Real IMD stations · WMO quality monitoring'}
-        </span>
-        <label className="cbx">
-          <input type="checkbox" checked={showStates}
+        </Field>
+        <label className="flex cursor-pointer items-center gap-2 pb-1.5 text-sm text-ink-2">
+          <input type="checkbox" className="size-4 accent-[var(--color-brand)]"
+                 checked={showStates}
                  onChange={(e) => setShowStates(e.target.checked)} />
           State outlines
         </label>
       </div>
 
+      {/* MAP BESIDE THE STATION, NOT ABOVE IT.
+        *
+        * An older note here argued for full-width stacking, and it was right
+        * about THREE columns: rail, station and alerts got about 260px each
+        * and none of them worked. Two is a different question. India spans 30
+        * degrees of latitude and 29.5 of longitude -- very nearly square -- so
+        * a full-width map is a 2.5:1 letterbox that can never be filled, and
+        * the country sat small in an ocean of Asia however tall the box got.
+        * Narrowing the map to a column fixes the framing, and the station it
+        * refers to is then beside it instead of a screen further down. */}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,1fr)]">
+      <div className="min-w-0">
       <Async query={tiles}>
         {(t) => (
-          <div className="mapwrap">
+          <div className="mapwrap overflow-hidden rounded-[--radius-lg] border border-rule">
             {/* THE WHEEL SCROLLS THE PAGE, not the map.
               *
               * A full-width map with wheel zoom on is a trap: the reader
@@ -476,7 +534,14 @@ export function NetworkRoute() {
                           scrollWheelZoom wheelPxPerZoomLevel={220}
                           zoomSnap={1} zoomDelta={1} zoomAnimation
                           markerZoomAnimation fadeAnimation
-                          className="netmap">
+                          /* THE BOX DECIDES THE FRAMING, NOT fitBounds.
+                             India spans about 30 degrees of latitude and 29.5
+                             of longitude -- very nearly square. Fitting that
+                             into a 2.5:1 letterbox forced a zoom that showed
+                             half of Asia to satisfy the vertical, which is why
+                             the country sat small in an ocean. A taller box
+                             lets the same fitBounds fill the frame. */
+                          className="netmap !h-[min(78vh,760px)] min-h-[520px]">
               <Extent />
               <TilePaneFilter filter={b.filter} />
               <FieldOverlay ch={field}
@@ -597,43 +662,73 @@ export function NetworkRoute() {
       </Async>
 
       {net === 'sim' && sim.data && (
-        <div className="simbar">
-          <button type="button" className="btn ghost"
-                  onClick={() => liveCommand(
-                    import.meta.env.VITE_API_BASE ?? '',
-                    live.running ? '/api/live/stop'
-                      : `/api/live/replay?per_second=${perSecond(stepMin)}`,
-                  ).catch(() => {})}>
+        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-3
+                        rounded-[--radius-lg] border border-rule bg-surface px-4 py-3">
+          <button
+            type="button"
+            onClick={() => liveCommand(
+              import.meta.env.VITE_API_BASE ?? '',
+              live.running ? '/api/live/stop'
+                : `/api/live/replay?per_second=${perSecond(stepMin)}`,
+            ).catch(() => {})}
+            className="inline-flex h-9 min-w-[84px] items-center justify-center gap-2
+                       rounded-[--radius-pill] bg-ink px-4 text-sm font-medium text-paper
+                       transition-opacity hover:opacity-85"
+          >
             {live.running ? 'Pause' : 'Play'}
           </button>
+
           <input type="range" min={0} max={nSteps - 1} value={hour}
-                 aria-label="Hour of the replay"
-                 onChange={(e) => scrub(+e.target.value)} />
-          <span className="mono">{timeLabel(sim.data, hour)}</span>
-          <span className="mono muted">
-            {flagged.filter((r) => r.band === 'FAULT').length} fault ·{' '}
-            {flagged.filter((r) => r.band === 'WATCH').length} watch ·{' '}
-            {live.running ? 'live' : 'paused'} · day{' '}
-            {(hour * (sim.data?.step_minutes ?? 15) / 1440).toFixed(1)} of{' '}
-            {(nSteps * (sim.data?.step_minutes ?? 15) / 1440).toFixed(0)}
-          </span>
+                 aria-label="Position in the 30-day record"
+                 onChange={(e) => scrub(+e.target.value)}
+                 className="h-1.5 min-w-[220px] flex-1 cursor-pointer appearance-none
+                            rounded-full bg-sunk accent-[var(--color-brand)]" />
+
+          {/* The clock and the counts, each labelled. The old bar ran them
+              together as one grey mono string -- "0 fault · 0 watch · paused ·
+              day 0.0 of 30" -- which is five separate facts pretending to be
+              a sentence. */}
+          <div className="flex items-center gap-5">
+            <Readout label="Record time" v={timeLabel(sim.data, hour)} mono />
+            <Readout
+              label="Day"
+              v={`${(hour * (sim.data?.step_minutes ?? 15) / 1440).toFixed(1)} / ${(nSteps * (sim.data?.step_minutes ?? 15) / 1440).toFixed(0)}`}
+              mono
+            />
+            <Readout label="Faults now"
+                     v={String(flagged.filter((r) => r.band === 'FAULT').length)}
+                     tone="fault" />
+            <Readout label="Watch"
+                     v={String(flagged.filter((r) => r.band === 'WATCH').length)}
+                     tone="watch" />
+          </div>
         </div>
       )}
 
       {/* A field with no scale is decoration. The ends are the channel's own
           encoding range, which is what the ramp is stretched across. */}
       {field && sim.data && (
-        <div className="fieldkey">
-          <span className="mono">{fieldRange(sim.data, field).lo} {fieldRange(sim.data, field).unit}</span>
-          <span className="fieldramp" style={{ background: rampCss(field) }} />
-          <span className="mono">{fieldRange(sim.data, field).hi} {fieldRange(sim.data, field).unit}</span>
-          <span className="small muted">
-            Interpolated from 344 stations by inverse distance weighting,
-            clipped to the coastline. The surface is drawn; only the dots are
-            measured.
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2
+                        rounded-[--radius-lg] border border-rule bg-surface px-4 py-3">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-ink-3">
+            Scale
+          </span>
+          <span className="tnum font-mono text-sm">
+            {fieldRange(sim.data, field).lo} {fieldRange(sim.data, field).unit}
+          </span>
+          <span className="h-2.5 w-40 rounded-full border border-rule"
+                style={{ background: rampCss(field) }} />
+          <span className="tnum font-mono text-sm">
+            {fieldRange(sim.data, field).hi} {fieldRange(sim.data, field).unit}
+          </span>
+          <span className="text-xs text-ink-3">
+            Surface interpolated between stations — only the dots are measured.
           </span>
         </div>
       )}
+      </div>
+
+      <div className="min-w-0">
 
       {/* NOT THREE COLUMNS.
         *
@@ -657,15 +752,15 @@ export function NetworkRoute() {
         * content behind a click nobody knows to make. */}
 
       {net === 'sim' && (
-        <details className="netsec" open>
-          <summary className="belowhead">
+        <details className="mt-6 rounded-[--radius-lg] border border-rule bg-surface" open>
+          <summary className={SUMMARY}>
             {nodeSelected && node.data ? node.data.name
               : chosen ? chosen.name : 'Selected station'}
           </summary>
           {nodeSelected && node.data && sim.data
             ? (<>
-                <div className="stnhead">
-                  <span className="mono muted">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 pb-3 text-sm text-ink-2">
+                  <span className="tnum font-mono text-xs text-ink-3">
                     {node.data.state} · {node.data.elev} m ·{' '}
                     {Math.abs(node.data.lat).toFixed(2)}N{' '}
                     {Math.abs(node.data.lon).toFixed(2)}E
@@ -726,8 +821,8 @@ export function NetworkRoute() {
                 {/* One line, not a heading plus a meta block plus a paragraph.
                     Name, where it is, and whether a fault was planted here --
                     everything else was prose the reader had already read. */}
-                <div className="stnhead">
-                  <span className="mono muted">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 pb-3 text-sm text-ink-2">
+                  <span className="tnum font-mono text-xs text-ink-3">
                     {chosen.state} · {chosen.elev} m ·{' '}
                     {Math.abs(chosen.lat).toFixed(2)}{chosen.lat < 0 ? 'S' : 'N'}{' '}
                     {Math.abs(chosen.lon).toFixed(2)}{chosen.lon < 0 ? 'W' : 'E'}
@@ -737,30 +832,40 @@ export function NetworkRoute() {
                       injected {chosen.fault.kind} · {chosen.fault.channel} · h{chosen.fault.onset_hour}
                     </span>
                   )}
-                  {sim.data && <span className="mono muted stnclock">{timeLabel(sim.data, hour)}</span>}
+                  {sim.data && (
+                    <span className="tnum ml-auto font-mono text-xs text-ink-3">
+                      {timeLabel(sim.data, hour)}
+                    </span>
+                  )}
                 </div>
                 <StationChannels sim={sim.data} s={chosen} hour={hour} windowH={windowH} />
               </>)}
         </details>
       )}
+      </div>
+      </div>
 
       {net === 'sim' && (
-        <details className="netsec" open>
-          <summary className="belowhead">
+        <details className="mt-6 rounded-[--radius-lg] border border-rule bg-surface" open>
+          <summary className={SUMMARY}>
             Alerts
-            <span className="muted"> · {ledgerWithNode.filter((a) => a.status === 'OPEN').length} open
-            of {ledgerWithNode.length} raised so far</span>
+            <span className="ml-2 font-normal text-ink-3">
+              {ledgerWithNode.filter((a) => a.status === 'OPEN').length} open of{' '}
+              {ledgerWithNode.length} raised
+            </span>
           </summary>
           <AlertList sim={sim.data} rows={ledgerWithNode} hour={hour} onSelect={setSelected} />
         </details>
       )}
 
       {net === 'sim' && (
-        <details className="netsec" open>
-          <summary className="belowhead">
+        <details className="mt-6 rounded-[--radius-lg] border border-rule bg-surface" open>
+          <summary className={SUMMARY}>
             Station index
-            <span className="muted"> · {graded.length} simulated
-              {node.data ? ' + 1 live' : ''}, {flagged.length} flagged now</span>
+            <span className="ml-2 font-normal text-ink-3">
+              {graded.length} stations{node.data ? ' + 1 live node' : ''} ·{' '}
+              {flagged.length} flagged right now
+            </span>
           </summary>
 
           <div className="idxbar">

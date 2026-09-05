@@ -29,8 +29,7 @@ export default function App() {
           <Link to="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
             <Glyph />
             <span className="text-[15px]">SkyGuard</span>
-            <span className="hidden font-mono text-[10px] font-medium uppercase
-                             tracking-widest text-ink-3 sm:inline">PS26073</span>
+
           </Link>
           <nav className="flex items-center gap-1">
             <Tab to="/board">Maintenance</Tab>
