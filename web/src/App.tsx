@@ -14,6 +14,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { Suspense, lazy } from 'react'
 import { BoardRoute } from './routes/BoardRoute'
 import { HomeRoute } from './routes/HomeRoute'
+import { TeamRoute } from './routes/TeamRoute'
 
 /* Leaflet is ~160 kB and only this route needs it. Code-split so opening the
  * maintenance board does not wait for a mapping library it will not use. */
@@ -34,6 +35,7 @@ export default function App() {
           <nav className="flex items-center gap-1">
             <Tab to="/board">Maintenance</Tab>
             <Tab to="/network">Network</Tab>
+            <Tab to="/team">Team</Tab>
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <ThemeToggle />
@@ -44,6 +46,7 @@ export default function App() {
       <main>
         <Routes>
           <Route path="/" element={<HomeRoute />} />
+          <Route path="/team" element={<TeamRoute />} />
           <Route path="/board" element={<BoardRoute />} />
           <Route path="/board/*" element={<BoardRoute />} />
           <Route path="/network" element={
