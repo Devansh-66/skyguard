@@ -76,7 +76,14 @@ static const char* WIFI_PASS = "";
 // static const char* SERVER = "http://host.wokwi.internal:8000";
 static const char* SERVER = "https://dev-66-skyguard-api.hf.space";
 static const char* STATION = "WOKWI-ESP32";
-static const char* FW_VERSION = "skyguard-node-1.0.0";
+// BUMP THIS WHENEVER THE SKETCH CHANGES.
+//
+// It is printed at boot and sent with every reading, and it is the only way to
+// tell from the outside WHICH build is running. Two copies of this sketch once
+// drifted apart -- one pasted into the Wokwi web editor, one in the repo -- and
+// the only reason the difference was ever noticed is that their banners did not
+// match. Cheap insurance.
+static const char* FW_VERSION = "skyguard-node-1.2.0-dht";
 
 static const uint32_t SAMPLE_MS = 2000;      // demo cadence; 15 min in the field
 static const uint32_t HEARTBEAT_EVERY = 15;  // samples between forced uplinks

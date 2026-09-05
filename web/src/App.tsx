@@ -22,16 +22,20 @@ const NetworkRoute = lazy(() =>
 
 export default function App() {
   return (
-    <div className="app">
-      <header className="topbar">
-        <Link to="/" className="mark">
-          <Glyph />
-          <span>SkyGuard</span>
-        </Link>
-        <nav className="links">
-          <NavLink to="/board">Maintenance</NavLink>
-          <NavLink to="/network">Network</NavLink>
-        </nav>
+    <div className="min-h-screen bg-paper text-ink">
+      <header className="sticky top-0 z-50 border-b border-rule bg-paper/90 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-8 px-5">
+          <Link to="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
+            <Glyph />
+            <span className="text-[15px]">SkyGuard</span>
+            <span className="hidden font-mono text-[10px] font-medium uppercase
+                             tracking-widest text-ink-3 sm:inline">PS26073</span>
+          </Link>
+          <nav className="flex items-center gap-1">
+            <Tab to="/board">Maintenance</Tab>
+            <Tab to="/network">Network</Tab>
+          </nav>
+        </div>
       </header>
 
       <main>
@@ -40,17 +44,38 @@ export default function App() {
           <Route path="/board" element={<BoardRoute />} />
           <Route path="/board/*" element={<BoardRoute />} />
           <Route path="/network" element={
-            <Suspense fallback={<p className="notfound muted">Loading the map…</p>}>
+            <Suspense fallback={<p className="p-10 text-ink-3">Loading the map…</p>}>
               <NetworkRoute />
             </Suspense>} />
           {/* The board used to live at /queue. Anyone holding an old link is
               sent on rather than shown a dead end. */}
           <Route path="/queue" element={<Navigate to="/board" replace />} />
           <Route path="/queue/*" element={<Navigate to="/board" replace />} />
-          <Route path="*" element={<p className="notfound">No such page.</p>} />
+          <Route path="*" element={<p className="p-10 text-ink-2">No such page.</p>} />
         </Routes>
       </main>
     </div>
+  )
+}
+
+
+/* The active tab is marked with a rule under it AND a weight change. Colour
+ * alone fails for the ~8% of men with a colour vision deficiency, and it also
+ * fails on a washed-out projector, which is the same problem twice. */
+function Tab({ to, children }: { to: string; children: React.ReactNode }) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        'relative px-3 py-2 text-sm transition-colors ' +
+        (isActive
+          ? 'font-semibold text-ink after:absolute after:inset-x-3 after:-bottom-px '
+            + 'after:h-0.5 after:bg-brand'
+          : 'text-ink-2 hover:text-ink')
+      }
+    >
+      {children}
+    </NavLink>
   )
 }
 
@@ -72,10 +97,10 @@ export default function App() {
  */
 function Glyph() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" className="glyph">
-      <rect className="glyph-hold" x="2" y="4.6" width="15" height="3.2" />
-      <rect className="glyph-drift" x="6.8" y="10.4" width="15" height="3.2" />
-      <rect className="glyph-hold" x="2" y="16.2" width="15" height="3.2" />
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <rect fill="currentColor" x="2" y="4.6" width="15" height="3.2" rx="1" />
+      <rect fill="var(--color-fault)" x="6.8" y="10.4" width="15" height="3.2" rx="1" />
+      <rect fill="currentColor" x="2" y="16.2" width="15" height="3.2" rx="1" />
     </svg>
   )
 }

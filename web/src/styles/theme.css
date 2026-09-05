@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+/* SkyGuard design tokens.
+ *
+ * WHY LIGHT-FIRST AND HIGH CONTRAST
+ *
+ * This screen has to survive a projector in a room with the lights on. Dark
+ * themes wash out badly under those conditions -- the greys collapse into one
+ * another and a severity colour stops being readable at the exact moment it
+ * matters. So the primary theme is light with deliberately strong contrast,
+ * and the dark theme is a courtesy for people reading it on a laptop.
+ *
+ * WHY SLATE AND NOT GREY
+ *
+ * A pure neutral grey reads as unconsidered. The neutral here is cool, biased a
+ * few degrees toward the accent, so the whole surface feels like one decision
+ * rather than a default.
+ *
+ * SEMANTIC COLOUR IS NOT THE ACCENT
+ *
+ * ok / watch / fault mean something and are never used for decoration. The
+ * accent is a separate hue precisely so that "this is interactive" and "this is
+ * broken" can never be confused, which is the failure mode that makes an
+ * operations screen untrustworthy.
+ */
+
+@theme {
+  /* type */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* neutrals, cool-biased */
+  --color-paper: #FFFFFF;
+  --color-surface: #F7F9FB;
+  --color-sunk: #EEF2F6;
+  --color-ink: #0B1420;
+  --color-ink-2: #46586B;
+  --color-ink-3: #7A8B9C;
+  --color-rule: #DDE5ED;
+
+  /* accent: interactive, never severity */
+  --color-brand: #1B4F8F;
+  --color-brand-soft: #EAF1FA;
+
+  /* severity: meaning, never decoration */
+  --color-ok: #10714E;
+  --color-ok-soft: #E6F5EE;
+  --color-watch: #8A5A00;
+  --color-watch-soft: #FDF3E0;
+  --color-fault: #A8231C;
+  --color-fault-soft: #FCEBEA;
+
+  /* radius scale, tight -- instrumentation, not a consumer app */
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-paper: #0C121A;
+    --color-surface: #121A24;
+    --color-sunk: #0E1620;
+    --color-ink: #E6EDF5;
+    --color-ink-2: #9DB0C2;
+    --color-ink-3: #6E8298;
+    --color-rule: #223040;
+    --color-brand: #6FA8E8;
+    --color-brand-soft: #14263C;
+    --color-ok: #4FC08D;
+    --color-ok-soft: #10281F;
+    --color-watch: #D9A441;
+    --color-watch-soft: #2A2113;
+    --color-fault: #F0736A;
+    --color-fault-soft: #2C1614;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-paper: #0C121A;
+  --color-surface: #121A24;
+  --color-sunk: #0E1620;
+  --color-ink: #E6EDF5;
+  --color-ink-2: #9DB0C2;
+  --color-ink-3: #6E8298;
+  --color-rule: #223040;
+  --color-brand: #6FA8E8;
+  --color-brand-soft: #14263C;
+  --color-ok: #4FC08D;
+  --color-ok-soft: #10281F;
+  --color-watch: #D9A441;
+  --color-watch-soft: #2A2113;
+  --color-fault: #F0736A;
+  --color-fault-soft: #2C1614;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+  /* Digits that sit in columns must line up. Every number on this site is
+     compared with another number, so this is not a nicety. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}

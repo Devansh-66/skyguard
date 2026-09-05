@@ -19,6 +19,11 @@ import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import 'leaflet/dist/leaflet.css'
 import App from './App'
+// theme.css brings in Tailwind and the design tokens. tokens.css and app.css
+// are the previous hand-written stylesheet and are being retired screen by
+// screen -- they stay until the last route stops depending on them, because
+// deleting them in one go would take three working screens down at once.
+import './styles/theme.css'
 import './styles/tokens.css'
 import './styles/app.css'
 
