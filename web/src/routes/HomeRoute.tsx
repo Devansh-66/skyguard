@@ -23,6 +23,7 @@ import { usePageTitle } from '../lib/title'
 import { useLive } from '../lib/useLive'
 import { DriftFigure } from '../components/home/DriftFigure'
 import { SkyPanel } from '../components/home/SkyPanel'
+import { XaiLoop } from '../components/home/XaiLoop'
 import { Reveal } from '../components/home/Reveal'
 import { cn } from '@/lib/cn'
 
@@ -49,16 +50,24 @@ export function HomeRoute() {
   return (
     <div className="mx-auto max-w-[1100px] px-5">
 
-      {/* ---------------------------------------------------------- hero */}
-      <section className="pt-24 pb-16 sm:pt-32 sm:pb-24">
-        <h1 className="max-w-[16ch] text-[clamp(2.8rem,7.5vw,5rem)] font-semibold leading-[0.98]">
+      {/* ---------------------------------------------------------- hero
+        *
+        * The picture sits BESIDE the headline, not under it. Stacked, the
+        * first screen was a wall of text and the reader had to scroll before
+        * the page showed them anything -- and this is a product about the
+        * sky, so the sky should be in the first glance, not the second.
+        */}
+      <section className="grid items-center gap-10 pt-16 pb-16 sm:pt-20 sm:pb-24
+                          lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:gap-14">
+      <div className="min-w-0">
+        <h1 className="max-w-[15ch] text-[clamp(2.4rem,5.6vw,4rem)] font-semibold leading-[1]">
           A weather network that knows when it’s wrong.
         </h1>
-        <p className="mt-8 max-w-[52ch] font-serif text-xl leading-relaxed text-ink-2">
+        <p className="mt-7 max-w-[48ch] font-serif text-lg leading-relaxed text-ink-2 sm:text-xl">
           SkyGuard finds drifting, stuck and silent sensors across hundreds of
           stations — using nothing but temperature, pressure and humidity.
         </p>
-        <div className="mt-10 flex flex-wrap items-center gap-3">
+        <div className="mt-9 flex flex-wrap items-center gap-3">
           <Link
             to="/board"
             className="inline-flex items-center gap-2 rounded-[--radius-pill] bg-ink px-6 py-3
@@ -75,13 +84,14 @@ export function HomeRoute() {
           </Link>
           <LiveDot live={live} />
         </div>
+      </div>
 
-        {/* The sky, because that is the subject. The page was two colours and
-            nothing else, which is a strange thing for a product about the
-            atmosphere to look like. */}
-        <Reveal delay={120} className="mt-12">
-          <SkyPanel />
-        </Reveal>
+      {/* The sky, because that is the subject. The page was two colours and
+          nothing else, which is a strange thing for a product about the
+          atmosphere to look like. */}
+      <Reveal delay={120} className="min-w-0">
+        <SkyPanel />
+      </Reveal>
       </section>
 
       {/* ------------------------------------------------ the hard part */}
@@ -124,6 +134,21 @@ export function HomeRoute() {
             what="The surrounding stations"
             asks="Did the neighbours move too? Then it is weather, and no one is dispatched."
           />
+        </Reveal>
+      </section>
+
+      {/* -------------------------------------------- explainability */}
+      <section className="border-t border-rule py-16 sm:py-20">
+        <h2 className="max-w-[22ch] text-[clamp(1.8rem,3.6vw,2.6rem)] font-semibold">
+          Watch it make up its mind.
+        </h2>
+        <p className="mt-5 max-w-[56ch] font-serif text-lg leading-relaxed text-ink-2">
+          Every finding moves the verdict by an amount you can see. Nothing is
+          hidden behind a score, and no alert arrives without the evidence that
+          produced it.
+        </p>
+        <Reveal className="mt-10">
+          <XaiLoop />
         </Reveal>
       </section>
 
