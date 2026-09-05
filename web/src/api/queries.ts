@@ -99,6 +99,11 @@ export function useLiveStanding() {
       band: 'learning' | 'ok' | 'watch' | 'fault'
       z: number
       readings: number
+      /** What the neighbours say this place should be reading, and what the
+       *  node actually reported. The two numbers the residual is made of, so
+       *  the arithmetic behind a verdict can be shown rather than asserted. */
+      expected: number | null
+      last: number | null
       open_seconds: number | null
       reporting: boolean
       injected_fault: string

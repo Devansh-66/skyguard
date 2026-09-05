@@ -31,6 +31,7 @@ import { alertsFor } from '../lib/alerts'
 import { Badge } from '@/components/ui/badge'
 import { Callout } from '../components/Callout'
 import { ActionCard, AgentVerdicts, CaseProgress } from '../components/AgentPanel'
+import { ExplainMath } from '../components/ExplainMath'
 import { cn } from '@/lib/cn'
 import {
   type Assessment, type EvidenceIn, useTriage,
@@ -358,6 +359,27 @@ function LiveDetail({ a }: { a: Assessment | undefined }) {
       {a ? <ActionCard a={a} /> : <p className="text-sm text-ink-3">Asking the panel…</p>}
       <SectionLabel>Why the panel says so</SectionLabel>
       {a && <AgentVerdicts a={a} />}
+
+      {/* THE ARITHMETIC, NOT JUST THE VERDICT.
+        *
+        * The panel says which agent decided. This says how the number it
+        * decided on was reached: reading, minus the neighbours' median, over
+        * the trailing spread, against the bands. Only rendered where the real
+        * values exist -- a worked example with an invented figure in it is
+        * worse than none. */}
+      {node.data && node.data.expected != null && node.data.last != null && (
+        <>
+          <SectionLabel>How that number was reached</SectionLabel>
+          <ExplainMath
+            reading={node.data.last}
+            neighbour={node.data.expected}
+            z={node.data.z}
+            sigma={node.data.z ? Math.abs((node.data.last - node.data.expected) / node.data.z) : null}
+            unit="°C"
+          />
+        </>
+      )}
+
       <SectionLabel>Case</SectionLabel>
       <CaseProgress at={2} />
       <p className="text-sm text-ink-3">

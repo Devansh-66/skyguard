@@ -22,7 +22,7 @@ import { get } from '../api/client'
 import { usePageTitle } from '../lib/title'
 import { useLive } from '../lib/useLive'
 import { DriftFigure } from '../components/home/DriftFigure'
-import { NetworkPulse } from '../components/home/NetworkPulse'
+import { Barograph } from '../components/home/Barograph'
 import { Reveal } from '../components/home/Reveal'
 import { cn } from '@/lib/cn'
 
@@ -76,8 +76,10 @@ export function HomeRoute() {
           <LiveDot live={live} />
         </div>
 
-        <Reveal delay={120} className="mt-14">
-          <NetworkPulse />
+        {/* The instrument, not a network diagram. Wide and short: it sits
+            under the headline rather than instead of it. */}
+        <Reveal delay={120} className="mt-12">
+          <Barograph />
         </Reveal>
       </section>
 
