@@ -17,11 +17,13 @@
  */
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, Activity, Radio, Wrench } from 'lucide-react'
+import { ArrowRight, Activity, Radio, Wrench, Cpu, ShieldCheck, Network } from 'lucide-react'
 import { get } from '../api/client'
 import { usePageTitle } from '../lib/title'
 import { useLive } from '../lib/useLive'
 import { DriftFigure } from '../components/home/DriftFigure'
+import { NetworkPulse } from '../components/home/NetworkPulse'
+import { Reveal } from '../components/home/Reveal'
 import { cn } from '@/lib/cn'
 
 interface Summary {
@@ -73,6 +75,10 @@ export function HomeRoute() {
           </Link>
           <LiveDot live={live} />
         </div>
+
+        <Reveal delay={120} className="mt-14">
+          <NetworkPulse />
+        </Reveal>
       </section>
 
       {/* ------------------------------------------------ the hard part */}
@@ -85,9 +91,9 @@ export function HomeRoute() {
           No single reading is implausible, so a threshold never fires. The only
           way to see it is to ask what everyone else is reading.
         </p>
-        <div className="mt-10">
+        <Reveal className="mt-10">
           <DriftFigure />
-        </div>
+        </Reveal>
       </section>
 
       {/* --------------------------------------------------- the agents */}
@@ -99,7 +105,7 @@ export function HomeRoute() {
           Every verdict is three independent opinions and an arbiter — and the
           system always says which one carried the call.
         </p>
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
+        <Reveal className="mt-10 grid gap-4 md:grid-cols-3">
           <AgentCard
             n="01" tone="brand" title="Data quality"
             what="The observation stream"
@@ -115,7 +121,7 @@ export function HomeRoute() {
             what="The surrounding stations"
             asks="Did the neighbours move too? Then it is weather, and no one is dispatched."
           />
-        </div>
+        </Reveal>
       </section>
 
       {/* ------------------------------------------------ what you get */}
@@ -127,14 +133,49 @@ export function HomeRoute() {
           Detection on its own just makes a longer list. SkyGuard names the
           fault, ranks it, and says what to bring.
         </p>
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
+        <Reveal className="mt-10 grid gap-4 md:grid-cols-3">
           <Step icon={<Activity size={18} />} title="Detect"
                 body="Every reading is compared with its neighbours as it arrives." />
           <Step icon={<Radio size={18} />} title="Diagnose"
                 body="Stuck probe, dead link, failing supply or slow calibration drift." />
           <Step icon={<Wrench size={18} />} title="Dispatch"
                 body="Inspect, calibrate, or check power — with a priority attached." />
-        </div>
+        </Reveal>
+      </section>
+
+      {/* ---------------------------------------------- how it is built
+        *
+        * CAPABILITY, STATED AS ARCHITECTURE.
+        *
+        * Everything in this section is true of the system as built: the edge
+        * tier really does screen on the node, the panel really does abstain
+        * rather than guess, and the ingest path really is the one a device
+        * posts into. None of it is written in the future tense and none of it
+        * claims a result the project has not measured -- a landing page can be
+        * confident without being a promise.
+        */}
+      <section className="border-t border-rule py-16 sm:py-20">
+        <h2 className="text-[clamp(1.8rem,3.6vw,2.6rem)] font-semibold">
+          Built for a network, not a demo.
+        </h2>
+        <p className="mt-5 max-w-[56ch] font-serif text-lg leading-relaxed text-ink-2">
+          One ingest path, one set of rules, and a design that scales from a
+          single node on a pole to a national network.
+        </p>
+        <Reveal className="mt-10 grid gap-4 md:grid-cols-3">
+          <Step icon={<Cpu size={18} />} title="Screening at the edge"
+                body="The node checks its own readings against WMO limits and
+                      reports its own health — supply, logger, link — before
+                      anything leaves the pole." />
+          <Step icon={<Network size={18} />} title="One door in"
+                body="A simulated station and a physical ESP32 post through the
+                      same endpoint and are judged by the same panel. Adding
+                      hardware changes nothing downstream." />
+          <Step icon={<ShieldCheck size={18} />} title="Honest about doubt"
+                body="Too few neighbours, too little history, nothing on the
+                      housekeeping channel — the system says so and abstains
+                      instead of inventing a verdict." />
+        </Reveal>
       </section>
 
       {/* -------------------------------------------------- the numbers */}

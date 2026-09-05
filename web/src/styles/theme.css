@@ -167,3 +167,31 @@
   --mono: var(--font-mono);
   --radius: var(--radius-md);
 }
+
+/* Entrance animation, with NO fill mode, on purpose.
+ *
+ * The element's resting state is fully visible. The animation plays from
+ * hidden to visible when it starts, so if it never starts -- a frozen tab, a
+ * headless capture, animations disabled -- the content is simply there. The
+ * previous JS version gated opacity on IntersectionObserver and left whole
+ * sections at opacity 0 wherever the callback did not arrive, which is how a
+ * page ships blank. Decoration must never be load-bearing.
+ */
+/* TRANSFORM ONLY. NOT OPACITY.
+ *
+ * A PAUSED animation still applies its current keyframe, so an entrance that
+ * animates opacity from 0 leaves the element invisible for as long as the
+ * animation is stalled -- a backgrounded tab, a throttled engine, a capture
+ * service. Measured here: five sections sat at opacity 0 indefinitely.
+ *
+ * Animating position alone means the worst case is content sitting fourteen
+ * pixels lower than it should. Visible and slightly wrong beats invisible. */
+@keyframes sg-reveal {
+  from { transform: translateY(14px); }
+  to   { transform: none; }
+}
+.sg-reveal { animation: sg-reveal 0.7s cubic-bezier(0.22, 1, 0.36, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-reveal { animation: none; }
+}
