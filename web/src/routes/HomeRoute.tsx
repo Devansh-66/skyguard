@@ -25,6 +25,7 @@ import { DriftFigure } from '../components/home/DriftFigure'
 import { SkyPanel } from '../components/home/SkyPanel'
 import { XaiLoop } from '../components/home/XaiLoop'
 import { Reveal } from '../components/home/Reveal'
+import { EdgeTiers } from '../components/home/EdgeTiers'
 import { cn } from '@/lib/cn'
 
 interface Summary {
@@ -190,7 +191,13 @@ export function HomeRoute() {
           One ingest path, one set of rules, and a design that scales from a
           single node on a pole to a national network.
         </p>
-        <Reveal className="mt-10 grid gap-4 md:grid-cols-3">
+        {/* The claim above is architectural, so it gets a picture of the
+            architecture rather than a photograph of the board. */}
+        <Reveal className="mt-10">
+          <EdgeTiers />
+        </Reveal>
+
+        <Reveal className="mt-4 grid gap-4 md:grid-cols-3">
           <Step icon={<Cpu size={18} />} title="Screening at the edge"
                 body="The node checks its own readings against WMO limits and
                       reports its own health — supply, logger, link — before
