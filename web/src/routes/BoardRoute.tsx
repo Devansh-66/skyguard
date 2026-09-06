@@ -32,6 +32,8 @@ import { Callout } from '../components/Callout'
 import { ActionCard, AgentVerdicts, CaseProgress } from '../components/AgentPanel'
 import { ExplainMath } from '../components/ExplainMath'
 import { PanelAttribution } from '../components/PanelAttribution'
+import { DecisionTrace } from '../components/DecisionTrace'
+import { PanelBehaviour } from '../components/PanelBehaviour'
 import { RegionCompare } from '../components/RegionCompare'
 import { cn } from '@/lib/cn'
 import {
@@ -169,10 +171,20 @@ export function BoardRoute() {
         ) : selected.startsWith('sim:') ? (
           <SimDetail id={selected} sim={sim.data} a={verdictOf(selected)} />
         ) : (
-          <p className="rounded-[--radius-lg] border border-dashed border-rule
-                        p-10 text-center text-ink-3">
-            Select a sensor to see what needs doing.
-          </p>
+          /* THE EMPTY STATE EARNS ITS SPACE.
+           *
+           * This was a dashed box saying "select a sensor", which is the
+           * screen telling the reader what it wants from them rather than
+           * showing them anything. Picking a row answers "why this sensor";
+           * the space before anyone picks one is exactly where "does this
+           * panel actually work" belongs. */
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-ink-3">
+              Select a sensor on the left to see what needs doing — or read how
+              the panel has been behaving across the network.
+            </p>
+            <PanelBehaviour />
+          </div>
         )}
       </section>
     </div>
@@ -426,6 +438,9 @@ function LiveDetail({ a }: { a: Assessment | undefined }) {
         </>
       )}
 
+      {/* The walk itself, collapsed. Everything above is a summary of it. */}
+      {a?.trace?.length ? <DecisionTrace a={a} /> : null}
+
       {/* THE ARITHMETIC, NOT JUST THE VERDICT.
         *
         * The panel says which agent decided. This says how the number it
@@ -491,6 +506,9 @@ function SimDetail({ id, sim, a }: {
           <PanelAttribution at={a.attribution} a={a} />
         </>
       )}
+
+      {/* The walk itself, collapsed. Everything above is a summary of it. */}
+      {a?.trace?.length ? <DecisionTrace a={a} /> : null}
 
       <SectionLabel>Case</SectionLabel>
       <CaseProgress at={it?.open ? 2 : 5} />

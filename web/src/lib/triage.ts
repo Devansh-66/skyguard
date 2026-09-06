@@ -40,6 +40,17 @@ export interface Attribution {
   coalitions: number
 }
 
+/** One rule the adjudicator reached, and the answer it got. */
+export interface TraceStep {
+  step: number
+  question: string
+  answer: 'yes' | 'no' | 'n/a'
+  note: string
+  agent: string | null
+  /** True on the single step that ended the walk. */
+  decided: boolean
+}
+
 export interface Assessment {
   decision: 'normal' | 'warning' | 'critical'
   action: 'INSPECT' | 'CALIBRATE' | 'COMMS' | 'MONITOR'
@@ -50,6 +61,7 @@ export interface Assessment {
   can_fix_remotely: boolean
   verdicts: AgentVerdict[]
   attribution?: Attribution
+  trace?: TraceStep[]
 }
 
 export interface EvidenceIn {

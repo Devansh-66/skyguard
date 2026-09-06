@@ -264,3 +264,101 @@ def comparison_series(station_id: str, channel: str,
         "every": net["every"] * step,   # steps per returned point
         "channel": channel,
     }
+
+
+# ------------------------------------------------- the whole board, at once
+
+RAISE_AFTER = 3     # steps of bad grade before an episode opens
+CLEAR_AFTER = 6     # steps of clean grade before it closes -- harder to close
+_GRADE_KEY = {"temp": "gt", "rh": "gh", "pres": "gp"}
+
+
+def _episodes(g: str) -> list[tuple[int, int | None]]:
+    """Episodes from a grade string, with the same hysteresis the board uses.
+
+    Deliberately identical to web/src/lib/alerts.ts. Two implementations of one
+    rule is a bug waiting to happen, but the alternative -- the browser posting
+    every episode boundary it found -- lets the client define what counts as an
+    episode, and this endpoint exists to audit the client's view, not to trust
+    it.
+    """
+    out: list[tuple[int, int | None]] = []
+    on = False
+    hot = cold = frm = 0
+    for i, c in enumerate(g):
+        bad = c in ("1", "2")
+        if not on:
+            hot = hot + 1 if bad else 0
+            if hot >= RAISE_AFTER:
+                on, frm, cold = True, i - RAISE_AFTER + 1, 0
+        if on:
+            cold = 0 if bad else cold + 1
+            if cold >= CLEAR_AFTER:
+                out.append((frm, i - CLEAR_AFTER + 1))
+                on, hot = False, 0
+    if on:
+        out.append((frm, None))
+    return out
+
+
+@lru_cache(maxsize=1)
+def flagged_rows() -> list[dict]:
+    """Every flagged station-channel on the simulated network.
+
+    Carries the injected fault alongside, which is the whole point: the panel
+    is never shown it, so comparing the two afterwards is a real measurement
+    rather than marking our own homework.
+    """
+    if not os.path.isfile(_PATH):
+        return []
+    with open(_PATH, encoding="utf-8") as fh:
+        sim = json.load(fh)
+    step_min = sim.get("step_minutes", 15)
+
+    rows = []
+    for st in sim["stations"]:
+        fault = st.get("fault")
+        for ch in CHANNELS:
+            g = st.get(_GRADE_KEY[ch]) or ""
+            eps = _episodes(g)
+            if not eps:
+                continue
+            frm, to = eps[-1]
+            gaps = g.count("-")
+            rows.append({
+                "id": f"sim:{st['id']}:{ch}",
+                "station": st["id"],
+                "name": st["name"],
+                "channel": ch,
+                "band": "fault" if "2" in g else "watch",
+                "window_from": frm,
+                "window_to": to,
+                "episodes": len(eps),
+                "days_open": (len(g) - frm if to is None else to - frm)
+                             * step_min / (60 * 24),
+                "gap_fraction": gaps / len(g) if g else 0.0,
+                # Ground truth, held to one side.
+                "injected": (fault or {}).get("kind")
+                            if fault and fault.get("channel") == ch else None,
+            })
+    return rows
+
+
+# WHY THERE IS NO flat_fraction HERE, THOUGH THE HARDWARE AGENT WANTS ONE.
+#
+# The global attribution shows that agent scoring exactly zero on all sixty
+# flagged rows -- an ornament rather than an agent -- because the simulated
+# export carries no housekeeping channels for it to read. A stuck probe should
+# be visible in the readings themselves, so this was tried two ways: the
+# fraction of consecutive samples that do not change, and the longest such run.
+#
+# Neither separates. Measured over the injected faults: `stuck` scored 0.24 and
+# 0.50 on the fraction against a 0.02-0.14 background, and on the longest run
+# it scored 0.004 -- BELOW several stations with nothing wrong with them. The
+# export ships every second step and quantises to a byte, and a stuck value at
+# that resolution is not distinguishable from calm weather.
+#
+# So it is not computed. Lowering the agent's threshold until it fired would be
+# fitting the demonstration rather than detecting anything. The hardware agent
+# stays quiet on simulated rows, which is honest, and it already fires
+# correctly on the live node -- where the ESP32 sends real housekeeping.

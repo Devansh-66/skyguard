@@ -42,7 +42,8 @@ from typing import Any, Literal
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from .neighbours import comparison_series, parse_sim_id, regional_movement
+from .neighbours import (comparison_series, flagged_rows, parse_sim_id,
+                         regional_movement)
 
 router = APIRouter()
 
@@ -273,6 +274,10 @@ class Assessment:
     why: str                   # ONE sentence: which agent carried the call
     can_fix_remotely: bool
     verdicts: list[dict]
+    # The rules the adjudicator walked, in the order it reached them,
+    # including the ones that did NOT fire -- a check that was asked and
+    # answered no is part of why the answer is believable.
+    trace: list[dict] = field(default_factory=list)
     # Filled by assess(). Absent when a coalition is being evaluated, which is
     # what stops the attribution from recursing into itself.
     attribution: dict | None = None
@@ -282,7 +287,14 @@ class Assessment:
 
 
 def adjudicate(e: Evidence, verdicts: list[AgentVerdict]) -> Assessment:
-    """Combine the three verdicts into one decision, action and priority."""
+    """Combine the three verdicts into one decision, action and priority.
+
+    The rules are checked in a fixed order and the FIRST one that matches
+    decides. Every check is recorded on the way past -- see `trace` -- because
+    the rules that did not fire are part of the explanation too: knowing the
+    weather check was asked and answered no is what makes a dispatch
+    believable.
+    """
     by = {v.agent: v for v in verdicts}
     dq, hw, ctx = by["data_quality"], by["hardware"], by["context"]
     out = [
@@ -292,9 +304,27 @@ def adjudicate(e: Evidence, verdicts: list[AgentVerdict]) -> Assessment:
         for v in verdicts
     ]
 
+    trace: list[dict] = []
+
+    def check(question: str, hit: bool | None, note: str,
+              agent: str | None = None) -> bool:
+        """Record one rule, in the order it was actually reached.
+
+        `hit` of None means the question could not be answered at all -- the
+        evidence for it is missing. That is a THIRD state and it is recorded as
+        one. Reporting it as "no" reads as a finding when it is an absence, and
+        a trace that quietly turns "I cannot tell" into "no" is the one thing
+        on this screen that would be worth not believing.
+        """
+        trace.append({"step": len(trace) + 1, "question": question,
+                      "answer": "yes" if hit else "no" if hit is False else "n/a",
+                      "note": note, "agent": agent, "decided": bool(hit)})
+        return bool(hit)
+
     def done(decision, action, priority, conf, why, remote=False):
         return Assessment(decision, action, ACTIONS[action], priority,
-                          round(min(conf, 0.99), 2), why, remote, out)
+                          round(min(conf, 0.99), 2), why, remote, out,
+                          trace=trace)
 
     # ORDER MATTERS, AND THIS IS THE ORDER.
     #
@@ -302,9 +332,16 @@ def adjudicate(e: Evidence, verdicts: list[AgentVerdict]) -> Assessment:
     #    fault in any weather -- the context agent has nothing to say about it,
     #    and a coefficient cannot fix it. Sending someone with the wrong job
     #    wastes the visit.
-    if hw.status == "alarm":
+    if check("Is the device itself unwell?", hw.status == "alarm",
+             hw.headline if hw.status == "alarm"
+             else "No alarm from the hardware checks.", "hardware"):
         gap = (e.gap_fraction or 0) > 0.2
         action = "COMMS" if gap else "INSPECT"
+        check("Is it missing reports rather than misreading?", gap,
+              "Most reports are arriving, so this is the sensor or its wiring"
+              if not gap else
+              f"Missing {(e.gap_fraction or 0) * 100:.0f}% of reports — power "
+              "or communications", "hardware")
         return done("critical", action, 1, hw.confidence,
                     "Hardware health is the strongest signal here: "
                     + hw.headline.lower() + ".")
@@ -318,19 +355,22 @@ def adjudicate(e: Evidence, verdicts: list[AgentVerdict]) -> Assessment:
     #    excursion made the data-quality agent alarm, which switched off the
     #    one agent whose job is to explain big excursions. A confirmed
     #    region-wide warm front came back as CALIBRATE THE SENSOR.
-    if ctx.status == "ok":
+    if check("Did the neighbouring stations move the same way?",
+             ctx.status == "ok", ctx.headline, "context"):
         return done("normal", "MONITOR", 3, ctx.confidence,
                     "The neighbouring stations show the same movement, so this "
                     "is weather rather than a fault.")
 
     # 3. Nothing wrong with the readings.
-    if dq.status == "ok":
+    if check("Do the readings agree with the surrounding stations?",
+             dq.status == "ok", dq.headline, "data_quality"):
         return done("normal", "MONITOR", 3, dq.confidence,
                     "Readings agree with the surrounding stations and the "
                     "device is healthy.")
 
     # 4. Not enough evidence yet to spend anyone's time.
-    if dq.status == "unknown":
+    if check("Is there too little evidence to judge?",
+             dq.status == "unknown", dq.headline, "data_quality"):
         return done("normal", "MONITOR", 3, 0.3,
                     "Not enough readings yet to tell a fault from ordinary "
                     "variation.")
@@ -343,13 +383,23 @@ def adjudicate(e: Evidence, verdicts: list[AgentVerdict]) -> Assessment:
     growth = drift * SERVICE_INTERVAL_D
     stable = growth <= RAISE_AT * noise
 
-    if stable and e.noise_sigma is not None:
+    answerable = e.noise_sigma is not None
+    if check("Would a correction typed in today still hold at the next visit?",
+             bool(stable) if answerable else None,
+             (f"It drifts {growth:.1f} sigma over the next "
+              f"{SERVICE_INTERVAL_D:.0f} days"
+              if answerable else
+              "No noise estimate for this sensor, so this cannot be answered "
+              "either way — the visit is scheduled rather than assumed away"),
+             "data_quality"):
         return done("warning", "MONITOR", 3, dq.confidence,
                     f"A steady offset that grows only {growth:.1f} sigma before "
                     f"the next service visit, so a correction applied centrally "
                     f"holds until then.", remote=True)
 
     priority = 1 if dq.status == "alarm" else 2
+    check("How far past the threshold is it?", True,
+          dq.headline, "data_quality")
     tail = (f" It moves a further {growth:.0f} sigma before the next "
             f"{SERVICE_INTERVAL_D:.0f}-day visit, so a correction applied today "
             f"would be wrong long before anyone arrives." if growth else "")
@@ -556,6 +606,81 @@ def region(station: str, channel: str) -> dict:
     if r is None:
         return {"available": False}
     return {"available": True, **r}
+
+
+@router.get("/api/board/behaviour")
+def behaviour() -> dict:
+    """How the PANEL behaves across the whole network, not one sensor.
+
+    Every other explanation on this site is about a single verdict. This is the
+    one that audits the design: run the panel over every flagged row, keep the
+    Shapley values, and ask two questions nothing else can answer.
+
+    Is this really three agents? An agent whose contribution is zero on every
+    row of the network is an ornament, and that is invisible one row at a time.
+
+    And what does each agent catch? Grouping by the INJECTED fault -- which the
+    panel is never shown -- turns the answer into a capability map, where an
+    empty column is a fault class nothing on the panel detects. Found by
+    arithmetic instead of by losing a station.
+
+    Counts ship with every cell. This network has fourteen injected faults
+    across six kinds, so some cells rest on two rows, and a thin cell must read
+    as thin rather than as a finding.
+    """
+    rows = flagged_rows()
+    per_agent: dict[str, list[float]] = {}
+    by_kind: dict[str, dict[str, list[float]]] = {}
+    actions: dict[str, int] = {}
+    saved = 0.0
+
+    for r in rows:
+        ev = Evidence(
+            source="sim", sensor=r["channel"], band=r["band"],
+            episodes=r["episodes"], days_open=r["days_open"],
+            gap_fraction=r["gap_fraction"], evidence_n=200,
+        )
+        rm = regional_movement(r["station"], r["channel"],
+                               r["window_from"], r["window_to"])
+        if rm:
+            ev.neighbours_agree = rm["agree"]
+            ev.region_z = rm["region_z"]
+            ev.region_share = rm["share_explained"]
+            ev.neighbour_count = rm["neighbours"]
+
+        a = assess(ev)
+        actions[a.action] = actions.get(a.action, 0) + 1
+        kind = r["injected"] or "none injected"
+        for c in (a.attribution or {}).get("contributions", []):
+            per_agent.setdefault(c["agent"], []).append(c["phi"])
+            by_kind.setdefault(kind, {}).setdefault(c["agent"], []).append(c["phi"])
+            if c["phi"] < 0:
+                saved += -c["phi"]
+
+    def summarise(vals: list[float]) -> dict:
+        n = len(vals)
+        pos = sum(1 for v in vals if v > 0.001)
+        neg = sum(1 for v in vals if v < -0.001)
+        return {"n": n, "mean": round(sum(vals) / n, 3) if n else 0.0,
+                "pushed": pos, "argued_against": neg,
+                "no_effect": n - pos - neg,
+                "values": [round(v, 3) for v in vals]}
+
+    titles = {"data_quality": "Data quality", "hardware": "Hardware health",
+              "context": "Weather or fault?"}
+    return {
+        "rows": len(rows),
+        "agents": [{"agent": k, "title": titles.get(k, k), **summarise(v)}
+                   for k, v in per_agent.items()],
+        "by_kind": {
+            kind: {"n": len(next(iter(d.values()))) if d else 0,
+                   "mean": {k: round(sum(v) / len(v), 3) for k, v in d.items()}}
+            for kind, d in sorted(by_kind.items())
+        },
+        "actions": actions,
+        # Escalation argued away, in units of "a visit that did not happen".
+        "dispatches_avoided": round(saved, 2),
+    }
 
 
 @router.get("/api/board/panel")
