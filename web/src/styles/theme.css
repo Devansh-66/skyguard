@@ -238,35 +238,27 @@
  * every property a transform, so nothing can leave a mark invisible if it
  * stalls -- the rule the reveal sections were rewritten for.
  */
-@keyframes sg-edge-run   { from { transform: translateX(0); }
-                           to   { transform: translateX(var(--sg-run, 860px)); } }
-/* Stopped at the gate, then held there for the rest of the loop. The distance
-   and the fraction are matched to the ones above so a rejected reading travels
-   at exactly the same speed as one that gets through -- a slower packet would
-   read as a slower sensor, which is not what is being said. */
-@keyframes sg-edge-halt  { 0%   { transform: translateX(0); }
-                           25%  { transform: translateX(var(--sg-halt, 215px)); }
-                           100% { transform: translateX(var(--sg-halt, 215px)); } }
-/* Down AND back, into a slot of its own. All three rejects halt at the same
-   gate, so without an x offset here they land on the same point and the bin
-   reads as one reading rather than three. */
-@keyframes sg-edge-sink  { 0%, 25%   { transform: translate(0, 0); }
-                           45%, 100% { transform: translate(var(--sg-slot, 0px), var(--sg-sink, 62px))
-                                                  scale(0.55); } }
+@keyframes sg-edge-run  { from { transform: translateX(0); }
+                          to   { transform: translateX(var(--sg-run, 860px)); } }
+
+/* The lane change at the gate. A flagged reading lifts to the fast lane and is
+   sent at once; a clean one drops to the slow lane and waits for the heartbeat.
+   Nothing leaves the diagram, because nothing is discarded on the node. */
+@keyframes sg-edge-lane { 0%, 25%   { transform: translateY(0); }
+                          42%, 100% { transform: translateY(var(--sg-lane, 0px)); } }
+
+.sg-edge-run  { animation: sg-edge-run  var(--sg-dur, 9s) linear infinite; }
+.sg-edge-lane { animation: sg-edge-lane var(--sg-dur, 9s) ease-in-out infinite;
+                transform-origin: center; transform-box: fill-box; }
 /* The flag is a second disc grown over the first, because colour is not a
    transform and a stalled colour change would be a silent lie. */
-@keyframes sg-edge-flag  { 0%, 62% { transform: scale(0); }
-                           78%, 100% { transform: scale(1); } }
-
-.sg-edge-run  { animation: sg-edge-run  var(--sg-dur, 7s) linear infinite; }
-.sg-edge-halt { animation: sg-edge-halt var(--sg-dur, 7s) linear infinite; }
-.sg-edge-sink { animation: sg-edge-sink var(--sg-dur, 7s) ease-in infinite;
-                transform-origin: center; transform-box: fill-box; }
-.sg-edge-flag { animation: sg-edge-flag var(--sg-dur, 7s) ease-out infinite;
+@keyframes sg-edge-flag { 0%, 20% { transform: scale(0); }
+                          34%, 100% { transform: scale(1); } }
+.sg-edge-flag { animation: sg-edge-flag var(--sg-dur, 9s) ease-out infinite;
                 transform-origin: center; transform-box: fill-box; }
 
 @media (prefers-reduced-motion: reduce) {
   /* At rest each reading sits where it started, and the flagged one simply
      shows its flag. A still of the same diagram, not a broken one. */
-  .sg-edge-run, .sg-edge-halt, .sg-edge-sink, .sg-edge-flag { animation: none; }
+  .sg-edge-run, .sg-edge-lane, .sg-edge-flag { animation: none; }
 }

@@ -376,8 +376,8 @@ footer{margin-top:76px; padding-top:22px; border-top:2px solid var(--ink);
           <text x="528" y="138">minus median</text>
           <text x="680" y="138">z vs 6&sigma; / 8&sigma;</text>
           <text x="828" y="138">3 up / 6 down</text>
-          <text x="220" y="234">rejected</text>
-          <text x="220" y="250">never stored as ok</text>
+          <text x="220" y="234">flagged, not dropped</text>
+          <text x="220" y="250">sent sooner, stored with flags</text>
           <text x="372" y="234">no neighbours</text>
           <text x="372" y="250">said, not guessed</text>
           <text x="828" y="256">work order</text>
@@ -386,10 +386,16 @@ footer{margin-top:76px; padding-top:22px; border-top:2px solid var(--ink);
         <line x1="16" y1="60" x2="884" y2="60" stroke="currentColor" stroke-width="1" opacity=".25"/>
       </svg>
     </div>
-    <figcaption>Two branches leave the main line rather than being swallowed: a reading
-    that fails the physics screen is rejected instead of being stored as good, and a
-    station with too few neighbours is reported as unjudgeable instead of scored
-    anyway.</figcaption>
+    <figcaption><strong>Flags, never filters.</strong> A reading that fails the physics
+    screen is not discarded &mdash; the flag is attached and the reading is sent, and on
+    the node a flag actually brings the uplink <em>forward</em>: the firmware reads
+    <code>if (flagged || due)</code>, so a suspect sample goes at once while a clean one
+    waits for the heartbeat. The server does not take the node's word for it either: it
+    recomputes the same screen, records <code>edge_screen_disagreement</code> when the two
+    differ, and stores the reading either way. Discarding at the edge would leave nothing
+    downstream able to reason about the shape of a fault. The second branch is the one
+    genuine refusal: a station with too few neighbours is reported unjudgeable rather than
+    scored anyway.</figcaption>
   </figure>
 </section>
 
@@ -1329,8 +1335,12 @@ v(S) = escalation( adjudicate with only the agents in S allowed to speak )
   WMO-No. 8 Annex 1.A physics screen (<code>physics/wmo_limits.py</code>), then writes the
   reading to SQLite in WAL mode via <code>api/store.py</code>. Readings survive a restart;
   <code>/api/ingest/history</code> and <code>/api/ingest/recent</code> read them back.</p>
-  <p>This matters for the demo's credibility: in the real world the data is stored, so it
-  is stored here too.</p>
+  <p><strong>It screens but does not reject.</strong> <code>physics_screen()</code> is
+  recomputed server-side rather than trusted &mdash; a node with a corrupted screen is one
+  of the faults being looked for &mdash; and where the node's flags and the server's
+  disagree, <code>edge_screen_disagreement</code> is added to the record. Every reading is
+  stored with whatever flags it earned. This matters for the demo's credibility: in the
+  real world the data is stored, so it is stored here too.</p>
   <p><strong>The simulated network does not come through here.</strong> It is a pre-built
   export the panel reads directly, so nothing about it is ingested or stored &mdash; the
   two sources meet at the triage panel rather than at the door. Making the simulation
