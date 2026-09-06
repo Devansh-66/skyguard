@@ -1,6 +1,8 @@
 import { cn } from '@/lib/cn'
 import type { Attribution } from '../lib/triage'
 import { ACTION_SHORT } from '../lib/triage'
+import type { Assessment } from '../lib/triage'
+import { carrierOf } from '../lib/triage'
 
 /* HOW MUCH EACH AGENT MATTERED, AS A NUMBER RATHER THAN A LABEL.
  *
@@ -30,7 +32,7 @@ import { ACTION_SHORT } from '../lib/triage'
  * given the larger share of the row.
  */
 
-interface Props { at: Attribution }
+interface Props { at: Attribution; a: Assessment }
 
 /** The three places the verdict can land, in escalation order. */
 const STOPS = [
@@ -39,7 +41,7 @@ const STOPS = [
   { at: 1, label: 'today' },
 ]
 
-export function PanelAttribution({ at }: Props) {
+export function PanelAttribution({ at, a }: Props) {
   const cs = at.contributions
   if (!cs.length) return null
 
@@ -54,8 +56,9 @@ export function PanelAttribution({ at }: Props) {
   })
 
   const pct = (v: number) => `${Math.max(0, Math.min(1, v)) * 100}%`
-  const decided = steps.reduce((best, s) =>
-    Math.abs(s.c.phi) > Math.abs(best.c.phi) ? s : best, steps[0])
+  /* Not simply the largest weight: on a vetoed row two agents tie at equal
+     and opposite values, and taking the first credits the one that LOST. */
+  const decided = carrierOf(a)
 
   return (
     <div className="overflow-hidden rounded-[--radius-lg] border border-rule bg-surface">
@@ -171,7 +174,7 @@ export function PanelAttribution({ at }: Props) {
       <div className="border-t border-rule bg-sunk/60 px-5 py-3">
         <p className="text-xs leading-relaxed text-ink-2">
           The three add up to exactly {at.total.toFixed(2)} — the verdict as
-          issued. {decided.c.title} carried it.
+          issued.{decided ? ` ${decided.title} carried it.` : ''}
           {' '}
           <span className="text-ink-3">
             Shapley values over the panel: each agent is scored by what it adds

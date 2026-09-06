@@ -33,10 +33,11 @@ import { Callout } from '../components/Callout'
 import { ActionCard, AgentVerdicts, CaseProgress } from '../components/AgentPanel'
 import { ExplainMath } from '../components/ExplainMath'
 import { PanelAttribution } from '../components/PanelAttribution'
+import { RegionCompare } from '../components/RegionCompare'
 import { cn } from '@/lib/cn'
 import {
   type Assessment, type EvidenceIn, useTriage,
-  ACTION_SHORT, PRIORITY_LABEL,
+  ACTION_SHORT, PRIORITY_LABEL, carrierOf,
 } from '../lib/triage'
 
 const CH_LABEL = { temp: 'Temperature', rh: 'Relative humidity', pres: 'Pressure (MSL)' }
@@ -308,9 +309,7 @@ const RANK = { alarm: 3, watch: 2, unknown: 1, ok: 0 } as const
 /** Which agent to credit on a queue card, and the line it reported. */
 function pickCarrier(a: Assessment | undefined) {
   if (!a) return null
-  const top = a.attribution?.contributions
-    .filter((c) => Math.abs(c.phi) > 0.001)
-    .sort((x, y) => Math.abs(y.phi) - Math.abs(x.phi))[0]
+  const top = carrierOf(a)
   const v = top
     ? a.verdicts.find((x) => x.agent === top.agent)
     // No attribution, or every agent scored zero -- which happens on a row
@@ -330,6 +329,8 @@ type SimItem = {
   episodes: number
   open: boolean
   from: number
+  /** End of the last episode, or null while it is still running. */
+  to: number | null
   /** Days the current episode has been running. */
   openDays: number
   /** Share of the record with no observation at all, read from the grade
@@ -362,7 +363,7 @@ export function simItems(sim: SimMap | undefined): SimItem[] {
       let gaps = 0
       for (const c of g) if (c === '-') gaps++
       out.push({ id: `sim:${st.id}:${ch}`, s: st, ch, band, hours,
-                 episodes: eps.length, open: last.to === null, from: last.from,
+                 episodes: eps.length, open: last.to === null, from: last.from, to: last.to,
                  openDays, gapFraction: g.length ? gaps / g.length : 0 })
     }
   }
@@ -378,9 +379,18 @@ function simEvidence(it: SimItem): EvidenceIn {
     sensor: it.ch,
     label: CH_LABEL[it.ch],
     band: it.band === 'FAULT' ? 'fault' : 'watch',
-    // A flagged station is by definition one its neighbours disagree with:
-    // that disagreement is what the grade was computed from.
-    neighbours_agree: false,
+    // NOT ASSERTED HERE ANY MORE.
+    //
+    // This used to say `neighbours_agree: false`, reasoning that a flagged
+    // station is one its neighbours disagree with. But the grade encodes the
+    // RESIDUAL -- this station minus its neighbours -- which says nothing
+    // about whether the region was also moving at the time, and that is the
+    // question the context agent exists to answer. Sending the conclusion
+    // meant the agent could never veto and its Shapley value was structurally
+    // zero. The service measures it from the network's readings instead; the
+    // window is what it needs to measure over.
+    window_from: it.from,
+    window_to: it.to,
     episodes: it.episodes,
     // openDays, not hours/24. `episode.hours` counts grade-string characters
     // and one character is a 15-minute STEP, so hours/24 reported 34 days on a
@@ -413,7 +423,7 @@ function LiveDetail({ a }: { a: Assessment | undefined }) {
       {a?.attribution && (
         <>
           <SectionLabel>How much each agent mattered</SectionLabel>
-          <PanelAttribution at={a.attribution} />
+          <PanelAttribution at={a.attribution} a={a} />
         </>
       )}
 
@@ -479,14 +489,26 @@ function SimDetail({ id, sim, a }: {
       {a?.attribution && (
         <>
           <SectionLabel>How much each agent mattered</SectionLabel>
-          <PanelAttribution at={a.attribution} />
+          <PanelAttribution at={a.attribution} a={a} />
         </>
       )}
 
       <SectionLabel>Case</SectionLabel>
       <CaseProgress at={it?.open ? 2 : 5} />
 
-      <SectionLabel>The record</SectionLabel>
+      {/* THE EVIDENCE, THEN the record.
+        *
+        * The three raw channels used to be the only chart here, and they are a
+        * picture of the weather rather than of the verdict -- swap a healthy
+        * station's for a faulty one and nobody could tell. This one is the
+        * case: the station against the median of its neighbours, with the
+        * flagged stretch shaded. The raw channels stay underneath, where they
+        * are context rather than an argument. */}
+      <SectionLabel>This station against its neighbours</SectionLabel>
+      <RegionCompare station={stationId} channel={ch as 'temp' | 'rh' | 'pres'}
+                     from={it?.from} to={it?.to} />
+
+      <SectionLabel>The raw record</SectionLabel>
       <StationChannels sim={sim} s={st} hour={0} />
 
       {/* Marking our own homework, kept last and clearly separated: the panel

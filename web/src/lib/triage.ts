@@ -70,6 +70,10 @@ export interface EvidenceIn {
   gap_fraction?: number | null
   episodes?: number | null
   days_open?: number | null
+  /** The flagged window in grade-string steps, so the service can measure
+   *  what the neighbours were doing over exactly that stretch. */
+  window_from?: number | null
+  window_to?: number | null
 }
 
 interface TriageResponse {
@@ -111,4 +115,26 @@ export function decisionTone(d: string): 'bad' | 'sus' | 'ok' {
 export function statusTone(s: AgentStatus): 'bad' | 'sus' | 'ok' | 'muted' {
   return s === 'alarm' ? 'bad' : s === 'watch' ? 'sus'
     : s === 'ok' ? 'ok' : 'muted'
+}
+
+/* WHICH AGENT ACTUALLY CARRIED THE CALL.
+ *
+ * Largest absolute Shapley value is the obvious rule and it is wrong on ties,
+ * which are not rare: a vetoed row has one agent at +0.25 and another at
+ * -0.25, and picking the first credited "data quality" for a verdict of "no
+ * visit, this is weather" -- the exact opposite of what happened.
+ *
+ * The agent that carried a decision is the one whose absence would CHANGE it.
+ * That is available directly: every contribution ships the action the panel
+ * would have reached without that agent. Prefer those, then break by weight,
+ * and fall back to weight alone where nobody is decisive on their own.
+ */
+export function carrierOf(a: Assessment | undefined): Contribution | null {
+  const cs = a?.attribution?.contributions
+  if (!a || !cs?.length) return null
+  const rank = (c: Contribution) => Math.abs(c.phi)
+  const decisive = cs.filter((c) => c.without_action !== a.action)
+  const pool = decisive.length ? decisive : cs.filter((c) => rank(c) > 0.001)
+  if (!pool.length) return null
+  return [...pool].sort((x, y) => rank(y) - rank(x))[0]
 }

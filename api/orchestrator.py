@@ -42,6 +42,8 @@ from typing import Any, Literal
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from .neighbours import comparison_series, parse_sim_id, regional_movement
+
 router = APIRouter()
 
 Status = Literal["ok", "watch", "alarm", "unknown"]
@@ -87,6 +89,13 @@ class Evidence:
     gap_fraction: float | None = None
     episodes: int | None = None
     days_open: float | None = None
+    # Measured regional movement, filled in by the service from the network's
+    # own readings. `neighbours_agree` used to be asserted by the caller; these
+    # are the numbers behind it, so the agent can say how strongly rather than
+    # only whether. See api/neighbours.py.
+    region_z: float | None = None
+    region_share: float | None = None
+    neighbour_count: int | None = None
 
 
 @dataclass
@@ -190,7 +199,8 @@ def context_validation_agent(e: Evidence) -> AgentVerdict:
     """
     m = {"neighbours_agree": e.neighbours_agree,
          "analyst_confirmed": e.analyst_confirmed, "episodes": e.episodes,
-         "days_open": e.days_open}
+         "days_open": e.days_open, "region_z": e.region_z,
+         "region_share": e.region_share, "neighbour_count": e.neighbour_count}
 
     if e.analyst_confirmed:
         return AgentVerdict(
@@ -198,17 +208,33 @@ def context_validation_agent(e: Evidence) -> AgentVerdict:
             "An analyst inspected this instrument and confirmed the fault", m)
 
     if e.neighbours_agree is True:
+        # Say how much of it the region accounts for when that was measured.
+        # "The neighbours moved too" is an assertion; "the region moved 3.1
+        # sigma and covers all of this station's excursion" is evidence.
+        detail = ""
+        if e.region_z is not None and e.neighbour_count:
+            share = (f", covering {e.region_share:.0%} of this excursion"
+                     if e.region_share is not None else "")
+            detail = (f" — {e.neighbour_count} neighbours moved "
+                      f"{abs(e.region_z):.1f} sigma{share}")
         return AgentVerdict(
             "context", "Weather or fault?", "ok", 0.85,
+            f"The surrounding stations show the same movement{detail}"
+            if detail else
             "Neighbouring stations show the same movement — this is weather", m)
 
     if e.neighbours_agree is False:
         extra = ""
         if e.days_open is not None and e.days_open >= 1:
             extra = f", and has for {e.days_open:.0f} days"
+        quiet = ""
+        if e.region_z is not None and e.neighbour_count:
+            quiet = (f" Its {e.neighbour_count} neighbours moved only "
+                     f"{abs(e.region_z):.1f} sigma.")
         return AgentVerdict(
             "context", "Weather or fault?", "alarm", 0.85,
-            f"No neighbouring station shows this{extra} — it is the instrument",
+            f"No neighbouring station shows this{extra} — it is the "
+            f"instrument.{quiet}".rstrip(),
             m)
 
     if e.episodes is not None and e.episodes >= 2:
@@ -473,6 +499,11 @@ class EvidenceIn(BaseModel):
     gap_fraction: float | None = None
     episodes: int | None = None
     days_open: float | None = None
+    # The flagged window, in STEPS of the grade string. Supplied so the service
+    # can ask what the region was doing during exactly that stretch rather than
+    # averaging the answer over a month.
+    window_from: int | None = None
+    window_to: int | None = None
 
 
 @router.post("/api/board/triage")
@@ -486,9 +517,45 @@ def triage(items: list[EvidenceIn]) -> dict:
     for it in items[:2000]:
         data = it.model_dump()
         ident = data.pop("id")
+        frm = data.pop("window_from", None)
+        to = data.pop("window_to", None)
+
+        # MEASURE THE NEIGHBOURS RATHER THAN BE TOLD ABOUT THEM.
+        #
+        # The board used to send `neighbours_agree: false` on every simulated
+        # row, on the reasoning that a flagged station is one its neighbours
+        # disagree with. That handed the context agent its own conclusion: it
+        # could never veto, and its Shapley value on this board was
+        # structurally zero -- three agents, one of them unable to affect any
+        # outcome. Here the service works it out from the network's own
+        # readings, and only when the caller did not claim to know.
+        if data.get("neighbours_agree") is None:
+            parsed = parse_sim_id(ident)
+            if parsed:
+                r = regional_movement(parsed[0], parsed[1], frm, to)
+                if r:
+                    data["neighbours_agree"] = r["agree"]
+                    data["region_z"] = r["region_z"]
+                    data["region_share"] = r["share_explained"]
+                    data["neighbour_count"] = r["neighbours"]
+
         out[ident] = assess(Evidence(**data)).dict()
     return {"assessments": out, "panel": [f.__name__ for f in PANEL],
             "actions": ACTIONS}
+
+
+@router.get("/api/board/region")
+def region(station: str, channel: str) -> dict:
+    """This station's anomaly and its region's, for the detail chart.
+
+    Separate from /triage because it is one station's worth of series and the
+    board asks for hundreds of verdicts at once; folding it into the batch
+    would send a megabyte to draw one chart.
+    """
+    r = comparison_series(station, channel)
+    if r is None:
+        return {"available": False}
+    return {"available": True, **r}
 
 
 @router.get("/api/board/panel")
