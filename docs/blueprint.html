@@ -1198,6 +1198,50 @@ td s{opacity:.55}
     it takes two distinct paths from six question strings. It is an honest printout of the
     rules and it is not an autonomous investigation &mdash; nothing chooses what to examine
     next because of what it just found. That is designed and unbuilt.</div>
+
+    <h3>The planned second layer &mdash; a reference regressor, explained by TreeSHAP</h3>
+    <p class="prose">Exact Shapley answers <em>which agent drove the verdict</em>. It cannot
+    answer <em>why the residual was that large</em>, because the reference the residual is
+    measured against &mdash; the median of the neighbours &mdash; has no features to
+    attribute to. That is the layer TreeSHAP belongs in, and it is the reason the problem
+    statement's SHAP/LIME line is only half answered today.</p>
+
+    <div class="note"><strong>Put the model in the reference, not in the scorer.</strong><br><br>
+    A gradient-boosted regressor predicts what this station <em>should</em> have read at
+    this timestep from its neighbours' readings, the hour of day and the season. The
+    anomaly becomes the subtraction, <code>r = observed &minus; predicted</code>, and the
+    model's own error sets the scale instead of a rolling MAD. This is the defensible
+    place for ML: a better reference improves every fault class at once, whereas a
+    cleverer scorer improves none &mdash; drift latency is governed by the noise of the
+    reference, not by the ingenuity of the detector.</div>
+
+    <p class="prose">Because the reference is then a tree ensemble, <strong>TreeSHAP
+    applies exactly where it is meant to</strong>: it decomposes each prediction into
+    per-feature contributions in time linear in the tree size, so a verdict can say
+    <em>which neighbour</em> and <em>which part of the daily cycle</em> the expected value
+    rested on. An operator asking &ldquo;why did you expect 24.1&nbsp;&deg;C here?&rdquo;
+    gets a real answer rather than &ldquo;because four other stations said so&rdquo;.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Layer</th><th>Attributes</th><th>Over what</th><th>Method</th><th>State</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Panel</td><td>the verdict</td><td>three agents</td><td>Exact Shapley, all 2<sup>3</sup> coalitions enumerated</td><td><span class="chip ok">built</span></td></tr>
+          <tr><td class="k">Reference</td><td>the expected reading</td><td>model features &mdash; neighbours, hour, season</td><td>TreeSHAP over a gradient-boosted regressor</td><td><span class="chip sus">planned</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="prose">The two do not compete and neither replaces the other: they attribute
+    different quantities at different layers. Say <strong>Shapley</strong> when the subject
+    is the panel and <strong>TreeSHAP</strong> when the subject is the reference, and the
+    distinction stays clear under questioning.</p>
+
+    <div class="warn"><strong>Status, so it is never oversold.</strong> The regressor is
+    designed and <em>not trained</em>; no <code>shap</code> import exists in the
+    repository. Until it does, there is no machine-learned model in the decision path and
+    the system must be presented that way. The flowcharts draw this layer with a dashed
+    outline for exactly that reason.</div>
   </section>
 
   <section>

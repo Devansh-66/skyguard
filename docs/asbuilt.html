@@ -201,7 +201,7 @@ footer{margin-top:76px; padding-top:22px; border-top:2px solid var(--ink);
         <tr><td class="k">How, in one line?</td><td>Remove each station's own hourly climatology, subtract the median of its neighbours, divide by a trailing lagged rolling MAD, band at 6&sigma; and 8&sigma;, and require three consecutive steps before opening an episode.</td></tr>
         <tr><td class="k">How accurate?</td><td><strong>57% recall, 38% precision</strong> &mdash; 72% recall once dropouts, which have no residual to difference, are excluded. Against injected faults whose amplitudes deliberately run below what a 30-day record can support.</td></tr>
         <tr><td class="k">Who decides to dispatch?</td><td>Three deterministic agents &mdash; data quality, hardware health, weather-or-fault &mdash; and an adjudicator with a fixed rule order. Not an LLM, and not a learned model.</td></tr>
-        <tr><td class="k">How is it explained?</td><td>Exact Shapley over the three agents (all eight coalitions, so contributions sum to the verdict), a counterfactual per agent, and the adjudicator's own walk shown step by step.</td></tr>
+        <tr><td class="k">How is it explained?</td><td>Exact Shapley over the three agents (all eight coalitions, so contributions sum to the verdict), a counterfactual per agent, and the adjudicator's own walk shown step by step. TreeSHAP sits one layer down, over a learned reference &mdash; designed, not built (&sect;18, &sect;26).</td></tr>
         <tr><td class="k">Is any of it ML?</td><td><strong>No.</strong> There is no model in the decision path. The intelligence is in the multi-agent arbitration and the spatial statistics.</td></tr>
         <tr><td class="k">Is the data real?</td><td>Station <em>locations</em> are real IMD sites. Readings are generated, and stay generated through the finals &mdash; what is demonstrated is the pipeline that judges them.</td></tr>
         <tr><td class="k">Does hardware exist?</td><td>An ESP32 sketch that runs end to end in Wokwi, TLS to the deployed service, through the same ingest door the simulated network uses. Never run on a physical board.</td></tr>
@@ -1104,6 +1104,20 @@ v(S) = escalation( adjudicate with only the agents in S allowed to speak )
   computed by re-running the adjudicator with it silenced. <strong>&ldquo;Silence hardware
   and this becomes CALIBRATE&rdquo;</strong> is the half people act on.</p>
 
+  <h3>Where TreeSHAP would go, and why it is not here</h3>
+  <p>Exact Shapley answers <em>which agent drove the verdict</em>. It cannot answer
+  <em>why the residual was that large</em>, because the reference it is measured against
+  &mdash; the median of the neighbours &mdash; has no features to attribute to. That is a
+  second layer, and it is where TreeSHAP belongs: once the reference is a gradient-boosted
+  regressor predicting the expected reading from neighbours, hour and season, TreeSHAP
+  decomposes each prediction into per-feature contributions in time linear in the tree.
+  The two attribute different quantities and neither replaces the other &mdash; Shapley
+  for the panel, TreeSHAP for the reference.</p>
+
+  <p>It is <strong>planned and unbuilt</strong>. The regressor is not trained and there is
+  no <code>shap</code> import in the repository, so nothing in what runs today should be
+  described as SHAP. The blueprint carries the design; &sect;26 carries the status.</p>
+
   <h3>The decision trace</h3>
   <p>The adjudicator records every check it reached, in order, with the answer it got,
   shown on the board in a collapsed disclosure. The checks that did <em>not</em> fire carry
@@ -1482,7 +1496,7 @@ v(S) = escalation( adjudicate with only the agents in S allowed to speak )
       <thead><tr><th>Gap</th><th>State</th><th>Detail</th></tr></thead>
       <tbody>
         <tr><td class="k">An autonomous explanation trajectory</td><td><span class="chip c-no">not built</span></td><td><strong>The largest gap.</strong> The decision trace is a walk through a fixed tree &mdash; two distinct paths across all sixty board rows, from six question strings. A trajectory chooses the next probe <em>because of</em> the previous answer, so different sensors produce genuinely different investigations. The probes largely exist; the controller that selects among them and the stopping rule do not.</td></tr>
-        <tr><td class="k">A learned reference model</td><td><span class="chip c-no">not built</span></td><td>The place a model belongs is predicting what a station <em>should</em> have read, so the anomaly is the subtraction and SHAP over its features is honest. Designed, not trained. Until it exists there is no model in the decision path at all.</td></tr>
+        <tr><td class="k">A learned reference model, and TreeSHAP over it</td><td><span class="chip c-no">not built</span></td><td>The place a model belongs is predicting what a station <em>should</em> have read from its neighbours, the hour and the season, so the anomaly is the subtraction <code>r = observed &minus; predicted</code> and the model's own error sets the scale. Make that reference a gradient-boosted regressor and <strong>TreeSHAP applies exactly where it is meant to</strong> &mdash; per-feature contributions to each prediction, so a verdict can name <em>which neighbour</em> and <em>which part of the daily cycle</em> the expected value rested on. Designed, not trained; there is no <code>shap</code> import in the repository. Until it exists there is no model in the decision path at all.</td></tr>
         <tr><td class="k">Faithfulness testing</td><td><span class="chip c-no">not built</span></td><td>Nothing verifies the explanations are not lying. We inject the faults, so &ldquo;does the top-attributed factor match the injected cause?&rdquo; is measurable here in a way it is not for most entrants. Not yet measured.</td></tr>
         <tr><td class="k">One door for both sources</td><td><span class="chip c-no">deferred</span></td><td><strong>Agreed, and not yet done.</strong> The live node and a real ESP32 post through <code>/api/ingest</code> and are stored; the simulated network does neither. It is a pre-built export the panel reads directly, and <code>store.record()</code> is called only from <code>api/ingest.py</code>. Routing the simulation through the same door is the correct shape &mdash; one path, one screen, nothing special-cased &mdash; and the blueprint's system diagram already draws it that way. Until then the shared door is the <em>panel</em>, not ingest: both sources are judged by the same three agents, which is what actually stops two screens disagreeing about one sensor.</td></tr>
         <tr><td class="k">Real hardware</td><td><span class="chip c-no">not built</span></td><td>The firmware runs end to end in Wokwi against the deployed Space. It has never run on a physical ESP32.</td></tr>
