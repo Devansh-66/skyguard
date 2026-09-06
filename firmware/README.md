@@ -76,35 +76,61 @@ conclusion on each. It also checks that the node's screen and the server's agree
 because a node with a corrupted screen is itself one of the faults we are
 supposed to catch. A mismatch surfaces as `edge_screen_disagreement`.
 
-**The firmware half — only in Wokwi for VS Code, or on hardware.**
+**The firmware half — two ways, and only one of them needs anything installed.**
 
-Browser Wokwi at wokwi.com cannot reach a server on your machine. **Wokwi for
-VS Code** bundles a private IoT gateway, and `host.wokwi.internal` resolves to
-the host from inside the simulation — that is why the firmware posts there and
-not to `127.0.0.1`, which inside the simulation is the ESP32 itself.
+`SERVER` in the sketch points at the deployed Space, which is a public HTTPS
+host. That is reachable from **wokwi.com in a browser**, so the simplest route
+needs no extension, no licence and no local server:
+
+1. Open the project at wokwi.com, paste in `skyguard_node.ino` and
+   `diagram.json`
+2. Start it; the node joins `Wokwi-GUEST`, fetches its baseline and begins
+   posting
+3. Watch them arrive:
+   `curl "https://dev-66-skyguard-api.hf.space/api/ingest/recent?station=WOKWI-ESP32"`
+   or open the network map and click the dashed marker
+
+Verified from outside the simulator: `POST /api/ingest` as the node returns
+`accepted` with a neighbour grade attached, and `GET /api/baseline/WOKWI-ESP32`
+answers. The public path works; what has not been demonstrated here is the
+firmware driving it.
+
+**Against a server on your own machine**, swap `SERVER` for the commented
+`host.wokwi.internal` line. That name resolves *only* under the Wokwi VS Code
+extension, whose private gateway routes it to the host — from wokwi.com there
+is no such route, and `localhost` there means Wokwi's own container.
 
 1. Install the **Wokwi Simulator** extension in VS Code and activate a licence
 2. Build: `pio run` in `firmware/skyguard_node/` (paths in `wokwi.toml` point at
    `.pio/build/esp32dev/`)
 3. Start the API on port 8000
 4. F1 → **Wokwi: Start Simulator**
-5. Watch readings arrive: `curl "http://127.0.0.1:8000/api/ingest/recent?station=Pune"`
+5. `curl "http://127.0.0.1:8000/api/ingest/recent?station=WOKWI-ESP32"`
 
-### Not yet verified
+**The automation scenarios need the CLI or the extension.** `wokwi-cli` (with
+`WOKWI_CLI_TOKEN`) or VS Code can drive `weather-scenario.yaml`; the browser
+playground cannot, so there the sensors are sliders you move by hand. Real
+weather in, or a browser with nothing installed — pick one.
 
-The firmware has **not been run** — neither in Wokwi nor on hardware. It is
-written against the protocol that `virtual_node.py` exercises, and the server
-side of that protocol is tested, but nothing here establishes that the ESP32
-build compiles, fits in flash, or keeps up at cadence. Treat the timing, memory
-and radio behaviour as unmeasured until someone runs it.
+### What is and is not established
 
-The BME280 in Wokwi is a scripted part, not a physical sensor, so it cannot
-reproduce the faults this project detects. Injecting a radiation-shield failure
-or a slow calibration drift into a simulated probe would mean scripting the
-values, at which point the simulator is testing the injector rather than the
-sensor. **Fault detection is measured on the harness** (`evaluation/`), not here;
-what the node tier is for is the physics screen, the frozen-baseline residual,
-and the conditional uplink.
+The server side of this protocol is tested: `virtual_node.py` exercises it,
+`weather-scenario.yaml` replays through `/api/ingest` end to end, and the
+neighbour grading, the episode hysteresis and the board are measured against
+those runs.
+
+**Whether the ESP32 build compiles, fits in flash and keeps up at cadence is
+not established by anything in this repository.** Treat the timing, memory and
+radio behaviour as unmeasured until someone runs it and says so here. If you
+have run it, the boot banner prints `FW_VERSION` — record which build it was,
+because that string is the only way to tell from the outside.
+
+The sensors in Wokwi are scripted parts, not physical ones. That is not an
+objection any more, it is the mechanism: `make_wokwi_scenario.py` scripts them
+from the same field the 344 simulated stations are drawn from, so what is being
+tested is the pipeline that judges a reading — the screen, the uplink decision,
+the ingest path, the neighbour comparison — rather than the sensor. **Fault
+detection accuracy is measured on the harness** (`evaluation/`), not here.
 
 ## Real weather, not a knob
 

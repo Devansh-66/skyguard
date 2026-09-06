@@ -83,7 +83,7 @@ static const char* STATION = "WOKWI-ESP32";
 // drifted apart -- one pasted into the Wokwi web editor, one in the repo -- and
 // the only reason the difference was ever noticed is that their banners did not
 // match. Cheap insurance.
-static const char* FW_VERSION = "skyguard-node-1.2.0-dht";
+static const char* FW_VERSION = "skyguard-node-1.3.0-simframe";
 
 static const uint32_t SAMPLE_MS = 2000;      // demo cadence; 15 min in the field
 static const uint32_t HEARTBEAT_EVERY = 15;  // samples between forced uplinks
