@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS readings (
   server_flags TEXT,                   -- what this server found
   accepted  INTEGER NOT NULL,
   frame     INTEGER,                   -- which frame of the shared record
-  pass_no   INTEGER                    -- which traverse of it
+  pass_no   INTEGER,                   -- which traverse of it
+  fw        TEXT                       -- which sender wrote it
 );
 -- The query this table exists to answer is "what has station X sent lately",
 -- and without this index that is a full scan the moment the table is large.
@@ -68,7 +69,7 @@ CREATE INDEX IF NOT EXISTS readings_station_t ON readings (station, t DESC);
 # not work on every machine that already has data -- including the deployed
 # Space. PRAGMA user_version is the version marker; each step is idempotent and
 # additive, and no step ever drops a column.
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def _migrate(c: sqlite3.Connection) -> None:
@@ -106,6 +107,21 @@ def _migrate(c: sqlite3.Connection) -> None:
         for name, decl in (("frame", "INTEGER"), ("pass_no", "INTEGER")):
             if name not in existing:
                 c.execute(f"ALTER TABLE readings ADD COLUMN {name} {decl}")
+    if have < 4:
+        # WHICH SENDER WROTE THE ROW.
+        #
+        # The node reported `fw` from the beginning and it was thrown away at
+        # the door -- it went into the ring buffer and the live broadcast and
+        # never into the table. That was harmless while one sender existed per
+        # station. It stopped being harmless when the scenario replay began
+        # sharing a station id with a real board: with no fw on disk there is
+        # no way to delete only what the replay wrote, or to notice that a
+        # device is reporting, so the replay deleted the board's readings and
+        # never saw it was there.
+        cols = c.execute("PRAGMA table_info(readings)").fetchall()
+        existing = {row[1] for row in cols}
+        if "fw" not in existing:
+            c.execute("ALTER TABLE readings ADD COLUMN fw TEXT")
     c.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
 
@@ -144,8 +160,8 @@ def record(rec: dict) -> None:
                 " node_flags, server_flags, accepted,"
                 " vbat_mv, log_temp_c100, flat_pct, gap_pct,"
                 " selftest_mask, health, boot_id, reboot_count, replayed,"
-                " frame, pass_no)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " frame, pass_no, fw)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (rec["t"], rec["station"], rec.get("seq"),
                  rec.get("temp"), rec.get("rh"), rec.get("pres"),
                  ",".join(rec.get("node_flags") or []),
@@ -156,7 +172,7 @@ def record(rec: dict) -> None:
                  rec.get("selftest_mask"), rec.get("health"),
                  rec.get("boot_id"), rec.get("reboot_count"),
                  1 if rec.get("replayed") else 0,
-                 rec.get("frame"), rec.get("pass_no")))
+                 rec.get("frame"), rec.get("pass_no"), rec.get("fw")))
             c.commit()
     except Exception:
         pass
@@ -170,18 +186,19 @@ def history(station: str | None = None, limit: int = 200) -> list[dict]:
             if station:
                 rows = c.execute(
                     "SELECT t, station, seq, temp, rh, pres, node_flags,"
-                    " server_flags, accepted, frame, pass_no FROM readings"
+                    " server_flags, accepted, frame, pass_no, fw FROM readings"
                     " WHERE station = ?"
                     " ORDER BY t DESC LIMIT ?", (station, limit)).fetchall()
             else:
                 rows = c.execute(
                     "SELECT t, station, seq, temp, rh, pres, node_flags,"
-                    " server_flags, accepted, frame, pass_no FROM readings"
+                    " server_flags, accepted, frame, pass_no, fw FROM readings"
                     " ORDER BY t DESC LIMIT ?", (limit,)).fetchall()
     except Exception:
         return []
     cols = ("t", "station", "seq", "temp", "rh", "pres",
-            "node_flags", "server_flags", "accepted", "frame", "pass_no")
+            "node_flags", "server_flags", "accepted", "frame", "pass_no",
+            "fw")
     out = []
     for r in rows:
         d = dict(zip(cols, r))
@@ -192,27 +209,69 @@ def history(station: str | None = None, limit: int = 200) -> list[dict]:
     return out
 
 
-def forget(station: str) -> int:
-    """Delete one station's readings. Returns how many were removed.
+def forget(station: str, fw: str | None = None) -> int:
+    """Delete a station's readings. Returns how many were removed.
 
-    Only ever called for a station whose record is being deliberately restarted
-    -- a scenario replayed again. Without it a second replay draws on top of the
-    first: same frames, two sets of values, and a trace that appears to double
-    back on itself.
+    `fw` NARROWS IT TO ONE WRITER, AND CALLING THIS WITHOUT ONE WAS A BUG.
+
+    The scenario replay resets the demo node by clearing its record, and it
+    shares a station id with the real board -- so an unqualified delete took
+    the device's readings with it. A board reporting every two seconds had its
+    record wiped from under it every time the replay wrapped, which from the
+    outside looks exactly like a node that has stopped.
+
+    Nothing may delete rows it did not write. Pass the firmware string that
+    wrote them.
 
     There is no bulk delete and there should not be. The observation record is
-    the archive; this exists for a demo station that is explicitly being reset,
+    the archive; this exists for a demo station being explicitly restarted,
     which is a different thing from data being tidied away.
     """
     try:
         with _lock:
             c = _connect()
-            n = c.execute("DELETE FROM readings WHERE station = ?",
-                          (station,)).rowcount
+            if fw is None:
+                n = c.execute("DELETE FROM readings WHERE station = ?",
+                              (station,)).rowcount
+            else:
+                n = c.execute(
+                    "DELETE FROM readings WHERE station = ? AND fw IS ?",
+                    (station, fw)).rowcount
             c.commit()
             return int(n or 0)
     except Exception:
         return 0
+
+
+def writers(station: str, since_seconds: float = 120.0) -> dict[str, int]:
+    """Which firmware strings have written for this station RECENTLY.
+
+    Answers "is a board reporting here now", which is the only version of the
+    question worth asking. Two earlier versions were both wrong:
+
+      * the newest row alone. At 25 replayed readings a second against a
+        device's one every two seconds, the newest row is the replay's fifty
+        times out of fifty-one, so the check that was meant to hand the station
+        back to the device essentially never fired.
+      * the last N rows regardless of age. That turns one historical reading
+        into a permanent veto -- a board that reported once last week would
+        block the replay forever, and the only way to clear it would be to
+        delete rows by hand.
+
+    A window in TIME has neither failure. A device that has gone quiet stops
+    counting as present once its last reading ages out.
+    """
+    import time as _time
+    try:
+        with _lock:
+            c = _connect()
+            rows = c.execute(
+                "SELECT fw, COUNT(*) FROM readings WHERE station = ? AND t >= ?"
+                " GROUP BY fw", (station, _time.time() - float(since_seconds))
+            ).fetchall()
+        return {(r[0] or "unknown"): int(r[1]) for r in rows}
+    except Exception:
+        return {}
 
 
 def stats() -> dict:

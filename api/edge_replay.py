@@ -43,6 +43,11 @@ SCENARIO = (Path(__file__).resolve().parent.parent / "firmware"
 PRES_LO, PRES_HI = 950.0, 1050.0
 SIM_MINUTES_PER_SAMPLE = 30.0
 
+# Stamped on every reading this module writes, and the ONLY rows it may ever
+# delete. The demo node and a real board share a station id, so this string is
+# the whole of what separates them.
+FW = "replay-scenario"
+
 _STEP = re.compile(
     r"control: temperature\s*\n\s*value: ([-\d.]+).*?"
     r"control: humidity\s*\n\s*value: ([-\d.]+).*?"
@@ -109,14 +114,16 @@ async def _run(station: str, rate: float, limit: int) -> None:
             # began at frame 1 with frame 0 missing -- measured: the series came
             # back as frames 1..50 instead of 0..50.
             if i and frame == 0:
-                store.forget(station)
+                # Only what THIS replay wrote. An unqualified delete here took
+                # a real board's readings with it, every traverse.
+                store.forget(station, fw=FW)
                 edge_grade.reset(station)
 
             flags = physics_screen(t, h, p)
             ingest(Reading(station=station, temp=t, rh=h, pres=p, seq=i,
                            dt_min=SIM_MINUTES_PER_SAMPLE, frame=frame,
                            pass_no=pass_no,
-                           fw="replay-scenario", flags=flags,
+                           fw=FW, flags=flags,
                            vbat_mv=3900, log_temp_c100=3100,
                            flat_pct=0, gap_pct=0, selftest_mask=0,
                            health="S1", boot_id=1, reboot_count=0))
@@ -130,9 +137,10 @@ async def _run(station: str, rate: float, limit: int) -> None:
             # Wokwi -- two senders are writing the same frames and the trace
             # is neither of them. The device wins; this is the stand-in.
             if i % 20 == 0:
-                last = store.history(station, 1)
-                if last and last[0].get("fw") not in (None, "replay-scenario"):
-                    _state["stopped_by"] = f"a real node ({last[0].get('fw')})"
+                other = [w for w in store.writers(station, since_seconds=30)
+                         if w != FW]
+                if other:
+                    _state["stopped_by"] = f"a real node ({', '.join(other)})"
                     edge_grade.reset(station)
                     return
             await asyncio.sleep(gap)
@@ -156,6 +164,17 @@ async def replay(station: str = Query("WOKWI-ESP32"),
     if not SCENARIO.exists():
         raise HTTPException(503, "no scenario file; generate one with "
                                  "python -m scripts.make_wokwi_scenario")
+    # DO NOT SHOUT OVER A BOARD THAT IS ALREADY REPORTING.
+    #
+    # Two senders on one station id produce a trace that is neither of them,
+    # and the device is the one worth watching. Refuse rather than race it.
+    other = [w for w in store.writers(station, since_seconds=120) if w != FW]
+    if other:
+        raise HTTPException(
+            409, f"{station} is being reported by {', '.join(other)} right now. "
+                 f"Stop that node, or wait two minutes after its last reading, "
+                 f"before replaying the scenario over it.")
+
     with _lock:
         if _state["running"]:
             raise HTTPException(409, "a replay is already running")
@@ -167,7 +186,7 @@ async def replay(station: str = Query("WOKWI-ESP32"),
     # values, and the chart appears to double back on itself. The learned
     # scale goes too: a residual history built against the last run does not
     # describe this one.
-    removed = store.forget(station)
+    removed = store.forget(station, fw=FW)
     edge_grade.reset(station)
 
     asyncio.create_task(_run(station, rate, limit))

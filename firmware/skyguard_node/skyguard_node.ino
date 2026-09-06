@@ -83,7 +83,7 @@ static const char* STATION = "WOKWI-ESP32";
 // drifted apart -- one pasted into the Wokwi web editor, one in the repo -- and
 // the only reason the difference was ever noticed is that their banners did not
 // match. Cheap insurance.
-static const char* FW_VERSION = "skyguard-node-1.3.0-simframe";
+static const char* FW_VERSION = "skyguard-node-1.3.1-jsonroom";
 
 static const uint32_t SAMPLE_MS = 2000;      // demo cadence; 15 min in the field
 static const uint32_t HEARTBEAT_EVERY = 15;  // samples between forced uplinks
@@ -454,7 +454,19 @@ static bool uplink(float t, float h, float p, const String& flags,
   beginHttp(http, String(SERVER) + "/api/ingest");
   http.addHeader("Content-Type", "application/json");
 
-  StaticJsonDocument<512> doc;
+  // HEADROOM, AND A COMPLAINT IF IT IS EVER SHORT.
+  //
+  // This was 512 and had about twenty members before `frame` and `pass_no`
+  // were added to it. ArduinoJson does not fail loudly when a document fills:
+  // it silently drops what will not fit, and since `flags` is added last, the
+  // field that vanishes first is the one carrying the node's own screening
+  // verdict -- so the server would see a reading the node never complained
+  // about and quietly disagree with itself.
+  //
+  // 1024 is ample for the twenty-one members plus a handful of flag strings,
+  // and overflowed() says so out loud rather than leaving it to be discovered
+  // as a disagreement nobody can explain.
+  StaticJsonDocument<1024> doc;
   doc["station"] = STATION;
   doc["temp"] = t; doc["rh"] = h; doc["pres"] = p;
   doc["seq"] = seq;
@@ -493,6 +505,9 @@ static bool uplink(float t, float h, float p, const String& flags,
     from = c + 1;
   }
 
+  if (doc.overflowed()) {
+    Serial.println("  WARNING: uplink JSON overflowed -- fields were dropped");
+  }
   String body;
   serializeJson(doc, body);
   const int code = http.POST(body);
