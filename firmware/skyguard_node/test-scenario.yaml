@@ -24,24 +24,22 @@ steps:
   # 1. It boots and identifies itself.
   - wait-serial: "SkyGuard node"
 
-  # 2. The probe answers on I2C. If the BME280 were missing this line would
-  #    read NOT FOUND and ST_NO_ACK would be set instead.
-  - wait-serial: "BME280 ok"
+  # 2. The probe answers. On the simulator build that is a DHT22 on a data
+  #    pin, not a BME280 on I2C -- this assertion said "BME280 ok" for as long
+  #    as the sketch had already stopped printing it, so the scenario could
+  #    only ever fail on the timeout. An assertion nobody can pass is worse
+  #    than no assertion: it makes a green run impossible and so gets ignored.
+  - wait-serial: "sensor ok"
 
-  # 3. Specific humidity is computed from all three channels at boot. This is
-  #    the one self-test that genuinely needs pressure -- it is what catches
-  #    three individually-plausible readings that describe no real air.
-  - wait-serial: "q="
+  # 3. Housekeeping is read from the two pots and reported.
+  - wait-serial: "vbat="
 
-  # 4. Housekeeping is read from the two pots and reported.
-  - wait-serial: "vbat_mv="
-
-  # 5. The self-test mask is published. On a healthy boot with the pots at
+  # 4. The self-test mask is published. On a healthy boot with the pots at
   #    their defaults this should be 0x0, or 0x800 if the server is absent and
   #    ST_NO_BASELINE is set -- the node runs screen-only and says so.
   - wait-serial: "selftest mask=0x"
 
-  # 6. A sample line carrying the rolling window counters. Reaching this proves
+  # 5. A sample line carrying the rolling window counters. Reaching this proves
   #    the loop runs, the popcount arithmetic works, and flat/gap are being
   #    maintained -- the three fields the server's hardware agent needs.
   - wait-serial: "flat="

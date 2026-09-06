@@ -88,6 +88,29 @@ static const char* FW_VERSION = "skyguard-node-1.2.0-dht";
 static const uint32_t SAMPLE_MS = 2000;      // demo cadence; 15 min in the field
 static const uint32_t HEARTBEAT_EVERY = 15;  // samples between forced uplinks
 
+// HOW MUCH WEATHER ONE SAMPLE REPRESENTS, WHICH IS NOT HOW LONG IT TOOK.
+//
+// The node samples every two seconds so a demo is watchable, but each sample
+// is one frame of the simulated record -- thirty simulated minutes. Those are
+// different numbers and the server needs the second one.
+//
+// It used to send SAMPLE_MS / 60000 = 0.033 min, so the server's rate check
+// allowed a change of 3.0 C/min x 0.033 min = 0.1 C between samples, against
+// sensor noise of 0.25 C and a diurnal swing far larger. Every ordinary
+// reading looked like an impossible jump. The check was right; the node was
+// telling it the wall clock.
+//
+// Set to 15.0 for a field station reporting on the WMO cadence, with the
+// sample interval to match. SIM_FRAMES is the length of the record the frame
+// counter wraps against.
+static const float SIM_MINUTES_PER_SAMPLE = 30.0f;
+static const uint32_t SIM_FRAMES = 1440;     // 30 days of 30-minute frames
+
+// Whether this build is reporting against the simulated record at all. On real
+// hardware there is no record and no frame -- the server falls back to arrival
+// time, which is correct there and wrong here.
+#define REPORT_SIM_FRAME 1
+
 // ------------------------------------------------------------ housekeeping
 //
 // WHY A NODE MUST REPORT ITS OWN HEALTH, NOT JUST ITS READINGS
@@ -435,8 +458,19 @@ static bool uplink(float t, float h, float p, const String& flags,
   doc["station"] = STATION;
   doc["temp"] = t; doc["rh"] = h; doc["pres"] = p;
   doc["seq"] = seq;
-  doc["dt_min"] = SAMPLE_MS / 60000.0f;   // the node's frame, not arrival time
+  doc["dt_min"] = SIM_MINUTES_PER_SAMPLE;  // weather elapsed, not wall clock
   doc["fw"] = FW_VERSION;
+#if REPORT_SIM_FRAME
+  // WHICH MOMENT OF THE RECORD THIS READING IS FOR.
+  //
+  // The scenario steps the sensors one frame per sample from frame 0, so the
+  // sample counter IS the frame. Sending it is what lets the server difference
+  // this node against what its neighbours were doing at the same moment,
+  // instead of against whatever they happen to be doing now -- and it is what
+  // puts the node on the same axis as the other 344 on the dashboard.
+  doc["frame"] = (uint32_t)(seq % SIM_FRAMES);
+  doc["pass_no"] = (uint32_t)(seq / SIM_FRAMES);
+#endif
 
   // The housekeeping tier. Sent every uplink because it is small and because
   // the server's hardware agent has no other source for any of it.
@@ -558,7 +592,11 @@ void loop() {
   gapBits  = (gapBits  << 1);
   if (winFill < WIN) winFill++;
 
-  const float dtMin = SAMPLE_MS / 60000.0f;
+  // The SAME interval the uplink declares. When these two disagree the node
+  // screens against one clock and the server against another, every reading
+  // comes back edge_screen_disagreement, and the marker that is supposed to
+  // mean "this node's screen has failed" means "the demo is compressed".
+  const float dtMin = SIM_MINUTES_PER_SAMPLE;
   const String flags = physicsScreen(t, h, p, dtMin);
 
   // Residual against the pushed baseline. Solar hour and day-of-year would come

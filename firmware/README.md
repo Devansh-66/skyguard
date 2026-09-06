@@ -7,7 +7,8 @@ wire protocol so the server half can be tested without any simulator at all.
 firmware/
   skyguard_node/          ESP32 firmware (Wokwi or real hardware)
     skyguard_node.ino
-    diagram.json          ESP32 + BME280 on I2C
+    diagram.json          ESP32 + DHT22 + pots (Wokwi has no barometer)
+    weather-scenario.yaml GENERATED: drives the sensors from the simulated field
     wokwi.toml            includes the localhost route
     platformio.ini
   virtual_node.py         same protocol, plain Python, runs anywhere
@@ -104,6 +105,58 @@ values, at which point the simulator is testing the injector rather than the
 sensor. **Fault detection is measured on the harness** (`evaluation/`), not here;
 what the node tier is for is the physics screen, the frozen-baseline residual,
 and the conditional uplink.
+
+## Real weather, not a knob
+
+The DHT22 and the pressure pot are controls. Left alone they sit at 24 C and
+40 %, which is furniture rather than weather -- and a residual against
+neighbours means nothing when the "sensor" is a slider nobody touched.
+
+`scripts/make_wokwi_scenario.py` writes a Wokwi automation that steps those
+controls through the **same field the 344 simulated stations are drawn from**,
+sampled at the node's own location (Pune: ten simulated neighbours inside
+120 km). One sample per frame, thirty simulated minutes each.
+
+```bash
+python -m scripts.make_wokwi_scenario --fault drift
+cd firmware/skyguard_node
+wokwi-cli --scenario weather-scenario.yaml --timeout 900000 .
+```
+
+The fault is applied **to the sensor, not to the message**. The firmware is
+told nothing: it reads a probe that has started lying, screens it, and decides
+on its own whether to transmit. That is what a failing instrument looks like
+from the board's point of view.
+
+Measured by replaying the generated scenarios through `/api/ingest`, 240
+samples each:
+
+| Scenario | Result |
+|---|---|
+| clean | 200 graded readings, **no false alarms** |
+| drift, 1.0 K/simulated day | WATCH at sample 172, FAULT after, final z = 11.5 |
+| offset, +2.0 K | FAULT at sample 120, the first reading after onset |
+| stuck | FAULT at sample 123 |
+| spike, +12 K | FAULT at the spike, z = 54.9 |
+
+Screen disagreements between node and server across all five runs: **0**.
+
+### Two clocks, and why the node must report the right one
+
+A sample takes two seconds of wall clock and represents thirty minutes of
+weather. The uplink now declares `dt_min = SIM_MINUTES_PER_SAMPLE`, and the
+node's own rate screen uses the same value.
+
+It used to send `SAMPLE_MS / 60000` = 0.033 min, so the server's rate check
+allowed a change of 3.0 C/min x 0.033 min = 0.1 C between samples against
+sensor noise of 0.25 C. Every ordinary reading looked like an impossible jump,
+and because the node screened against one clock and the server against another,
+`edge_screen_disagreement` fired constantly -- a marker that is supposed to mean
+"this node's screen has failed" meaning "the demo is compressed".
+
+The node also sends the `frame` it is reporting for, which is what lets the
+server difference it against what its neighbours were doing **at that moment**
+and draw it on the same axis as the other 344.
 
 ## Uplink policy
 

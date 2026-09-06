@@ -258,6 +258,25 @@ def ingest(r: Reading) -> dict:
     verdict = {"ok": True, "accepted": accepted, "station": r.station,
                "server_flags": server_flags, "buffered": n}
 
+    # GRADE IT AGAINST ITS NEIGHBOURS, IF IT HAS ANY.
+    #
+    # The physics screen above catches gross errors and nothing else -- drift,
+    # stuck and offset are all physically plausible and pass it untouched,
+    # which is the entire reason this project exists. A node that only ever got
+    # the screen would arrive on the dashboard permanently healthy while
+    # walking away from its region.
+    #
+    # Wrapped, and never allowed to fail the ingest: the reading is recorded by
+    # the time this runs, so a missing simulated field costs a verdict, not a
+    # measurement.
+    try:
+        from api import edge_grade
+        graded = edge_grade.observe(r.station, r.temp, r.rh, r.pres, r.frame)
+    except Exception:
+        graded = None
+    if graded:
+        verdict["grade"] = graded
+
     # PUSH IT, so a reading arriving is something anyone watching can see.
     #
     # Fire-and-forget on purpose: a browser that has gone away, or a socket
@@ -279,6 +298,9 @@ def ingest(r: Reading) -> dict:
             # every other station, and an axis needs a position.
             "frame": r.frame,
             "pass": r.pass_no,
+            # The neighbour verdict travels with the reading, so a viewer sees
+            # the judgement at the same moment as the value it judges.
+            "grade": graded,
         }))
     except RuntimeError:
         # No running loop: called from a worker thread or a test. Nothing to
@@ -376,6 +398,19 @@ def baseline(station: str) -> dict:
                         "node runs physics screen only",
                 "coefs": {v: [0.0] * 9 for v in ("temp", "rh", "pres")}}
     return {"station": station, "fitted": True, "coefs": out}
+
+
+@router.get("/api/edge/standing")
+def edge_standing(station: str | None = None) -> dict:
+    """Where each registered hardware node stands against its neighbours.
+
+    The physics screen's verdict is already on every stored reading. This is
+    the other half -- the neighbour comparison -- so a board or a page can ask
+    "is the ESP32 healthy" without replaying its history.
+    """
+    from api import edge_grade
+    return {"stations": edge_grade.EDGE_STATIONS,
+            "standing": edge_grade.standing(station)}
 
 
 @router.get("/api/ingest/history")
