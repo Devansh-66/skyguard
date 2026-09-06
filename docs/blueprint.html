@@ -285,7 +285,7 @@ td s{opacity:.55}
 
   <section>
     <h2>The architecture, drawn</h2>
-    <p class="prose">Four views of the same system: what it is, how it reasons, what an operator sees, and what an operator does. They are rendered on a white ground deliberately &mdash; these are the figures intended for the submission deck, and they should look the same on a projector as on this page.</p>
+    <p class="prose">Three views of the same system: what it is, how it reasons, and what an operator does about it. They are rendered on a white ground deliberately &mdash; these are the figures intended for the submission deck, and they should look the same on a projector as on this page.</p>
 
     <figure class="diagram">
       <h3 style="margin-bottom:.2rem">The system end to end</h3>
@@ -476,39 +476,6 @@ td s{opacity:.55}
       <figcaption>Three agents over non-overlapping evidence feed one adjudicator, which checks a fixed order of rules and stops at the first that fires. The dashed paths are the explanation: every verdict is re-run on all eight coalitions of the panel to give each agent an exact Shapley value and a counterfactual, and the adjudicator records the walk it took. <strong>There is no learned model anywhere in this path.</strong></figcaption>
     </figure>
 
-    <figure class="diagram">
-      <h3 style="margin-bottom:.2rem">What the operator sees</h3>
-      <pre class="mermaid">
-flowchart TB
-  subgraph HOME["/ - the argument"]
-    H1["What drift looks like"]
-    H2["Three specialists, one decision"]
-    H3["Explainability, running"]
-    H4["Edge tier: node vs network"]
-  end
-  subgraph NET["/network - the whole country"]
-    N1["Map . 344 stations . colour by channel"]
-    N2["Clock driven by the node, not a browser timer"]
-    N3["Per-station charts . ledger . index"]
-  end
-  subgraph BOARD["/board - the work"]
-    B1["Queue, worst first<br/>each row names the agent that decided"]
-    B2["Verdict . three opinions"]
-    B3["Shapley attribution . counterfactuals"]
-    B4["Decision trace, collapsed"]
-    B5["Station vs its region"]
-    B6["Empty state: how the panel behaves<br/>across the whole network"]
-  end
-  subgraph TEAM["/team - the submission"]
-    T1["Who built it"]
-    T2["The problem statement, verbatim"]
-  end
-  HOME --> NET
-  HOME --> BOARD
-  BOARD --> NET
-</pre>
-      <figcaption>Five panels, and the one that distinguishes this from every other dashboard is <strong>Device Health</strong> &mdash; battery, logger, connectivity. Everyone shows a map with coloured dots; the diagnostic channels are what let an operator act before the measurement goes wrong.</figcaption>
-    </figure>
 
     <figure class="diagram">
       <h3 style="margin-bottom:.2rem">What the operator does</h3>
@@ -1580,13 +1547,13 @@ flowchart TB
         <thead><tr><th>Layer</th><th>Choice</th><th>Note</th></tr></thead>
         <tbody>
           <tr><td class="k">Core</td><td class="m">Python 3.11, numpy, pandas, scipy</td><td>CPU only — no GPU anywhere</td></tr>
-          <tr><td class="k">Models</td><td class="m">scikit-learn, statsmodels RLM, SHAP</td><td>Robust regression, robust covariance, TreeSHAP</td></tr>
+          <tr><td class="k">Models</td><td class="m"><s>scikit-learn, statsmodels RLM, SHAP</s></td><td><strong>Not built.</strong> There is no model in the decision path; attribution is exact Shapley over the three agents, which needs no library</td></tr>
           <tr><td class="k">API</td><td class="m">FastAPI + WebSocket</td><td>Push deltas only — never re-send the whole network</td></tr>
-          <tr><td class="k">Storage</td><td class="m">PostgreSQL + TimescaleDB</td><td>Continuous aggregates give the rollups free. Fall back to plain Postgres if install eats a day.</td></tr>
-          <tr><td class="k">Current-state cache</td><td class="m">Redis</td><td>The board must read 1,200 station states from one hash, never a 1,200-row query per poll</td></tr>
-          <tr><td class="k">Map</td><td class="m"><strong>MapLibre GL</strong></td><td>No API key, no billing — a better deployability story than Mapbox</td></tr>
-          <tr><td class="k">Charts</td><td class="m">uPlot; hand-rolled inline SVG sparklines</td><td>Canvas-based, fast at 100k points</td></tr>
-          <tr><td class="k">Edge tier</td><td class="m">ESP32 / Arduino C++</td><td>Stages 1–2 only, integer arithmetic, no ML runtime</td></tr>
+          <tr><td class="k">Storage</td><td class="m">SQLite (WAL)</td><td>One file. TimescaleDB is the production design, not what runs &mdash; see <em>Production architecture</em></td></tr>
+          <tr><td class="k">Current-state cache</td><td class="m"><s>Redis</s></td><td><strong>Not built.</strong> One process, in-memory</td></tr>
+          <tr><td class="k">Map</td><td class="m">Leaflet</td><td>MapLibre was the plan; Leaflet is what shipped. Same argument holds &mdash; no API key, no billing</td></tr>
+          <tr><td class="k">Charts</td><td class="m">Hand-rolled inline SVG</td><td>No chart library at all. uPlot was never needed at this data volume</td></tr>
+          <tr><td class="k">Edge tier</td><td class="m">ESP32 / Arduino C++</td><td>Built. Level-0 screen and housekeeping on the node, TLS uplink, verified in Wokwi</td></tr>
         </tbody>
       </table>
     </div>
@@ -1606,8 +1573,9 @@ flowchart TB
 ├── <b>explain/</b>          exact Shapley, grouped attribution, counterfactuals
 ├── <b>inject/</b>           fault generator with ground truth
 ├── <b>evaluation/</b>       the harness — build before any model
-├── <b>api/</b>              FastAPI, WebSocket alert stream
-├── <b>dashboard/</b>        React + MapLibre, three screens
+├── <b>api/</b>              FastAPI, WebSocket, ingest, the three-agent panel
+├── <b>web/</b>              React + Vite + Leaflet, four routes
+├── <b>dashboard/</b>        the JSON exports the API serves
 ├── <b>firmware/</b>         ESP32, mirrors physics/
 └── <b>data/</b>             station history, cached (gitignored)</pre>
     <div class="note"><strong><code>physics/</code> has no dependencies on purpose.</strong> Pure arithmetic over three floats — unit-testable in Python, transliterable to C++ for the ESP32, and citable in the report as the deterministic tier. Keep pandas out of it and it ports in an afternoon.</div>
@@ -1756,80 +1724,11 @@ flowchart TB
     <div class="note" style="border-left-color:var(--ok);background:var(--ok-bg)"><em>"Two thousand stations at fifteen-minute cadence is 70 million records a year and 2.2 records a second. The entire national network's real-time quality control fits in a fraction of one CPU core, on one on-premise VM, with no GPU anywhere. We chose methods that make that true rather than methods that would need a cluster."</em><br><br>That answers <strong>Scalability (10 %), Deployability (10 %) and Energy Efficiency (5 %) in one breath</strong> — and it is stronger than any architecture diagram, because it is measured rather than asserted.</div>
   </section>
 
-  <section>
-    <h2>Start here — the MVP</h2>
-    <p class="prose">Build a <strong>walking skeleton</strong>: a thin slice through every stage, not one stage built to completion.</p>
-    <div class="note"><strong>The MVP is one demo, working.</strong><br>Replay a real cold front → <em>nothing flags</em>. Inject a fault of the same magnitude → <em>flags instantly, names the fault, says why it is not weather</em>. Do those back to back and the thesis is proven.</div>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Component</th><th>MVP</th><th>Later</th></tr></thead>
-        <tbody>
-          <tr><td class="k">Stations</td><td>One station + 3 neighbours, ~3 months</td><td class="m">Full network, years</td></tr>
-          <tr><td class="k">Residualise</td><td>Harmonic baseline + neighbour difference</td><td class="m">+ hierarchical shrinkage</td></tr>
-          <tr><td class="k">Physics</td><td>Range, Hampel + return, frozen + cross-channel</td><td class="m">+ tide, anchors, q invariants</td></tr>
-          <tr><td class="k">Injector</td><td>Spike, frozen, drift</td><td class="m">All 7 + intermittent + multi-fault</td></tr>
-          <tr><td class="k">Harness</td><td>POD-vs-amplitude for 3 faults + one held-out front</td><td class="m">Full metric suite</td></tr>
-          <tr><td class="k">Signature</td><td>Rules only, 3 classes + <code>unknown</code></td><td class="m">GBT + TreeSHAP</td></tr>
-          <tr><td class="k">Output</td><td>Terminal verdict card</td><td class="m">Three screens</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="warn"><strong>Three things not to do first.</strong> Do not build the dashboard first — it is visible so it feels like progress, it is worth 5 %, and teams reach the harness stage with no way to measure anything. Do not reach for an LSTM — you would be building everyone else's submission with no benchmark to know if it helped. Do not buy hardware yet — ₹2,240 and one evening, meaningless until the pipeline exists.</div>
-    <p class="prose"><strong>Definition of done:</strong> one command produces a POD-vs-amplitude curve for three fault types, zero flags across the held-out front, an alerts-per-station-day figure, and a verdict card with a named root cause. Four artifacts, not "it looks like it works".</p>
-  </section>
 
-  <section>
-    <h2>Build order</h2>
-    <ol class="phases">
-      <li><span class="ph">Phase 0</span><span><b>Ingest audit.</b> Sentinel values, station-vs-MSLP pressure, reporting cadence, sensor resolution, local solar time. <b>Half a day that prevents three weeks of wrong results.</b></span></li>
-      <li><span class="ph">Phase 1</span><span><b>Residual layer.</b> Harmonic baselines, neighbour selection by difference-sigma, elevation reduction. Everything downstream depends on this being right.</span></li>
-      <li><span class="ph">Phase 2</span><span><b>Physics screen.</b> Range with propagated uncertainty, Hampel + return test, frozen + cross-channel, conditional rate limits. Deterministic, testable, no data needed beyond the residuals.</span></li>
-      <li><span class="ph">Phase 3</span><span><b>Injector and harness.</b> Seven fault types with ground truth; POD-vs-amplitude at fixed alert budget; held-out real events. <b>Before any modelling</b> — you cannot measure what you cannot inject.</span></li>
-      <li><span class="ph">Phase 4</span><span><b>Detectors.</b> CUSUM and Page-Hinkley on neighbour-difference, dispersion chart, 6-dim Mahalanobis. Benchmark each against median/MAD and publish the losses.</span></li>
-      <li><span class="ph">Phase 5</span><span><b>Signature classifier.</b> The novelty. Rules where signatures are exact, GBT where ambiguous, <code>unknown</code> always available.</span></li>
-      <li><span class="ph">Phase 6</span><span><b>Explainability.</b> Uncertainty propagation, exact conditional Shapley, grouped attribution, counterfactual thresholds, isotonic calibration, reliability diagram.</span></li>
-      <li><span class="ph">Phase 7</span><span><b>Health state and TTOS.</b> Five components, asymmetric EWMA, robust drift regression, maintenance priority index.</span></li>
-      <li><span class="ph">Phase 8</span><span><b>Dashboard and scale test.</b> Three screens; 1,000+ stations loaded and smooth.</span></li>
-      <li><span class="ph">Phase 9</span><span><b>Hardware stations</b> (optional). Two nodes feeding the same pipeline live.</span></li>
-    </ol>
-    <div class="note"><strong>Phase 3 before Phase 4 is the discipline that decides the outcome.</strong> Teams routinely build the model first and the evaluation last, then discover their numbers were never comparable.</div>
-  </section>
 
-  <section>
-    <h2>Execution reality</h2>
-    <p class="prose">The plan above is achievable, but it is a heavy software engineering lift rather than a weekend project. Four things will decide whether it lands.</p>
 
-    <h4>1 &nbsp;The injector is the largest single line item — and that is correct</h4>
-    <p class="prose">Expect the injector and harness to consume something like <strong>a third to 40 % of total effort</strong>. Do not treat that as overhead. Evaluation happens <em>on anomaly-injected data</em>, so the injector <strong>is</strong> the instrument that produces every number you will quote. Spending that share on it is correctly weighted.</p>
-    <p class="prose">Two things make it manageable:</p>
-    <ul class="plain">
-      <li><strong>It parallelises cleanly.</strong> One person owns the injector while others build the residual and physics layers, which have zero dependency on it.</li>
-      <li><strong>Build it in tiers.</strong> Three fault types at fixed amplitudes gets the MVP moving in days. Amplitude sweeps, onset shapes and intermittent flapping are refinements you add once the harness is already consuming output.</li>
-    </ul>
 
-    <h4>2 &nbsp;Station density is the gate — answer it in week one</h4>
-    <div class="fix"><strong>The risk that outranks everything else.</strong> The entire spatial thesis — the 20× noise reduction, drift detection, the fault-versus-weather discriminator — assumes neighbours close enough to be correlated. If the network you can actually obtain is sparse, or the stations are hundreds of kilometres apart, that channel degrades badly and much of the design falls back to single-station self-consistency.
-    <br><br><strong>Answer it before writing the injector.</strong> Pull real station data, compute σ of the pairwise difference series against distance, and find your usable correlation radius. If it is good, everything proceeds. If it is poor, you learn it while there is still time to adjust — not in month three.</div>
 
-    <h4>3 &nbsp;Two correctness traps that look like difficulty traps</h4>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Item</th><th>Actually</th><th>The real risk</th></tr></thead>
-        <tbody>
-          <tr><td class="k">Local solar time</td><td class="m">mean_solar_time = utc + lon / 15</td><td>Three lines, not tedious maths — the equation of time swings ±16 min, well inside an hourly bin, so ignore it. The risk is <strong>forgetting it entirely</strong> and smearing every diurnal baseline across two hours of India.</td></tr>
-          <tr><td class="k">MSLP reduction</td><td class="m">a question before it is maths</td><td><strong>Does your feed already give MSLP or station pressure?</strong> Ten minutes to answer, and it determines whether you need the correction at all. Getting it wrong makes every hill station look broken.</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h4>4 &nbsp;The two disciplines that fail quietly</h4>
-    <ul class="plain">
-      <li><strong>Never let the baseline update online.</strong> A climatology that refits on incoming data silently absorbs slow drift and makes it permanently undetectable. It is a one-line mistake with a fatal consequence, and it survives code review because it looks like good practice.</li>
-      <li><strong>UI restraint.</strong> Building charts <em>feels</em> like progress and produces nothing measurable. Three screens, dense and actionable. A decision-free chart gallery is worth the same 5 % as a good dashboard and costs three weeks more.</li>
-    </ul>
-
-    <div class="note"><strong>The sequencing rule that matters most:</strong> harness before model, always. A team that builds the model first and the evaluation last discovers in month three that none of its numbers were ever comparable.</div>
-  </section>
 
 
 
@@ -1858,8 +1757,12 @@ flowchart TB
   </section>
 
   <section>
-    <h2>Optional hardware — ₹1,120 per station</h2>
-    <p class="prose">A <strong>software</strong> category statement, so pure software is fully compliant. But a live station a judge can touch is the cheapest memorable moment available.</p>
+    <h2>Hardware <span class="chip ok">runs in simulation</span></h2>
+    <p class="prose">A <strong>software</strong> category statement, so pure software is
+    fully compliant. The node exists anyway: <code>firmware/skyguard_node</code> runs end
+    to end in Wokwi, posting over TLS to the deployed service through the same ingest door
+    a physical board would use. What follows is the bill of materials for building one for
+    real, which has not been done.</p>
     <div class="tablewrap">
       <table>
         <thead><tr><th>Item</th><th>Measures</th><th>≈ ₹</th></tr></thead>
@@ -1876,24 +1779,7 @@ flowchart TB
     <div class="note"><strong>The demo that lands:</strong> breathe on the BME280 and watch RH climb toward saturation while the node distinguishes it from a wetted element — because T is tracking T<sub>d</sub> coherently — then compare against the second station reading normally one metre away.</div>
   </section>
 
-  <section>
-    <h2>Verify before you build</h2>
-    <p class="prose">None of these should be assumed — not from this page, and not from any review. Each one can invalidate a whole subsystem.</p>
-    <ul class="plain">
-      <li><strong>Station pressure or MSLP?</strong> Determines whether neighbour comparison needs elevation correction. Get it wrong and every hill station looks broken.</li>
-      <li><strong>Sentinel values and QC flags</strong> in your feed, and how ingest currently handles them.</li>
-      <li><strong>Reporting cadence and sensor resolution</strong> — these set every window length, run-length constant and the MAD floor.</li>
-      <li><strong>Published accuracy specs</strong> for the specific T/RH probe and barometer in your dataset. The entire physics-confidence calculation depends on them.</li>
-      <li><strong>Instrument spec tolerances</strong> — TTOS is meaningless without the correct limit values.</li>
-      <li><strong>σ of inter-station difference series</strong> by distance, hour and month. That table <em>is</em> your neighbour-selection rule and your threshold table.</li>
-      <li><strong>Semidiurnal tide amplitude</strong> at your sites — measure it, do not quote it.</li>
-      <li><strong>Residual autocorrelation</strong> and the resulting real ARL₀ for CUSUM.</li>
-      <li><strong>Distribution of |Δx|</strong> by station-month for conditional rate limits.</li>
-      <li><strong>A defensible estimate of the real fault base rate</strong>, for the prior correction.</li>
-      <li><strong>WMO / IMD QC documentation</strong> — every standard test name and document number cited in a report. Treat the ones in this blueprint as leads, not citations. <em>Do not cite what you have not read.</em></li>
-      <li><strong>Whether IMD already runs an internal QC system</strong>, and its terminology. Matching their vocabulary is disproportionately persuasive to a ministry judge.</li>
-    </ul>
-  </section>
+
 
   <section>
     <h2>Deliverables</h2>
@@ -2041,8 +1927,11 @@ flowchart TB
       original note stands for everything below it &mdash; Everything rests on reanalysis,
       which is spatially smooth by construction. Station density and usable
       correlation radius remain the project's largest unanswered risk.</li>
-      <li><strong>Edge tier.</strong> <code>firmware/</code> is empty; stages 1
-      and 2 are written to transliterate to C++ but have not been.</li>
+      <li><strong>Edge tier.</strong> <span class="chip ok">done</span>
+      <code>firmware/skyguard_node</code> is an ESP32 sketch that runs end to end
+      in Wokwi: level-0 screen on the node, housekeeping channels, TLS uplink to
+      the deployed Space, and the panel returning a verdict on what it sent. It
+      has never run on physical hardware.</li>
     </ol>
 
     <h3>Rebuilt since &mdash; what changed and what it cost</h3>
