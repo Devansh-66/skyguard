@@ -186,6 +186,24 @@ export function useEdgeSeries(station: string | null) {
   })
 }
 
+/** Whether the node's scenario replay is running, and how far it has got.
+ *
+ *  The panel needs this to tell a live trace from a stopped one. A pen that
+ *  has stopped moving and a pen that is between readings look identical, and
+ *  the first is a fault while the second is a Tuesday. */
+export function useReplayStatus() {
+  return useQuery({
+    queryKey: ['edge', 'replay', 'status'] as const,
+    queryFn: ({ signal }) => get<{
+      running: boolean; sent: number; total: number
+      station: string | null; pass_no: number
+      stopped_by: string | null; scenario_present: boolean
+    }>('/api/edge/replay/status', signal),
+    refetchInterval: 2000,
+    retry: false,
+  })
+}
+
 export function useStatesGeo() {
   return useQuery({
     queryKey: keys.map('states'),

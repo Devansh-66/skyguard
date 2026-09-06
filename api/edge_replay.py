@@ -50,7 +50,7 @@ _STEP = re.compile(
 
 _lock = threading.Lock()
 _state: dict = {"running": False, "sent": 0, "total": 0, "station": None,
-                "stopped_by": None}
+                "stopped_by": None, "pass_no": 0}
 
 
 def samples(path: Path = SCENARIO):
@@ -65,39 +65,76 @@ def samples(path: Path = SCENARIO):
 
 
 async def _run(station: str, rate: float, limit: int) -> None:
+    """Post the scenario, and keep posting -- the way the firmware does.
+
+    THIS RAN ONCE AND STOPPED, WHICH LOOKED EXACTLY LIKE A BUG.
+
+    The board's pen reached the last frame of the scenario and never moved
+    again, while the simulated network beside it carried on -- so on the
+    deployed Space the hardware node appeared frozen and locally, where the
+    real firmware was driving it, everything looked fine. Nothing was broken:
+    the firmware's loop has no end, and this had one.
+
+    `while (true) { sample; if (flagged || due) uplink; delay; }` is the whole
+    shape of that sketch, and the frame it sends is `seq % SIM_FRAMES` with the
+    traverse in `seq / SIM_FRAMES`. A stand-in for it that halts is not a
+    slower version of it, it is a different thing. So this wraps the record the
+    same way and runs until it is stopped.
+    """
     from api import edge_grade, store
     from api.ingest import Reading, ingest, physics_screen
 
     rows = list(samples())
-    if limit:
-        rows = rows[:limit]
-    _state.update(total=len(rows), sent=0, station=station, stopped_by=None)
+    _state.update(total=len(rows), sent=0, station=station, stopped_by=None,
+                  pass_no=0)
 
     gap = 1.0 / max(rate, 0.1)
+    n = len(rows)
+    i = 0
     try:
-        for i, (t, h, p) in enumerate(rows):
+        while True:
             if not _state["running"]:
                 _state["stopped_by"] = "stopped"
                 return
+            if limit and i >= limit:
+                _state["stopped_by"] = f"limit of {limit} reached"
+                return
+
+            t, h, p = rows[i % n]
+            frame, pass_no = i % n, i // n
+
+            # A NEW TRAVERSE IS A CLEAN SHEET, and it has to be cleared BEFORE
+            # the first reading of it is written. Clearing afterwards deletes
+            # the reading that was just stored, so every pass after the first
+            # began at frame 1 with frame 0 missing -- measured: the series came
+            # back as frames 1..50 instead of 0..50.
+            if i and frame == 0:
+                store.forget(station)
+                edge_grade.reset(station)
+
             flags = physics_screen(t, h, p)
             ingest(Reading(station=station, temp=t, rh=h, pres=p, seq=i,
-                           dt_min=SIM_MINUTES_PER_SAMPLE, frame=i, pass_no=0,
+                           dt_min=SIM_MINUTES_PER_SAMPLE, frame=frame,
+                           pass_no=pass_no,
                            fw="replay-scenario", flags=flags,
                            vbat_mv=3900, log_temp_c100=3100,
                            flat_pct=0, gap_pct=0, selftest_mask=0,
                            health="S1", boot_id=1, reboot_count=0))
             _state["sent"] = i + 1
+            _state["pass_no"] = pass_no
+            i += 1
 
             # YIELD TO A REAL BOARD.
             #
             # If something else is posting as this station -- an ESP32 in
             # Wokwi -- two senders are writing the same frames and the trace
             # is neither of them. The device wins; this is the stand-in.
-            last = store.history(station, 1)
-            if last and last[0].get("fw") not in (None, "replay-scenario"):
-                _state["stopped_by"] = f"a real node ({last[0].get('fw')})"
-                edge_grade.reset(station)
-                return
+            if i % 20 == 0:
+                last = store.history(station, 1)
+                if last and last[0].get("fw") not in (None, "replay-scenario"):
+                    _state["stopped_by"] = f"a real node ({last[0].get('fw')})"
+                    edge_grade.reset(station)
+                    return
             await asyncio.sleep(gap)
     finally:
         _state["running"] = False
@@ -107,7 +144,12 @@ async def _run(station: str, rate: float, limit: int) -> None:
 async def replay(station: str = Query("WOKWI-ESP32"),
                  rate: float = Query(20.0, gt=0, le=200),
                  limit: int = Query(0, ge=0)) -> dict:
-    """Reset the node's record and play the scenario into it again."""
+    """Reset the node's record and play the scenario into it, continuously.
+
+    Runs until stopped, wrapping the record exactly as the firmware does. A
+    `limit` stops it after that many readings, which is for tests rather than
+    for the demo: a station that stops reporting is a station with a fault.
+    """
     from api import edge_grade, store
     if not edge_grade.is_edge_station(station):
         raise HTTPException(404, f"{station!r} is not a registered edge station")
@@ -130,7 +172,7 @@ async def replay(station: str = Query("WOKWI-ESP32"),
 
     asyncio.create_task(_run(station, rate, limit))
     return {"started": True, "station": station, "cleared_readings": removed,
-            "rate_per_second": rate,
+            "rate_per_second": rate, "loops": not limit,
             "note": "Replays the Wokwi scenario through /api/ingest. Not "
                     "evidence the firmware runs -- it exercises everything "
                     "downstream of the sensor and nothing upstream of it."}

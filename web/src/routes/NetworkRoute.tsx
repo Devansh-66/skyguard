@@ -26,8 +26,8 @@
 import { GeoJSON, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  useBoundaryGeo, useEdgeSeries, useEdgeStanding, useLiveStation, useSimMap,
-  useStatesGeo,
+  useBoundaryGeo, useEdgeSeries, useEdgeStanding, useLiveStation,
+  useReplayStatus, useSimMap, useStatesGeo,
   useTileStatus, useWdqmsMap,
 } from '../api/queries'
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
@@ -237,6 +237,7 @@ export function NetworkRoute() {
   /** The hardware node being looked at, if the selection is one. */
   const edgePicked = (selected && edge.data?.stations[selected]) || null
   const edgeSeries = useEdgeSeries(edgePicked ? edgePicked.id : null)
+  const replay = useReplayStatus()
 
   /* FINDING A STATION IN 344 OF THEM.
    *
@@ -952,14 +953,26 @@ export function NetworkRoute() {
                     disabled={replaying}
                     onClick={async () => {
                       setReplaying(true)
+                      const base = import.meta.env.VITE_API_BASE ?? ''
                       try {
-                        await liveCommand(import.meta.env.VITE_API_BASE ?? '',
-                          `/api/edge/replay?station=${edgePicked.id}&rate=25`)
-                      } catch { /* the panel already shows the count */ }
+                        await liveCommand(base, replay.data?.running
+                          ? '/api/edge/replay/stop'
+                          : `/api/edge/replay?station=${edgePicked.id}&rate=25`)
+                      } catch { /* the count below already tells the story */ }
                       finally { setReplaying(false) }
                     }}>
-                    {replaying ? 'replaying…' : 'replay scenario'}
+                    {replay.data?.running ? 'stop replay' : 'replay scenario'}
                   </button>
+                  {/* A PEN THAT HAS STOPPED AND A PEN BETWEEN READINGS LOOK
+                      IDENTICAL, and the first is a fault while the second is
+                      a Tuesday. So the panel says which. */}
+                  {replay.data?.running && (
+                    <span className="tnum font-mono text-[11px] text-ink-3">
+                      reporting · pass {replay.data.pass_no + 1} ·{' '}
+                      {replay.data.sent % Math.max(replay.data.total, 1)} of{' '}
+                      {replay.data.total}
+                    </span>
+                  )}
                   <span className="tnum ml-auto font-mono text-xs text-ink-3">
                     {edgeSeries.data ? `${edgeSeries.data.n} readings` : 'loading'}
                   </span>
