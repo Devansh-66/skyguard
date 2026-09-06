@@ -25,7 +25,6 @@ import { useMemo } from 'react'
 import { usePageTitle } from '../lib/title'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useLiveStanding, useSimMap } from '../api/queries'
-import { StationChannels } from '../components/StationChannels'
 import { type Band, type SimMap, type SimStation } from '../api/mapTypes'
 import { alertsFor } from '../lib/alerts'
 import { Badge } from '@/components/ui/badge'
@@ -496,20 +495,18 @@ function SimDetail({ id, sim, a }: {
       <SectionLabel>Case</SectionLabel>
       <CaseProgress at={it?.open ? 2 : 5} />
 
-      {/* THE EVIDENCE, THEN the record.
+      {/* THE EVIDENCE, AND ONLY THE EVIDENCE.
         *
-        * The three raw channels used to be the only chart here, and they are a
-        * picture of the weather rather than of the verdict -- swap a healthy
-        * station's for a faulty one and nobody could tell. This one is the
-        * case: the station against the median of its neighbours, with the
-        * flagged stretch shaded. The raw channels stay underneath, where they
-        * are context rather than an argument. */}
+        * The three raw channels that used to sit here are gone rather than
+        * demoted. They were a picture of the weather, not of the verdict --
+        * swap a healthy station's for a faulty one and nobody could tell --
+        * and a chart that cannot distinguish those two cases is not context,
+        * it is furniture. They are still on the network page, where browsing
+        * the record is the point; here the question is why someone is being
+        * dispatched, and this is the chart that answers it. */}
       <SectionLabel>This station against its neighbours</SectionLabel>
       <RegionCompare station={stationId} channel={ch as 'temp' | 'rh' | 'pres'}
                      from={it?.from} to={it?.to} />
-
-      <SectionLabel>The raw record</SectionLabel>
-      <StationChannels sim={sim} s={st} hour={0} />
 
       {/* Marking our own homework, kept last and clearly separated: the panel
           never saw any of this. */}
