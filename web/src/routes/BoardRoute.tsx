@@ -78,15 +78,19 @@ export function BoardRoute() {
     // to rule on it would produce a verdict with nothing behind it.
     for (const st of Object.values(edge.data?.stations ?? {})) {
       const g = edge.data?.standing[st.id]
-      if (!g || g.band === 'learning') continue
+      if (!g || g.case === 'learning') continue
       out.push({
         id: `edge:${st.id}`, source: 'live', sensor: 'temp',
         label: 'Temperature',
-        band: g.band,
+        // The CASE, not the reading: the panel is being asked whether to send
+        // someone, and one bad sample is not that question.
+        band: g.case,
         bias_sigma: g.z,
         evidence_n: g.readings ?? null,
-        neighbours_agree: g.band === 'ok',
-        days_open: g.open_seconds ? g.open_seconds / 86400 : null,
+        neighbours_agree: g.case === 'ok',
+        // In record time. thirty simulated minutes to the frame, forty-eight
+        // to the simulated day.
+        days_open: g.open_frames ? g.open_frames / 48 : null,
       })
     }
     return out
@@ -118,7 +122,7 @@ export function BoardRoute() {
     const standing = edge.data?.standing ?? {}
     return Object.values(stations)
       .map((st) => ({ st, g: standing[st.id] }))
-      .filter((r) => r.g && r.g.band !== 'learning' && r.g.band !== 'ok')
+      .filter((r) => r.g && r.g.case !== 'learning' && r.g.case !== 'ok')
   }, [edge.data])
 
   return (
@@ -160,8 +164,9 @@ export function BoardRoute() {
                   place={st.name}
                   where={`${st.state} · ${st.elev} m`}
                   sensor="Temperature"
-                  age={g.open_seconds
-                    ? `open ${Math.round(g.open_seconds)}s` : 'just now'}
+                  age={g.open_frames
+                    ? `open ${(g.open_frames / 2).toFixed(1)} h`
+                    : 'just now'}
                   a={verdictOf(`edge:${st.id}`)}
                   badge={<Badge tone="brand">node</Badge>}
                   active={selected === `edge:${st.id}`}

@@ -44,6 +44,7 @@ import threading
 import time
 from collections import deque
 
+from api.neighbours import CLEAR_AFTER, RAISE_AFTER
 from simulate.faults_and_export import FAULT_SIGMA, WATCH_SIGMA
 
 # Stations that arrive through /api/ingest from outside, with somewhere to
@@ -70,6 +71,9 @@ BASELINE_N = 40
 # week does not grow without limit; the MAD only needs the recent record.
 _hist: dict[str, deque[float]] = {}
 _standing: dict[str, dict] = {}
+# Episode state per station: how many bad steps in a row, how many clean ones,
+# whether a case is open, and the frame it opened at.
+_ep: dict[str, dict] = {}
 _lock = threading.Lock()
 
 
@@ -151,15 +155,50 @@ def observe(station: str, temp: float, rh: float, pres: float,
             # form of the trailing, lagged window the network pipeline uses, and
             # it is here for the same reason.
 
-        prev = _standing.get(station)
-        if prev is None or prev["band"] != band:
-            since, since_frame = time.time(), frame
+        # THE EPISODE, WITH THE SAME HYSTERESIS AS EVERY OTHER ALERT.
+        #
+        # `band` above is this reading's own verdict. `case` is whether a
+        # technician has a job, and those are not the same question: three bad
+        # steps in a row to raise it, six clean ones to put it down. Harder to
+        # close than to open, deliberately -- an intermittent fault that clears
+        # for one reading has not been fixed.
+        ep = _ep.setdefault(station, {"hot": 0, "cold": 0, "open": False,
+                                      "from_frame": None, "since": None,
+                                      "peak": "ok"})
+        bad = band in ("watch", "fault")
+        if not ep["open"]:
+            ep["hot"] = ep["hot"] + 1 if bad else 0
+            if ep["hot"] >= RAISE_AFTER:
+                ep.update(open=True, cold=0, peak=band,
+                          # Dated from where the run STARTED, not from where we
+                          # became sure of it. The board's other rows do the
+                          # same.
+                          from_frame=frame - RAISE_AFTER + 1,
+                          since=time.time())
         else:
-            since, since_frame = prev["since"], prev["since_frame"]
+            ep["cold"] = 0 if bad else ep["cold"] + 1
+            if bad and band == "fault":
+                ep["peak"] = "fault"
+            if ep["cold"] >= CLEAR_AFTER:
+                ep.update(open=False, hot=0, from_frame=None, since=None,
+                          peak="ok")
+
+        case = ep["peak"] if ep["open"] else "ok"
+        if band == "learning":
+            case = "learning"
 
         out = {
             "station": station,
+            # What this reading alone says.
             "band": band,
+            # What the technician is being told, after hysteresis. The board
+            # reads this one; the map colours by it too, so the dot and the
+            # work card cannot disagree.
+            "case": case,
+            "case_open": bool(ep["open"]),
+            "open_frames": (None if not ep["open"] or ep["from_frame"] is None
+                            else max(1, frame - ep["from_frame"] + 1)),
+            "open_from_frame": ep["from_frame"],
             "z": round(z, 2),
             "residual": round(r, 3),
             "expected": {"temp": round(exp_t, 2), "rh": round(exp_h, 1),
@@ -168,8 +207,10 @@ def observe(station: str, temp: float, rh: float, pres: float,
                          "pres": round(pres, 2)},
             "frame": frame,
             "readings": len(hist),
-            "since": since,
-            "since_frame": since_frame,
+            # Wall time is kept because "is this node reporting" is a real
+            # question, but it is NOT what the ledger measures a case in.
+            "since": ep["since"],
+            "since_frame": ep["from_frame"],
             "neighbours": 6,
         }
         _standing[station] = out
@@ -205,6 +246,8 @@ def reset(station: str | None = None) -> None:
         if station is None:
             _hist.clear()
             _standing.clear()
+            _ep.clear()
         else:
             _hist.pop(station, None)
             _standing.pop(station, None)
+            _ep.pop(station, None)

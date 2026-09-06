@@ -130,7 +130,16 @@ export interface EdgeStation {
 }
 export interface EdgeStanding {
   station: string
+  /** What THIS reading says. Flickers, by design. */
   band: 'learning' | 'ok' | 'watch' | 'fault'
+  /** What the technician is told, after three-up / six-down hysteresis. This
+   *  is the one every screen shows; `band` is only for the live tooltip. */
+  case: 'learning' | 'ok' | 'watch' | 'fault'
+  case_open: boolean
+  /** How many record frames the case has been open. Thirty simulated minutes
+   *  each -- the unit the rest of the ledger counts in. */
+  open_frames: number | null
+  open_from_frame: number | null
   z: number
   residual: number
   expected: { temp: number; rh: number; pres: number }

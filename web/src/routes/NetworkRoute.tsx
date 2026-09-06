@@ -402,7 +402,7 @@ export function NetworkRoute() {
     const out: (typeof ledger[number] & { openLabel?: string | null })[] = []
     for (const st of Object.values(edge.data?.stations ?? {})) {
       const g = edge.data?.standing[st.id]
-      if (!g || (g.band !== 'watch' && g.band !== 'fault')) continue
+      if (!g || (g.case !== 'watch' && g.case !== 'fault')) continue
       if (!sim.data) continue
       out.push({
         id: 'edge:' + st.id,
@@ -410,11 +410,15 @@ export function NetworkRoute() {
              state: st.state, lat: st.lat, lon: st.lon, elev: st.elev,
              fault: null },
         ch: 'temp' as const,
-        from: g.frame,
+        // Dated from where the episode STARTED, like every other row.
+        from: g.open_from_frame ?? g.frame,
         to: null,
-        openLabel: g.open_seconds != null
-          ? `${Math.max(1, Math.round(g.open_seconds / 60))} min` : null,
-        band: (g.band === 'fault' ? 'FAULT' : 'WATCH') as Band,
+        // Record hours, not wall clock: two frames to the hour. The wall-clock
+        // version counted how long the page had been open, and grew while the
+        // node was not reporting at all.
+        openLabel: g.open_frames != null
+          ? `${(g.open_frames / 2).toFixed(1)} h` : null,
+        band: (g.case === 'fault' ? 'FAULT' : 'WATCH') as Band,
         hours: 0,
         status: 'OPEN' as const,
         // Open by definition: a closed case is one the node stopped being in,
@@ -434,7 +438,7 @@ export function NetworkRoute() {
       .map((st) => ({ st, g: edge.data?.standing[st.id] }))
       .filter(({ st, g }) => {
         if (q && !(`${st.name} ${st.state}`.toLowerCase().includes(q))) return false
-        if (flaggedOnly && !(g && (g.band === 'watch' || g.band === 'fault'))) return false
+        if (flaggedOnly && !(g && (g.case === 'watch' || g.case === 'fault'))) return false
         return true
       })
   }, [edge.data, query, flaggedOnly])
@@ -712,7 +716,11 @@ export function NetworkRoute() {
                   band, exactly as for every other dot. */}
               {net === 'sim' && edge.data && Object.values(edge.data.stations).map((st) => {
                 const g = edge.data!.standing[st.id]
-                const band = g?.band ?? 'learning'
+                // The CASE colours the dot. Colouring by the single reading
+                // made the map flicker amber on noise while the board -- which
+                // waits for three -- showed nothing, and a viewer cannot tell
+                // which of the two is lying.
+                const band = g?.case ?? 'learning'
                 return (
                   <CircleMarker key={st.id} center={[st.lat, st.lon]}
                     radius={8}
@@ -739,6 +747,10 @@ export function NetworkRoute() {
                           <b>{band === 'learning'
                             ? `learning its baseline (${g.readings}/40)`
                             : `${band} · ${g.z.toFixed(1)}σ from its neighbours`}</b>
+                          {g.case_open && g.open_frames
+                            ? <><br /><span className="mono">
+                                case open {(g.open_frames / 2).toFixed(1)} h of record
+                              </span></> : null}
                           <br />
                           <span className="mono">
                             neighbours say {g.expected.temp.toFixed(1)} °C ·{' '}
@@ -911,12 +923,15 @@ export function NetworkRoute() {
                   </span>
                   {edgeStanding && (
                     <span className="badge" style={{
-                      color: edgeStanding.band === 'fault' ? 'var(--oxide)'
-                        : edgeStanding.band === 'watch' ? 'var(--amber)'
+                      color: edgeStanding.case === 'fault' ? 'var(--oxide)'
+                        : edgeStanding.case === 'watch' ? 'var(--amber)'
                         : 'var(--ink-2)' }}>
-                      {edgeStanding.band === 'learning'
+                      {/* The case, so this badge agrees with the dot, the
+                          index and the work card. The sigma beside it is this
+                          reading's, which is what the chart is drawing. */}
+                      {edgeStanding.case === 'learning'
                         ? `learning (${edgeStanding.readings}/40)`
-                        : `${edgeStanding.band} · ${edgeStanding.z.toFixed(1)}σ`}
+                        : `${edgeStanding.case} · ${edgeStanding.z.toFixed(1)}σ`}
                     </span>
                   )}
                   <span className="tnum ml-auto font-mono text-xs text-ink-3">
@@ -1147,11 +1162,11 @@ export function NetworkRoute() {
                     </td>
                     <td className={TD}>
                       <span className="badge" style={{ color: 'var(--ink-2)' }}>node</span>
-                      {g && g.band !== 'ok' && g.band !== 'learning' && (
+                      {g && g.case !== 'ok' && g.case !== 'learning' && (
                         <span className="badge" style={{
-                          color: HUE[g.band === 'fault' ? 'FAULT' : 'WATCH']!,
-                          borderColor: HUE[g.band === 'fault' ? 'FAULT' : 'WATCH']!,
-                        }}>{g.band}</span>
+                          color: HUE[g.case === 'fault' ? 'FAULT' : 'WATCH']!,
+                          borderColor: HUE[g.case === 'fault' ? 'FAULT' : 'WATCH']!,
+                        }}>{g.case}</span>
                       )}
                     </td>
                   </tr>
