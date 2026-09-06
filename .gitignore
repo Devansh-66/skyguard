@@ -34,6 +34,13 @@ data/**
 *.joblib
 models/**
 !models/.gitkeep
+# The reference regressor IS a deliverable, not an artefact: the API loads it
+# to produce a prediction and its TreeSHAP explanation, so a clone without it
+# is a clone that cannot answer "why did you expect that reading". 2.3 MB per
+# channel, and reproducible from the simulated network with one command.
+!models/reference/
+!models/reference/*.txt
+!models/reference/report.json
 
 # Old project â€” superseded, kept locally for reference only
 SIH2026_Disaster_Engine_Master_Blueprint.pdf

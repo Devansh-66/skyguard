@@ -1,0 +1,34 @@
+{
+  "split_step": 1920,
+  "train_days": 20,
+  "k": 6,
+  "channels": {
+    "temp": {
+      "sigma_neighbour_median": 0.3916,
+      "sigma_learned": 0.3395,
+      "ratio": 0.8669,
+      "mae_neighbour_median": 0.3593,
+      "mae_learned": 0.3355,
+      "rows_train": 660480,
+      "rows_test": 330240
+    },
+    "rh": {
+      "sigma_neighbour_median": 1.9686,
+      "sigma_learned": 1.7468,
+      "ratio": 0.8873,
+      "mae_neighbour_median": 1.8237,
+      "mae_learned": 1.6218,
+      "rows_train": 660480,
+      "rows_test": 330240
+    },
+    "pres": {
+      "sigma_neighbour_median": 0.2998,
+      "sigma_learned": 0.2284,
+      "ratio": 0.7617,
+      "mae_neighbour_median": 0.2843,
+      "mae_learned": 0.2293,
+      "rows_train": 660480,
+      "rows_test": 330240
+    }
+  }
+}
