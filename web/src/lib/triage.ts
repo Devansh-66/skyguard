@@ -20,6 +20,26 @@ export interface AgentVerdict {
   metrics: Record<string, number | boolean>
 }
 
+/** One agent's exact Shapley value, and what the panel says without it. */
+export interface Contribution {
+  agent: string
+  title: string
+  /** Signed. Positive pushes toward a visit, negative argues against one. */
+  phi: number
+  without_action: 'INSPECT' | 'CALIBRATE' | 'COMMS' | 'MONITOR'
+  without_decision: 'normal' | 'warning' | 'critical'
+}
+
+export interface Attribution {
+  /** Escalation with nobody consulted. Zero, so the parts sum to the whole. */
+  base: number
+  /** Escalation as issued: 0 no visit, 0.5 this week, 1 today. */
+  total: number
+  contributions: Contribution[]
+  exact: boolean
+  coalitions: number
+}
+
 export interface Assessment {
   decision: 'normal' | 'warning' | 'critical'
   action: 'INSPECT' | 'CALIBRATE' | 'COMMS' | 'MONITOR'
@@ -29,6 +49,7 @@ export interface Assessment {
   why: string
   can_fix_remotely: boolean
   verdicts: AgentVerdict[]
+  attribution?: Attribution
 }
 
 export interface EvidenceIn {

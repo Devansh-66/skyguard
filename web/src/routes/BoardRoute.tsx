@@ -32,6 +32,7 @@ import { Badge } from '@/components/ui/badge'
 import { Callout } from '../components/Callout'
 import { ActionCard, AgentVerdicts, CaseProgress } from '../components/AgentPanel'
 import { ExplainMath } from '../components/ExplainMath'
+import { PanelAttribution } from '../components/PanelAttribution'
 import { cn } from '@/lib/cn'
 import {
   type Assessment, type EvidenceIn, useTriage,
@@ -95,6 +96,13 @@ export function BoardRoute() {
               opened straight into a list and left the reader to infer it. */}
           <p className="mt-1 text-sm text-ink-2">
             Sensors that need a technician, worst first.
+          </p>
+          {/* One line teaching the row format. Without it the evidence line on
+              each card is just more text; with it, the reader knows it is the
+              agent that decided, and the list becomes readable at a glance. */}
+          <p className="mt-1 text-xs text-ink-3">
+            Three agents judge every sensor. Each row shows the job, and the
+            agent whose finding carried it.
           </p>
           <div className="mt-4 grid grid-cols-3 gap-2">
             <PrioCount n={byP(1)} label="Today" tone="fault" />
@@ -225,6 +233,12 @@ function WorkCard({ place, where, sensor, age, a, badge, active, onPick }: {
   active: boolean
   onPick: () => void
 }) {
+  /* The agent the attribution says carried the call -- the largest absolute
+     Shapley value -- and the line it actually reported. Falls back to the
+     loudest verdict where no attribution came back, so the card degrades to
+     something useful rather than to nothing. */
+  const carried = pickCarrier(a)
+
   const d = a?.decision
   const spine = d === 'critical' ? 'bg-fault' : d === 'warning' ? 'bg-watch'
               : d === 'normal' ? 'bg-ok' : 'bg-rule'
@@ -262,11 +276,47 @@ function WorkCard({ place, where, sensor, age, a, badge, active, onPick }: {
             {sensor}
             {badge}
           </span>
+
+          {/* WHY THIS ROW IS IN THE LIST AT ALL.
+            *
+            * The card used to say the job, the place and the age, and nothing
+            * about the evidence -- so a queue of forty rows read as forty
+            * identical demands with no way to tell them apart or to believe
+            * any of them. This is the agent that carried the call and the one
+            * line it reported, which is the whole case in nine words. */}
+          {carried && (
+            <span className="mt-1 flex items-start gap-1.5 text-xs leading-snug text-ink-2">
+              <span className={cn('mt-1 size-1.5 shrink-0 rounded-full',
+                carried.status === 'alarm' ? 'bg-fault'
+                  : carried.status === 'watch' ? 'bg-watch' : 'bg-ok')} />
+              <span className="min-w-0">
+                <span className="text-ink-3">{carried.title}: </span>
+                {carried.headline}
+              </span>
+            </span>
+          )}
+
           <span className="text-xs text-ink-3">{where}{age ? ' · ' + age : ''}</span>
         </span>
       </button>
     </li>
   )
+}
+
+const RANK = { alarm: 3, watch: 2, unknown: 1, ok: 0 } as const
+
+/** Which agent to credit on a queue card, and the line it reported. */
+function pickCarrier(a: Assessment | undefined) {
+  if (!a) return null
+  const top = a.attribution?.contributions
+    .filter((c) => Math.abs(c.phi) > 0.001)
+    .sort((x, y) => Math.abs(y.phi) - Math.abs(x.phi))[0]
+  const v = top
+    ? a.verdicts.find((x) => x.agent === top.agent)
+    // No attribution, or every agent scored zero -- which happens on a row
+    // nobody is alarmed by. Show the loudest opinion instead of nothing.
+    : [...a.verdicts].sort((x, y) => RANK[y.status] - RANK[x.status])[0]
+  return v && v.headline ? v : null
 }
 
 /* ---------------------------------------------- the simulated network */
@@ -360,6 +410,13 @@ function LiveDetail({ a }: { a: Assessment | undefined }) {
       <SectionLabel>Why the panel says so</SectionLabel>
       {a && <AgentVerdicts a={a} />}
 
+      {a?.attribution && (
+        <>
+          <SectionLabel>How much each agent mattered</SectionLabel>
+          <PanelAttribution at={a.attribution} />
+        </>
+      )}
+
       {/* THE ARITHMETIC, NOT JUST THE VERDICT.
         *
         * The panel says which agent decided. This says how the number it
@@ -418,6 +475,13 @@ function SimDetail({ id, sim, a }: {
 
       <SectionLabel>Why the panel says so</SectionLabel>
       {a && <AgentVerdicts a={a} />}
+
+      {a?.attribution && (
+        <>
+          <SectionLabel>How much each agent mattered</SectionLabel>
+          <PanelAttribution at={a.attribution} />
+        </>
+      )}
 
       <SectionLabel>Case</SectionLabel>
       <CaseProgress at={it?.open ? 2 : 5} />

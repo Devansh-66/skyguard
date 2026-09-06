@@ -247,6 +247,9 @@ class Assessment:
     why: str                   # ONE sentence: which agent carried the call
     can_fix_remotely: bool
     verdicts: list[dict]
+    # Filled by assess(). Absent when a coalition is being evaluated, which is
+    # what stops the attribution from recursing into itself.
+    attribution: dict | None = None
 
     def dict(self) -> dict:
         return asdict(self)
@@ -329,9 +332,124 @@ def adjudicate(e: Evidence, verdicts: list[AgentVerdict]) -> Assessment:
                 dq.headline + "." + tail)
 
 
+# --------------------------------------------------- who actually decided it
+
+"""HOW MUCH DID EACH AGENT MATTER? THE EXACT ANSWER, NOT AN ESTIMATE.
+
+`why` names the agent that carried the call, which is a label. This is the
+number behind the label.
+
+WHY SHAPLEY, AND WHY IT IS EXACT HERE
+
+Shapley values come from cooperative game theory: the fair division of a
+payout among players who only produce value in coalitions. SHAP, the library
+everyone reaches for, is an APPROXIMATION of that idea applied to model
+features, and it is approximate because a model has hundreds of features and
+2^n coalitions is impossible to enumerate.
+
+We have three players. 2^3 is eight. So we enumerate every coalition and get
+the true Shapley value -- the original theorem, not a sampled estimate of it.
+Three adjudications more expensive than the verdict itself.
+
+An agent is absent from a coalition by being SILENCED: it returns `unknown`
+with no confidence, which is exactly what the adjudicator already does with an
+agent that cannot see its evidence. So absence is a state the rules already
+understand, and nothing had to be special-cased to support this.
+
+THE PAYOUT IS ESCALATION -- how hard this coalition pushes toward a visit.
+Ordinal, and the one thing everyone in the loop cares about.
+
+The empty coalition scores zero: with all three silent the adjudicator reaches
+"not enough readings yet" and recommends monitoring. That makes the
+contributions sum EXACTLY to the final escalation, with nothing left over --
+the property a force plot claims and usually only approximates.
+"""
+
+ESCALATION = {"normal": 0.0, "warning": 0.5, "critical": 1.0}
+
+# Weights for n=3: |S|! (n-|S|-1)! / n!
+_SHAPLEY_W = {0: 1 / 3, 1: 1 / 6, 2: 1 / 3}
+
+
+def _silent(agent) -> AgentVerdict:
+    """An agent that was not consulted, in the form the adjudicator expects."""
+    spoken = agent(Evidence())          # cheap, and only to learn its identity
+    return AgentVerdict(spoken.agent, spoken.title, "unknown", 0.0,
+                        "Not consulted.", {})
+
+
+def _coalition(e: Evidence, present: frozenset[int]) -> Assessment:
+    """Adjudicate with only the agents in `present` allowed to speak."""
+    return adjudicate(e, [
+        agent(e) if i in present else _silent(agent)
+        for i, agent in enumerate(PANEL)
+    ])
+
+
+def attribute(e: Evidence) -> dict:
+    """Exact Shapley value per agent, plus the counterfactual for each.
+
+    The counterfactual is the useful half for a reader: not "hardware
+    contributed 0.52" but "silence hardware and this becomes MONITOR". One is a
+    number to trust, the other is a sentence to act on.
+    """
+    n = len(PANEL)
+    idx = range(n)
+    cache: dict[frozenset[int], Assessment] = {}
+
+    def value(s: frozenset[int]) -> float:
+        if s not in cache:
+            cache[s] = _coalition(e, s)
+        return ESCALATION.get(cache[s].decision, 0.0)
+
+    full = frozenset(idx)
+    subsets = [frozenset(c) for r in range(n + 1)
+               for c in _combinations(list(idx), r)]
+    for s in subsets:
+        value(s)
+
+    out = []
+    for i in idx:
+        phi = 0.0
+        for s in subsets:
+            if i in s:
+                continue
+            phi += _SHAPLEY_W[len(s)] * (value(s | {i}) - value(s))
+        without = cache[full - {i}]
+        spoken = PANEL[i](e)
+        out.append({
+            "agent": spoken.agent,
+            "title": spoken.title,
+            "phi": round(phi, 4),
+            # What the panel would have said without this agent in the room.
+            "without_action": without.action,
+            "without_decision": without.decision,
+        })
+
+    return {
+        "base": round(value(frozenset()), 4),      # nobody consulted
+        "total": round(value(full), 4),            # the verdict as issued
+        "contributions": out,
+        "exact": True,
+        "coalitions": len(subsets),
+    }
+
+
+def _combinations(pool: list[int], r: int):
+    """itertools.combinations, inlined to keep this module dependency-free."""
+    if r == 0:
+        yield ()
+        return
+    for i, x in enumerate(pool):
+        for rest in _combinations(pool[i + 1:], r - 1):
+            yield (x,) + rest
+
+
 def assess(e: Evidence) -> Assessment:
     """Run the panel and adjudicate. The one entry point."""
-    return adjudicate(e, [agent(e) for agent in PANEL])
+    a = adjudicate(e, [agent(e) for agent in PANEL])
+    a.attribution = attribute(e)
+    return a
 
 
 # ------------------------------------------------------------------- the API
