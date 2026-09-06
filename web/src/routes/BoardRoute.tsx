@@ -129,8 +129,14 @@ export function BoardRoute() {
   return (
     <div className="mx-auto grid max-w-[1600px] gap-6 px-5 py-6
                     lg:grid-cols-[minmax(340px,400px)_minmax(0,1fr)]">
-      <aside className="flex min-w-0 flex-col">
-        <header className="mb-4">
+      {/* Sticky and bounded to the viewport: the case on the right is often
+          far longer than the queue, and without this the queue scrolls away
+          while it is being read. Below `lg` the two are stacked and the page
+          scrolls normally -- a scroll box inside a scrolling page is worse
+          than the problem it solves. */}
+      <aside className="flex min-w-0 flex-col lg:sticky lg:top-6
+                        lg:max-h-[calc(100vh-3rem)]">
+        <header className="mb-4 shrink-0">
           <h1 className="text-2xl font-semibold tracking-tight">Maintenance board</h1>
           {/* One sentence saying what the screen is for. The previous version
               opened straight into a list and left the reader to infer it. */}
@@ -151,6 +157,11 @@ export function BoardRoute() {
           </div>
         </header>
 
+        {/* The queue itself. The header above stays put: the three priority
+            counts are what the list is read against, and a count that scrolls
+            away is one you have to go back for. */}
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1
+                        [scrollbar-width:thin]">
         {/* HARDWARE NODES, as their own group.
             This first went inside the feeder's `liveOpen &&` branch by
             mistake, so a faulted ESP32 was invisible unless the Python feeder
@@ -228,6 +239,7 @@ export function BoardRoute() {
             {shown.length} of {sims.length} shown. The rest are on the map.
           </p>
         )}
+        </div>
       </aside>
 
       <section className="min-w-0">
