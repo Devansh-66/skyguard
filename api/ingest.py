@@ -415,7 +415,12 @@ def edge_standing(station: str | None = None) -> dict:
     """
     from api import edge_grade
     return {"stations": edge_grade.EDGE_STATIONS,
-            "standing": edge_grade.standing(station)}
+            "standing": edge_grade.standing(station),
+            # Why a station that is reporting still has no verdict. Empty is
+            # the normal case; a filled entry is the difference between "this
+            # dashboard is broken" and "this node cannot say when its readings
+            # are from".
+            "blocked": edge_grade.blocked(station)}
 
 
 @router.get("/api/edge/series")

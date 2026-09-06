@@ -74,6 +74,13 @@ _standing: dict[str, dict] = {}
 # Episode state per station: how many bad steps in a row, how many clean ones,
 # whether a case is open, and the frame it opened at.
 _ep: dict[str, dict] = {}
+# Why a station has no verdict, when readings ARE arriving. Without this the
+# board simply shows nothing and the reason lives only in someone's head: a
+# node on firmware that predates the `frame` field posts happily, is stored,
+# is screened -- and cannot be placed on the record's axis, so it is never
+# graded and never drawn. That looked exactly like a stuck node and took a
+# serial log to diagnose.
+_blocked: dict[str, dict] = {}
 _lock = threading.Lock()
 
 
@@ -113,8 +120,26 @@ def observe(station: str, temp: float, rh: float, pres: float,
     on the same axis as the record, and guessing a frame would compare its
     reading against the wrong weather.
     """
-    if station not in EDGE_STATIONS or frame is None:
+    if station not in EDGE_STATIONS:
         return None
+    if frame is None:
+        # A reading that does not say WHICH MOMENT it is for cannot be
+        # differenced against what the neighbours were doing then, and guessing
+        # would compare it against the wrong weather.
+        with _lock:
+            _blocked[station] = {
+                "reason": "no_frame",
+                "detail": "This node is not reporting which frame of the "
+                          "record its readings are for, so they cannot be "
+                          "placed on the same axis as the network or "
+                          "differenced against its neighbours. Firmware "
+                          "before skyguard-node-1.3.0 did not send one.",
+                "t": time.time(),
+            }
+        return None
+
+    with _lock:
+        _blocked.pop(station, None)
 
     try:
         exp_t, exp_h, exp_p = _expectation(station, frame)
@@ -239,6 +264,19 @@ def standing(station: str | None = None) -> dict:
         return {k: _with_age(v) for k, v in _standing.items()}
 
 
+def blocked(station: str | None = None) -> dict:
+    """Why a station that IS reporting still has no verdict.
+
+    A silent absence is the worst answer here: readings arrive, are screened
+    and stored, and nothing appears -- which reads as a broken dashboard rather
+    than as a node whose firmware cannot say when its readings are from.
+    """
+    with _lock:
+        if station is not None:
+            return dict(_blocked.get(station) or {})
+        return {k: dict(v) for k, v in _blocked.items()}
+
+
 def reset(station: str | None = None) -> None:
     """Forget the learned scale. Used when the record is rewound, since a
     residual history built against one traverse does not describe the next."""
@@ -247,7 +285,9 @@ def reset(station: str | None = None) -> None:
             _hist.clear()
             _standing.clear()
             _ep.clear()
+            _blocked.clear()
         else:
             _hist.pop(station, None)
             _standing.pop(station, None)
             _ep.pop(station, None)
+            _blocked.pop(station, None)

@@ -155,6 +155,10 @@ export function useEdgeStanding() {
     queryFn: ({ signal }) => get<{
       stations: Record<string, EdgeStation>
       standing: Record<string, EdgeStanding>
+      /** Why a station that IS reporting still has no verdict. Empty is the
+       *  normal case; an entry is the difference between "this dashboard is
+       *  broken" and "this node cannot say when its readings are from". */
+      blocked: Record<string, { reason: string; detail: string; t: number }>
     }>('/api/edge/standing', signal),
     refetchInterval: 5000,
     // A build with no hardware node configured is not an error worth a red

@@ -515,6 +515,7 @@ export function NetworkRoute() {
    * the shape of one and supplies its own identity, exactly as the feeder does
    * above, and its readings are placed on the shared frame axis. */
   const edgeStanding = edgePicked ? edge.data?.standing[edgePicked.id] : undefined
+  const edgeBlocked = edgePicked ? edge.data?.blocked?.[edgePicked.id] : undefined
   const edgeStation: SimStation | null = edgePicked && sim.data
     ? { ...sim.data.stations[0], id: edgePicked.id, name: edgePicked.name,
         state: edgePicked.state, lat: edgePicked.lat, lon: edgePicked.lon,
@@ -977,7 +978,17 @@ export function NetworkRoute() {
                     {edgeSeries.data ? `${edgeSeries.data.n} readings` : 'loading'}
                   </span>
                 </div>
-                {edgeSeries.data && edgeSeries.data.n === 0 && (
+                {/* READINGS ARRIVING AND NOTHING DRAWN IS THE WORST STATE
+                    TO LEAVE UNEXPLAINED. It reads as a broken page, and the
+                    real cause -- a node whose firmware cannot say which moment
+                    its readings are for -- took a serial log to find once. */}
+                {edgeBlocked && (
+                  <p className="small" style={{ color: 'var(--amber)' }}>
+                    <strong>Reporting, but not gradeable.</strong>{' '}
+                    {edgeBlocked.detail}
+                  </p>
+                )}
+                {!edgeBlocked && edgeSeries.data && edgeSeries.data.n === 0 && (
                   <p className="small muted">
                     This node has never reported to this server. The readings
                     live on the host's disk, which a rebuild clears &mdash; so
