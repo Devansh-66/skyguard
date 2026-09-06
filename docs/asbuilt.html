@@ -1,0 +1,1547 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found]){display:none!important}</style></head><body>
+
+<title>SkyGuard As-Built</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+
+<style>
+/* Committed to one bright, light world in every host theme. Every colour is
+   painted explicitly below -- no dark overrides -- so the page reads the same
+   whether the viewer's theme is light, dark, or unset. */
+:root{
+  --paper:#FFFFFF; --surface:#FFFFFF; --sunk:#F3F7FB;
+  --ink:#0E1720; --ink-2:#4E5D6B; --ink-3:#7E8D9B;
+  --rule:#DFE7EE; --rule-soft:#EDF2F7;
+  --accent:#1F5FAE; --accent-soft:#EEF5FD;
+  --ok:#15694A; --watch:#8A5A05; --fault:#B32B22; --research:#4E5D6B;
+  --shadow:0 1px 2px rgba(14,23,32,.05);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:16px; line-height:1.62; margin:0;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px; margin:0 auto; padding:0 28px 120px}
+
+.mast{border-bottom:2px solid var(--ink); padding:48px 0 22px}
+.stamp{
+  font-family:"IBM Plex Mono",monospace; font-size:11px; font-weight:500;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--accent);
+  display:flex; flex-wrap:wrap; gap:8px 18px; margin-bottom:22px;
+}
+.stamp span{white-space:nowrap}
+h1{
+  font-family:Archivo,sans-serif; font-weight:700; font-size:clamp(38px,7vw,68px);
+  line-height:.98; letter-spacing:-.028em; margin:0 0 18px; text-wrap:balance;
+}
+h1 em{font-style:normal; color:var(--ink-3); display:block; font-size:.44em;
+  font-weight:600; letter-spacing:-.01em; margin-top:14px; line-height:1.25}
+.mast p{max-width:62ch; color:var(--ink-2); margin:0; font-size:17px}
+.mast p strong{color:var(--ink); font-weight:600}
+
+.cols{display:grid; grid-template-columns:208px minmax(0,1fr); gap:56px; margin-top:52px}
+@media (max-width:940px){ .cols{grid-template-columns:1fr; gap:0} nav.toc{position:static; margin-bottom:44px} }
+
+nav.toc{position:sticky; top:24px; align-self:start; max-height:calc(100vh - 48px); overflow-y:auto}
+nav.toc h2{
+  font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--ink-3); margin:0 0 12px; font-weight:600;
+}
+nav.toc ol{list-style:none; margin:0 0 16px; padding:0; display:flex; flex-direction:column; gap:1px}
+nav.toc .grp{font-family:"IBM Plex Mono",monospace; font-size:9.5px; letter-spacing:.15em;
+  text-transform:uppercase; color:var(--accent); font-weight:600; margin:14px 0 6px;
+  padding-left:6px}
+nav.toc .grp:first-child{margin-top:0}
+nav.toc a{
+  display:grid; grid-template-columns:22px 1fr; gap:8px; align-items:baseline;
+  color:var(--ink-2); text-decoration:none; font-size:13px; line-height:1.32;
+  padding:4px 6px; border-radius:3px; border-left:2px solid transparent;
+}
+nav.toc a:hover{color:var(--ink); background:var(--sunk); border-left-color:var(--accent)}
+nav.toc a:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+nav.toc .n{font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-3)}
+
+main{min-width:0; display:flex; flex-direction:column; gap:58px}
+
+.partrule{border-top:2px solid var(--ink); padding-top:12px; margin-bottom:-24px}
+.partrule span{font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--accent); font-weight:600}
+
+section{scroll-margin-top:20px}
+.shead{display:flex; align-items:baseline; gap:14px; border-bottom:1px solid var(--ink);
+  padding-bottom:9px; margin-bottom:26px}
+.shead .num{font-family:"IBM Plex Mono",monospace; font-size:12px; font-weight:600;
+  color:var(--accent); letter-spacing:.04em}
+.shead h2{font-family:Archivo,sans-serif; font-weight:600; font-size:25px;
+  letter-spacing:-.018em; margin:0; text-wrap:balance}
+h3{font-family:Archivo,sans-serif; font-weight:600; font-size:17px; letter-spacing:-.01em;
+  margin:34px 0 10px}
+h3:first-child{margin-top:0}
+p{max-width:68ch; margin:0 0 15px}
+p:last-child{margin-bottom:0}
+main a{color:var(--accent); text-decoration:underline; text-underline-offset:2px;
+  text-decoration-thickness:1px}
+code{font-family:"IBM Plex Mono",monospace; font-size:.875em; background:var(--sunk);
+  padding:1px 5px; border-radius:3px; color:var(--ink)}
+strong{font-weight:600}
+.lede{font-size:17px; color:var(--ink-2); max-width:66ch}
+
+.chip{font-family:"IBM Plex Mono",monospace; font-size:10px; font-weight:600;
+  letter-spacing:.09em; text-transform:uppercase; padding:2px 7px; border-radius:2px;
+  border:1px solid currentColor; white-space:nowrap; display:inline-block; line-height:1.5}
+.c-built{color:var(--ok)} .c-part{color:var(--watch)}
+.c-res{color:var(--research)} .c-no{color:var(--fault)}
+
+.tw{overflow-x:auto; border:1px solid var(--rule); border-radius:4px;
+  background:var(--surface); box-shadow:var(--shadow)}
+table{border-collapse:collapse; width:100%; font-size:14px; min-width:520px}
+th{font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--ink-3); text-align:left; font-weight:600;
+  padding:11px 14px; border-bottom:1px solid var(--rule); background:var(--sunk);
+  white-space:nowrap}
+th.num{text-align:right}
+td{padding:10px 14px; border-bottom:1px solid var(--rule-soft); vertical-align:top;
+  color:var(--ink-2)}
+tr:last-child td{border-bottom:none}
+td.k{color:var(--ink); font-weight:500}
+td.m,.mono{font-family:"IBM Plex Mono",monospace; font-size:13px}
+td.num{text-align:right; font-variant-numeric:tabular-nums;
+  font-family:"IBM Plex Mono",monospace}
+
+figure{margin:26px 0; padding:0}
+.fbox{overflow-x:auto; border:1px solid var(--rule); border-radius:4px;
+  background:var(--surface); padding:22px 18px; box-shadow:var(--shadow)}
+svg{max-width:100%; height:auto; display:block; margin:0 auto}
+figcaption{font-size:13px; color:var(--ink-3); margin-top:11px; max-width:70ch;
+  line-height:1.55}
+
+.eq{font-family:"IBM Plex Mono",monospace; font-size:14.5px; background:var(--sunk);
+  border-left:3px solid var(--accent); border-radius:0 4px 4px 0; padding:15px 20px;
+  margin:20px 0; overflow-x:auto; line-height:1.85; color:var(--ink)}
+.eq .cm{color:var(--ink-3)}
+.eq b{color:var(--accent); font-weight:600}
+
+.work{border:1px solid var(--rule); border-radius:4px; background:var(--surface);
+  padding:18px 20px; margin:22px 0; box-shadow:var(--shadow)}
+.work .wl{font-family:"IBM Plex Mono",monospace; font-size:10px; font-weight:600;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--accent);
+  display:block; margin-bottom:12px}
+.work table{min-width:0; font-size:13.5px}
+.work td{border-bottom:1px solid var(--rule-soft); padding:7px 0}
+.work td:first-child{padding-right:20px; color:var(--ink); white-space:nowrap}
+.work td:last-child{font-family:"IBM Plex Mono",monospace; text-align:right;
+  font-variant-numeric:tabular-nums; white-space:nowrap}
+.work tr:last-child td{border-bottom:none; font-weight:600; color:var(--ink);
+  padding-top:11px; border-top:1px solid var(--rule)}
+
+.note{border-left:3px solid var(--accent); background:var(--accent-soft);
+  padding:15px 18px; border-radius:0 4px 4px 0; margin:22px 0}
+.note p{max-width:64ch; margin:0 0 10px}
+.note p:last-child{margin-bottom:0}
+.note .lbl{font-family:"IBM Plex Mono",monospace; font-size:10px; font-weight:600;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--accent);
+  display:block; margin-bottom:6px}
+.warn{border-left-color:var(--fault); background:transparent;
+  border:1px solid var(--rule); border-left:3px solid var(--fault)}
+.warn .lbl{color:var(--fault)}
+
+.metrics{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(148px,100%),1fr));
+  gap:1px; background:var(--rule); border:1px solid var(--rule); border-radius:4px;
+  overflow:hidden; margin:22px 0}
+.metric{background:var(--surface); padding:16px 15px}
+.metric .v{font-family:Archivo,sans-serif; font-weight:700; font-size:29px;
+  letter-spacing:-.02em; font-variant-numeric:tabular-nums; display:block; line-height:1.05}
+.metric .l{font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--ink-3); display:block; margin-top:7px}
+.metric .s{font-size:12px; color:var(--ink-3); display:block; margin-top:5px; line-height:1.4}
+
+ul.tight{margin:0 0 15px; padding-left:20px; max-width:68ch}
+ul.tight li{margin-bottom:7px}
+.pathlist{font-family:"IBM Plex Mono",monospace; font-size:13px; background:var(--sunk);
+  border:1px solid var(--rule); border-radius:4px; padding:16px 18px; overflow-x:auto;
+  line-height:1.75; margin:20px 0; white-space:pre; color:var(--ink-2)}
+footer{margin-top:76px; padding-top:22px; border-top:2px solid var(--ink);
+  font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-3);
+  display:flex; flex-wrap:wrap; gap:8px 26px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="stamp">
+    <span>SIH 2026 &middot; PS26073</span>
+    <span>Ministry of Earth Sciences / IMD</span>
+    <span>As-built &middot; 6 Sep 2026</span>
+  </div>
+  <h1>SkyGuard As-Built
+    <em>The brief, the mathematics, and what is actually running.</em>
+  </h1>
+  <p>The blueprint describes an intended system and carries the reasoning that got us
+  there. This document describes the <strong>built</strong> one, and shows the arithmetic
+  underneath it in full &mdash; every formula with a worked example you can check by hand.
+  Where the two documents disagree, this one is right: it was written by reading the code
+  and querying the deployed service. Every number came from <code>/api/summary</code>, a
+  model report, or a calculation reproduced from the source.</p>
+</header>
+
+<section id="s0" style="margin-top:36px">
+  <div class="shead"><span class="num">00</span><h2>The whole thing, in one screen</h2></div>
+  <p class="lede">Read this and you have it. Everything after is the working.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Question</th><th>Answer</th></tr></thead>
+      <tbody>
+        <tr><td class="k">What does it detect?</td><td>A station drifting away from its neighbours, using only temperature, pressure and humidity. Weather is shared and cancels in the difference; a fault belongs to one instrument and does not.</td></tr>
+        <tr><td class="k">How, in one line?</td><td>Remove each station's own hourly climatology, subtract the median of its neighbours, divide by a trailing lagged rolling MAD, band at 6&sigma; and 8&sigma;, and require three consecutive steps before opening an episode.</td></tr>
+        <tr><td class="k">How accurate?</td><td><strong>57% recall, 38% precision</strong> &mdash; 72% recall once dropouts, which have no residual to difference, are excluded. Against injected faults whose amplitudes deliberately run below what a 30-day record can support.</td></tr>
+        <tr><td class="k">Who decides to dispatch?</td><td>Three deterministic agents &mdash; data quality, hardware health, weather-or-fault &mdash; and an adjudicator with a fixed rule order. Not an LLM, and not a learned model.</td></tr>
+        <tr><td class="k">How is it explained?</td><td>Exact Shapley over the three agents (all eight coalitions, so contributions sum to the verdict), a counterfactual per agent, and the adjudicator's own walk shown step by step.</td></tr>
+        <tr><td class="k">Is any of it ML?</td><td><strong>No.</strong> There is no model in the decision path. The intelligence is in the multi-agent arbitration and the spatial statistics.</td></tr>
+        <tr><td class="k">Is the data real?</td><td>Station <em>locations</em> are real IMD sites. Readings are generated, and stay generated through the finals &mdash; what is demonstrated is the pipeline that judges them.</td></tr>
+        <tr><td class="k">Does hardware exist?</td><td>An ESP32 sketch that runs end to end in Wokwi, TLS to the deployed service, through the same ingest door the simulated network uses. Never run on a physical board.</td></tr>
+        <tr><td class="k">Biggest gap?</td><td>The explanation is a fixed decision tree, not an autonomous investigation. See &sect;18 and &sect;26.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="cols">
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#s0"><span class="n">00</span><span>In one screen</span></a></li>
+  </ol>
+  <div class="grp">I &middot; The brief</div>
+  <ol>
+    <li><a href="#s1"><span class="n">01</span><span>The problem statement</span></a></li>
+    <li><a href="#s2"><span class="n">02</span><span>How it is scored</span></a></li>
+    <li><a href="#s3"><span class="n">03</span><span>End-to-end workflow</span></a></li>
+  </ol>
+  <div class="grp">II &middot; The mathematics</div>
+  <ol>
+    <li><a href="#s4"><span class="n">04</span><span>The physics you have</span></a></li>
+    <li><a href="#s5"><span class="n">05</span><span>Why three parameters</span></a></li>
+    <li><a href="#s6"><span class="n">06</span><span>Step 1 &mdash; anomaly</span></a></li>
+    <li><a href="#s7"><span class="n">07</span><span>Step 2 &mdash; neighbours</span></a></li>
+    <li><a href="#s8"><span class="n">08</span><span>Step 3 &mdash; sigma from MAD</span></a></li>
+    <li><a href="#s9"><span class="n">09</span><span>Step 4 &mdash; z and the bands</span></a></li>
+    <li><a href="#s10"><span class="n">10</span><span>Two passes</span></a></li>
+    <li><a href="#s11"><span class="n">11</span><span>What it cannot see</span></a></li>
+    <li><a href="#s12"><span class="n">12</span><span>Alerts as episodes</span></a></li>
+  </ol>
+  <div class="grp">III &middot; The data</div>
+  <ol>
+    <li><a href="#s13"><span class="n">13</span><span>The network we made</span></a></li>
+    <li><a href="#s14"><span class="n">14</span><span>Fault models</span></a></li>
+    <li><a href="#s15"><span class="n">15</span><span>Real vs. generated</span></a></li>
+    <li><a href="#s16"><span class="n">16</span><span>How accuracy is measured</span></a></li>
+    <li><a href="#s17"><span class="n">17</span><span>Measured results</span></a></li>
+    <li><a href="#s18"><span class="n">18</span><span>Explainability, as built</span></a></li>
+  </ol>
+  <div class="grp">IV &middot; As-built</div>
+  <ol>
+    <li><a href="#s19"><span class="n">19</span><span>Shape of the system</span></a></li>
+    <li><a href="#s20"><span class="n">20</span><span>The live node</span></a></li>
+    <li><a href="#s21"><span class="n">21</span><span>Ingest and storage</span></a></li>
+    <li><a href="#s22"><span class="n">22</span><span>Module inventory</span></a></li>
+    <li><a href="#s23"><span class="n">23</span><span>API surface</span></a></li>
+    <li><a href="#s24"><span class="n">24</span><span>Frontend</span></a></li>
+    <li><a href="#s25"><span class="n">25</span><span>Deployment</span></a></li>
+    <li><a href="#s26"><span class="n">26</span><span>Not built</span></a></li>
+    <li><a href="#s27"><span class="n">27</span><span>Traps already paid for</span></a></li>
+    <li><a href="#s28"><span class="n">28</span><span>Running it</span></a></li>
+  </ol>
+</nav>
+
+<main>
+
+<div class="partrule"><span>Part I &mdash; The brief</span></div>
+
+<section id="s1">
+  <div class="shead"><span class="num">01</span><h2>The problem statement</h2></div>
+  <p>Detect abnormal, inconsistent or faulty observations from Automatic Weather Stations
+  in real time, using <strong>only</strong> Temperature (&deg;C), Atmospheric Pressure
+  (hPa) and Relative Humidity (%). Distinguish genuine meteorological events from
+  sensor/data anomalies while minimising false alarms and enabling scalable deployment
+  across large networks.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Required</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Objectives</td><td>Real-time detection &middot; identify sensor faults, spikes, frozen values, communication errors &middot; learn normal temporal and seasonal patterns &middot; multivariate consistency analysis &middot; confidence scores and explainable reasoning &middot; predict sensor degradation and maintenance needs &middot; optionally suggest corrected values.</td></tr>
+        <tr><td class="k">Outputs</td><td>Real-time alerts &middot; severity and confidence scores &middot; root-cause classification &middot; visualisation dashboard &middot; sensor health status &middot; corrected data (optional).</td></tr>
+        <tr><td class="k">Deliverable</td><td>"Fully executable code with example usage and a document explaining various use cases." Not a prototype and slides.</td></tr>
+        <tr><td class="k">Evaluated on</td><td>Anomaly-injected data.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>The one case that matters</h3>
+  <p>The hard failure is drift. A probe that fails slowly reads a little wrong, then a
+  little more, for weeks. No single reading is implausible, so no threshold fires. The
+  failure is not the value &mdash; it is the divergence, and divergence is only visible
+  against something that has not diverged. That is the idea the whole system rests on:
+  <strong>compare a station with its neighbours at the same moment.</strong> Weather is
+  shared between nearby stations and cancels in the difference; a fault belongs to one
+  instrument and does not.</p>
+
+  <div class="note">
+    <span class="lbl">Consequence</span>
+    <p>A station with fewer than three usable neighbours cannot be judged this way. The
+    interface labels those <code>NO NEIGHBOURS</code> rather than guessing &mdash; visible
+    on the Andaman &amp; Nicobar stations in the station index.</p>
+  </div>
+</section>
+
+<section id="s2">
+  <div class="shead"><span class="num">02</span><h2>How it is scored</h2></div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Criterion</th><th class="num">Weight</th><th>What earns it here</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Innovation &amp; Novelty</td><td class="num">25%</td><td>A signature classifier that names <em>which</em> fault or <em>which</em> event</td></tr>
+        <tr><td class="k">Detection Accuracy</td><td class="num">20%</td><td>Neighbour-difference channel; POD-vs-amplitude curves</td></tr>
+        <tr><td class="k">Real-Time Capability</td><td class="num">15%</td><td>O(1) streaming state; published latency distributions</td></tr>
+        <tr><td class="k">Explainability</td><td class="num">10%</td><td>Uncertainty-propagated physics confidence; exact Shapley</td></tr>
+        <tr><td class="k">Scalability</td><td class="num">10%</td><td>Per-station auto-calibrated thresholds</td></tr>
+        <tr><td class="k">Practical Deployability</td><td class="num">10%</td><td>Integer-arithmetic edge tier</td></tr>
+        <tr><td class="k">Visualization / UI</td><td class="num">5%</td><td>Board, network, judgement screens</td></tr>
+        <tr><td class="k">Energy Efficiency</td><td class="num">5%</td><td>Measured uplink reduction</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note">
+    <span class="lbl">What this drives</span>
+    <p>Innovation (25) + Explainability (10) outweighs Accuracy (20). A classifier that
+    <em>names</em> the fault and shows the physical reason scores on all three at once. A
+    bare rarity score scores on one. That is why the pipeline ends in a named band and a
+    named fault, not a probability.</p>
+  </div>
+</section>
+
+<section id="s3">
+  <div class="shead"><span class="num">03</span><h2>End-to-end workflow</h2></div>
+  <p class="lede">One pass, sensor to work order. Everything downstream of the sensor is
+  arithmetic you can check by hand; the rest of Part II does exactly that.</p>
+
+  <figure>
+    <div class="fbox">
+      <svg viewBox="0 0 900 300" role="img" aria-label="Workflow from sensor through ingest, physics screen, anomaly removal, neighbour differencing, standardisation, banding and episode logic to the maintenance board, with a rejected branch and a no-neighbours branch.">
+        <defs>
+          <marker id="w1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,1 10,5 0,9" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g fill="none" stroke="currentColor" stroke-width="1.25">
+          <rect x="16" y="96" width="112" height="56" rx="4"/>
+          <rect x="164" y="96" width="112" height="56" rx="4"/>
+          <rect x="312" y="96" width="120" height="56" rx="4" stroke="#1F5FAE" stroke-width="1.7"/>
+          <rect x="468" y="96" width="120" height="56" rx="4" stroke="#1F5FAE" stroke-width="1.7"/>
+          <rect x="624" y="96" width="112" height="56" rx="4"/>
+          <rect x="772" y="96" width="112" height="56" rx="4"/>
+          <rect x="164" y="216" width="112" height="46" rx="4" stroke-dasharray="4 3" opacity=".8"/>
+          <rect x="312" y="216" width="120" height="46" rx="4" stroke-dasharray="4 3" opacity=".8"/>
+          <rect x="772" y="216" width="112" height="46" rx="4"/>
+          <line x1="128" y1="124" x2="160" y2="124" marker-end="url(#w1)"/>
+          <line x1="276" y1="124" x2="308" y2="124" marker-end="url(#w1)"/>
+          <line x1="432" y1="124" x2="464" y2="124" marker-end="url(#w1)"/>
+          <line x1="588" y1="124" x2="620" y2="124" marker-end="url(#w1)"/>
+          <line x1="736" y1="124" x2="768" y2="124" marker-end="url(#w1)"/>
+          <path d="M220 152 L 220 212" marker-end="url(#w1)" stroke-dasharray="4 3" opacity=".8"/>
+          <path d="M372 152 L 372 212" marker-end="url(#w1)" stroke-dasharray="4 3" opacity=".8"/>
+          <path d="M828 152 L 828 212" marker-end="url(#w1)"/>
+        </g>
+        <g font-family="Archivo, sans-serif" font-size="12" font-weight="600" fill="currentColor" text-anchor="middle">
+          <text x="72" y="120">Sensor</text>
+          <text x="220" y="120">WMO screen</text>
+          <text x="680" y="120">Band</text>
+          <text x="828" y="120">Episode</text>
+          <text x="828" y="240">Board</text>
+        </g>
+        <g font-family="Archivo, sans-serif" font-size="12" font-weight="600" fill="#1F5FAE" text-anchor="middle">
+          <text x="372" y="120">Anomaly</text>
+          <text x="528" y="120">Neighbours</text>
+        </g>
+        <g font-family="IBM Plex Sans, sans-serif" font-size="10.5" fill="currentColor" opacity=".72" text-anchor="middle">
+          <text x="72" y="138">T &middot; P &middot; RH</text>
+          <text x="220" y="138">range &middot; step</text>
+          <text x="372" y="138">minus own clim.</text>
+          <text x="528" y="138">minus median</text>
+          <text x="680" y="138">z vs 6&sigma; / 8&sigma;</text>
+          <text x="828" y="138">3 up / 6 down</text>
+          <text x="220" y="234">rejected</text>
+          <text x="220" y="250">never stored as ok</text>
+          <text x="372" y="234">no neighbours</text>
+          <text x="372" y="250">said, not guessed</text>
+          <text x="828" y="256">work order</text>
+        </g>
+        <text x="450" y="42" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".8" text-anchor="middle">Every reading takes this path &mdash; the simulated network and the live node alike.</text>
+        <line x1="16" y1="60" x2="884" y2="60" stroke="currentColor" stroke-width="1" opacity=".25"/>
+      </svg>
+    </div>
+    <figcaption>Two branches leave the main line rather than being swallowed: a reading
+    that fails the physics screen is rejected instead of being stored as good, and a
+    station with too few neighbours is reported as unjudgeable instead of scored
+    anyway.</figcaption>
+  </figure>
+</section>
+
+<div class="partrule"><span>Part II &mdash; The mathematics</span></div>
+
+<section id="s4">
+  <div class="shead"><span class="num">04</span><h2>The physics you have</h2></div>
+  <p class="lede">Three measured numbers. Everything else is derived from them by
+  thermodynamics, and the derived quantities are more useful than the raw ones because
+  they behave differently under weather than under failure.</p>
+
+  <h3>Saturation vapour pressure &mdash; the Magnus form</h3>
+  <p>Air can hold only so much water vapour before it condenses, and that ceiling rises
+  steeply with temperature. The Magnus formula gives that ceiling:</p>
+
+  <div class="eq"><b>e<sub>s</sub>(T)</b> = 6.112 &middot; exp( a&middot;T / (b + T) )   <span class="cm">hPa</span>
+
+a = 17.62,  b = 243.12   <span class="cm">over water, T &ge; 0 &deg;C</span>
+a = 22.46,  b = 272.62   <span class="cm">over ice,   T &lt; 0 &deg;C</span></div>
+
+  <p>The two coefficient sets matter. Using the water set below freezing manufactures
+  spurious violations at high-altitude and northern stations &mdash; the formula would
+  claim the air is supersaturated when it is simply cold.</p>
+
+  <h3>Actual vapour pressure and dew point</h3>
+  <p>Relative humidity is a <em>percentage of that ceiling</em>, which is why RH alone
+  tells you little: 60% at 30 &deg;C is far more water than 60% at 5 &deg;C. Multiply to
+  get the actual amount, then invert to get the temperature at which that amount would
+  saturate &mdash; the dew point.</p>
+
+  <div class="eq"><b>e</b> = (RH / 100) &middot; e<sub>s</sub>(T)   <span class="cm">hPa</span>
+
+&gamma; = ln(RH/100) + a&middot;T/(b+T)
+<b>T<sub>d</sub></b> = b&middot;&gamma; / (a &minus; &gamma;)   <span class="cm">&deg;C</span></div>
+
+  <div class="work">
+    <span class="wl">Worked &mdash; T = 30 &deg;C, RH = 60 %, P = 1000 hPa</span>
+    <table>
+      <tr><td>e<sub>s</sub> = 6.112 &middot; exp(17.62&middot;30 / (243.12+30))</td><td>42.3372 hPa</td></tr>
+      <tr><td>e = 0.60 &middot; 42.3372</td><td>25.4023 hPa</td></tr>
+      <tr><td>&gamma; = ln(0.60) + 17.62&middot;30/273.12</td><td>1.4245</td></tr>
+      <tr><td>T<sub>d</sub> = 243.12&middot;1.4245 / (17.62 &minus; 1.4245)</td><td>21.39 &deg;C</td></tr>
+      <tr><td>Dew point</td><td>21.39 &deg;C</td></tr>
+    </table>
+  </div>
+
+  <p>Sanity check by eye: the air is at 30 &deg;C and would need to cool to about 21
+  &deg;C before dew forms. That is a humid but ordinary tropical afternoon. If the
+  formula had returned 35 &deg;C &mdash; a dew point above the air temperature &mdash;
+  that would mean RH above 100%, which is the same statement, not a second independent
+  check.</p>
+
+  <h3>Specific humidity &mdash; this is what pressure is for</h3>
+  <p>Specific humidity is the mass of water vapour per mass of air, in g/kg. Unlike RH,
+  it does <strong>not</strong> change when the air simply warms or cools.</p>
+
+  <div class="eq"><b>q</b> = 0.622 &middot; e / (P &minus; 0.378&middot;e) &middot; 1000   <span class="cm">g/kg</span></div>
+
+  <div class="work">
+    <span class="wl">Worked &mdash; same air parcel</span>
+    <table>
+      <tr><td>0.622 &middot; 25.4023</td><td>15.8002</td></tr>
+      <tr><td>P &minus; 0.378&middot;e = 1000 &minus; 9.602</td><td>990.398</td></tr>
+      <tr><td>q = 15.8002 / 990.398 &middot; 1000</td><td>15.95 g/kg</td></tr>
+      <tr><td>Specific humidity</td><td>15.95 g/kg</td></tr>
+    </table>
+  </div>
+
+  <p>Why this is the useful variable: <strong>q is conserved under dry adiabatic
+  processes and under ordinary diurnal heating.</strong> The sun warms the air, RH falls,
+  and q does not move. So an RH sensor that drifts breaks q, whereas genuine advection
+  &mdash; a moist air mass arriving &mdash; moves q coherently and moves it at the
+  neighbours too. That is a physical discriminator between fault and weather, available
+  from exactly the three parameters the problem statement allows.</p>
+
+  <h3>Pressure must be reduced to sea level before comparison</h3>
+  <p>Pressure falls roughly 1 hPa per 8&ndash;9 m of altitude. Comparing raw station
+  pressure between neighbours at different elevations is meaningless.</p>
+
+  <div class="eq"><b>P<sub>MSL</sub></b> = P<sub>station</sub> &middot; exp( h / (29.271 &middot; (T + 273.15)) )   <span class="cm">h in metres</span></div>
+
+  <div class="work">
+    <span class="wl">Worked &mdash; two neighbours, 950 hPa each, T = 25 &deg;C</span>
+    <table>
+      <tr><td>Station A at 500 m</td><td>1006.02 hPa</td></tr>
+      <tr><td>Station B at 600 m</td><td>1017.61 hPa</td></tr>
+      <tr><td>Apparent difference if reduction is skipped</td><td>11.59 hPa</td></tr>
+    </table>
+  </div>
+
+  <p>Eleven and a half hectopascals of pure artefact from 100 m of hill, against a
+  genuine synoptic pressure anomaly that is often under 5 hPa. Skip this step and every
+  hill station looks broken.</p>
+</section>
+
+<section id="s5">
+  <div class="shead"><span class="num">05</span><h2>Why three parameters are enough</h2></div>
+  <p>The constraint looks severe until you notice that T, P and RH are not three
+  independent numbers &mdash; they are three views of one thermodynamic state, tied
+  together by the relations above. That gives two independent kinds of evidence:</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Evidence</th><th>Question it answers</th><th>Catches</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Cross-channel coherence</td><td>Do T, P and RH tell a consistent story <em>at this station</em>?</td><td>A single failed channel: RH drifts while T and P do not, so q breaks while the neighbours' q holds.</td></tr>
+        <tr><td class="k">Spatial coherence</td><td>Does this station agree with its neighbours <em>at this moment</em>?</td><td>Anything that moves one instrument and not the weather &mdash; drift, offset, freeze, spike.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>The discriminator between a fault and a storm is not magnitude. A genuine squall
+  line produces a large, fast pressure fall &mdash; and so does a failing barometer. What
+  separates them is that the squall arrives at the neighbours too, a few minutes earlier
+  or later, and keeps T, RH and P mutually consistent while it does. The fault does
+  neither. <strong>Magnitude is not the signal; coherence is.</strong></p>
+</section>
+
+<section id="s6">
+  <div class="shead"><span class="num">06</span><h2>Step 1 &mdash; anomaly, before anything else</h2></div>
+  <p>The naive method is to subtract a neighbour's reading from this station's reading.
+  Measured on this network, that flagged <strong>49% of healthy stations</strong>.</p>
+
+  <p>The reason is that a station's reading contains its own permanent identity. A mast
+  at 4,196 m is colder than neighbours at 200 m, and &mdash; crucially &mdash; its
+  <em>diurnal shape</em> differs too, because thin air warms and cools faster. So the raw
+  difference swings every single day for reasons that have nothing to do with any
+  instrument.</p>
+
+  <p>The fix is to remove each station's own clean-period climatology by hour of day
+  first:</p>
+
+  <div class="eq"><span class="cm"># hour of day for every step</span>
+h(t) = (t &middot; 15 min / 60) mod 24
+
+<span class="cm"># mean of each hour over the clean period, per station s</span>
+clim[h, s] = mean{ x(t, s) : t &lt; clean_steps, h(t) = h }
+
+<b>anomaly</b>  a(t, s) = x(t, s) &minus; clim[h(t), s]</div>
+
+  <p>Now every station's anomaly is centred near zero regardless of altitude, and shares
+  the same units and roughly the same daily shape. What remains in <code>a</code> is
+  weather plus faults &mdash; which is exactly what the difference is meant to compare.</p>
+
+  <figure>
+    <div class="fbox">
+      <svg viewBox="0 0 860 230" role="img" aria-label="Two panels. Left: the raw difference between a high-altitude station and its neighbour swings far outside the fault band every day. Right: after removing each station's own hourly climatology, the same difference sits quietly inside the band.">
+        <g stroke="currentColor" fill="none" stroke-width="1">
+          <line x1="60" y1="150" x2="360" y2="150" opacity=".3"/>
+          <line x1="500" y1="150" x2="800" y2="150" opacity=".3"/>
+        </g>
+        <g stroke="#B32B22" fill="none" stroke-width="1" stroke-dasharray="4 3" opacity=".75">
+          <line x1="60" y1="122" x2="360" y2="122"/>
+          <line x1="60" y1="178" x2="360" y2="178"/>
+          <line x1="500" y1="122" x2="800" y2="122"/>
+          <line x1="500" y1="178" x2="800" y2="178"/>
+        </g>
+        <polyline fill="none" stroke="currentColor" stroke-width="1.6" points="60.0,148.1 66.2,141.5 72.5,136.0 78.8,132.1 85.0,129.9 91.2,129.3 97.5,129.9 103.8,131.6 110.0,133.9 116.2,136.7 122.5,140.0 128.8,143.8 135.0,148.1 141.2,152.9 147.5,158.0 153.8,163.3 160.0,168.0 166.2,171.8 172.5,173.9 178.8,174.1 185.0,172.0 191.2,167.9 197.5,162.0 203.8,155.2 210.0,148.1 216.2,141.5 222.5,136.0 228.8,132.1 235.0,129.9 241.2,129.3 247.5,129.9 253.8,131.6 260.0,133.9 266.2,136.7 272.5,140.0 278.8,143.8 285.0,148.1 291.2,152.9 297.5,158.0 303.8,163.3 310.0,168.0 316.2,171.8 322.5,173.9 328.8,174.1 335.0,172.0 341.2,167.9 347.5,162.0 353.8,155.2 360.0,148.1"/>
+        <polyline fill="none" stroke="#1F5FAE" stroke-width="1.6" points="500.0,149.6 506.2,153.7 512.5,151.0 518.8,142.4 525.0,150.2 531.2,145.5 537.5,147.6 543.8,151.5 550.0,155.3 556.2,156.5 562.5,150.7 568.8,149.7 575.0,150.3 581.2,147.0 587.5,151.6 593.8,152.0 600.0,155.7 606.2,158.8 612.5,148.7 618.8,148.2 625.0,145.8 631.2,152.4 637.5,153.9 643.8,153.1 650.0,157.5 656.2,153.8 662.5,142.4 668.8,151.1 675.0,143.4 681.2,145.7 687.5,150.6 693.8,147.4 700.0,150.3 706.2,142.6 712.5,143.9 718.8,151.9 725.0,151.9 731.2,149.2 737.5,150.9 743.8,150.7 750.0,141.8 756.2,164.4 762.5,150.6 768.8,150.8 775.0,148.7 781.2,151.8 787.5,142.2 793.8,153.9 800.0,146.9"/>
+        <text x="60" y="40" font-family="Archivo, sans-serif" font-size="13" font-weight="600" fill="currentColor">Raw difference</text>
+        <text x="60" y="58" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".72">station minus neighbour, no anomaly step</text>
+        <text x="60" y="76" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="#B32B22">crosses the band twice a day, every day</text>
+        <text x="500" y="40" font-family="Archivo, sans-serif" font-size="13" font-weight="600" fill="#1F5FAE">Anomaly difference</text>
+        <text x="500" y="58" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".72">each station's own hourly climatology removed</text>
+        <text x="500" y="76" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".72">quiet, and a real fault would stand out</text>
+        <text x="366" y="125" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#B32B22">+8&sigma;</text>
+        <text x="366" y="181" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#B32B22">&minus;8&sigma;</text>
+        <text x="806" y="125" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#B32B22">+8&sigma;</text>
+        <text x="806" y="181" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#B32B22">&minus;8&sigma;</text>
+        <text x="60" y="212" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".6">two days &mdash; schematic</text>
+        <text x="500" y="212" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".6">same two days, same station pair</text>
+      </svg>
+    </div>
+    <figcaption>Same station pair, same two days, drawn schematically. The left panel is
+    why differencing raw values flagged 49% of healthy stations: the excursion is the
+    daily cycle of an altitude difference, not a fault.</figcaption>
+  </figure>
+</section>
+
+<section id="s7">
+  <div class="shead"><span class="num">07</span><h2>Step 2 &mdash; difference against the neighbours</h2></div>
+  <p>For each station, take the <strong>median</strong> anomaly of its neighbours at the
+  same timestep and subtract it:</p>
+
+  <div class="eq"><b>r(t, s)</b> = a(t, s) &minus; median{ a(t, j) : j &isin; N(s) }
+
+<span class="cm">N(s) = neighbours of s;  requires |N(s)| &ge; 3, else the station is not scored</span></div>
+
+  <p>Median, not mean, on purpose: the median of five neighbours is unmoved by one of
+  them being broken, while the mean is dragged by it. This is the cheapest robustness in
+  the whole pipeline.</p>
+
+  <div class="work">
+    <span class="wl">Worked &mdash; one timestep, temperature anomalies in &deg;C</span>
+    <table>
+      <tr><td>Neighbour anomalies</td><td>+0.80 &middot; +0.92 &middot; +0.71 &middot; +1.08 &middot; +0.85</td></tr>
+      <tr><td>Their median</td><td>+0.85</td></tr>
+      <tr><td>Healthy station reads</td><td>+0.90</td></tr>
+      <tr><td>residual r = 0.90 &minus; 0.85</td><td>+0.05</td></tr>
+      <tr><td>Same station with a +2.0 &deg;C offset fault</td><td>+2.90</td></tr>
+      <tr><td>residual r = 2.90 &minus; 0.85</td><td>+2.05</td></tr>
+    </table>
+  </div>
+
+  <p>Read the healthy row carefully: every station in the region is about 0.85 &deg;C
+  warmer than its own climatology &mdash; a genuine warm day. The <em>weather cancelled
+  completely</em>, leaving 0.05. The faulty row keeps almost the entire 2.0 &deg;C of the
+  fault. That contrast is the entire method.</p>
+
+  <h3>A second, independent question: did the region move at all?</h3>
+  <p>The residual above says this station is out of step with its neighbours. It says
+  <strong>nothing</strong> about whether the neighbours were themselves doing something
+  unusual at the time &mdash; and that is the difference between a drifting instrument in
+  still conditions and a real front that this station merely exaggerated.</p>
+
+  <p>So a separate quantity is computed over the flagged window: the <strong>neighbour
+  median anomaly</strong>, standardised by its own quiet spread. It is not what the grade
+  was computed from, which is what makes it evidence rather than a restatement.</p>
+
+  <div class="eq"><span class="cm"># what the region itself did, over the flagged window [lo, hi)</span>
+region(t)   = median{ a(t, j) : j &isin; N(s) }
+&sigma;<sub>region</sub>   = 1.4826 &middot; median( |region &minus; median(region)| )   <span class="cm">whole record</span>
+
+<b>z<sub>region</sub></b>     = median( region[lo:hi] ) / &sigma;<sub>region</sub>
+
+<span class="cm"># agreement needs all three, not just the first</span>
+moved     = |z<sub>region</sub>| &ge; 2.0
+same way  = sign(region_dev) = sign(station_dev)
+explains  = |region_dev| &ge; 0.4 &middot; |station_dev|</div>
+
+  <p>The third clause is the one that matters. A region that moved 2&sigma; while the
+  station moved 30 does not excuse the station &mdash; that is weather <em>plus</em> a
+  fault, and the fault is the part worth dispatching for.</p>
+
+  <div class="note warn">
+    <span class="lbl">What this replaced, and why it was wrong</span>
+    <p>The board previously asserted <code>neighbours_agree: false</code> on every
+    simulated row, reasoning that a flagged station is by definition one its neighbours
+    disagree with. That handed the context agent its own conclusion: it could never veto,
+    and its exact Shapley value across the whole board was structurally zero &mdash; three
+    agents, one of which could not affect any outcome.</p>
+  </div>
+
+  <div class="work">
+    <span class="wl">Measured against the injected truth &mdash; all 60 flagged rows</span>
+    <table>
+      <tr><td>Vetoes issued (&ldquo;this is weather&rdquo;)</td><td>9</td></tr>
+      <tr><td>Correct &mdash; no fault had been injected</td><td>8</td></tr>
+      <tr><td>Veto precision</td><td>89%</td></tr>
+      <tr><td>False alarms removed</td><td>8 of 46 &mdash; 17%</td></tr>
+      <tr><td>Real faults wrongly vetoed</td><td>1</td></tr>
+    </table>
+  </div>
+
+  <p>The single miss is a dropout, and the adjudicator alarms on it anyway because hardware
+  is checked <em>before</em> the weather veto &mdash; a dead link is a fault in any weather.
+  That ordering was chosen for a different reason and happens to cover this case, which is
+  worth knowing rather than claiming as design.</p>
+</section>
+
+<section id="s8">
+  <div class="shead"><span class="num">08</span><h2>Step 3 &mdash; how big is "big"? Sigma from the MAD</h2></div>
+  <p>A residual of 2.05 &deg;C means nothing until you know the ordinary spread of that
+  station's residuals. A calm inland site might sit within &plusmn;0.2 &deg;C; a coastal
+  site in monsoon might routinely swing &plusmn;1.5 &deg;C. So each station gets its own
+  scale, estimated robustly.</p>
+
+  <h3>What the MAD is, and where 1.4826 comes from</h3>
+  <p>The Median Absolute Deviation is the median of the distances from the median. Unlike
+  the standard deviation it is not inflated by a handful of extreme values &mdash; which
+  matters enormously here, because the extreme values are the faults we are trying to
+  measure <em>around</em>.</p>
+
+  <div class="eq">m   = median(r)
+MAD = median( |r &minus; m| )
+<b>&sigma;</b>   = 1.4826 &middot; MAD</div>
+
+  <p>The constant is not arbitrary. For data that really is Gaussian, the MAD comes out
+  at about 0.6745&sigma; &mdash; that is the 75th percentile of the standard normal.
+  Dividing by 0.6745 gives 1.4826, so the scaled MAD is directly comparable to a standard
+  deviation. <strong>You can check it: 1 / 0.6745 = 1.4826.</strong></p>
+
+  <div class="work">
+    <span class="wl">Worked &mdash; ten residuals, &deg;C</span>
+    <table>
+      <tr><td>r</td><td>0.12 &minus;0.05 0.31 &minus;0.22 0.08 0.44 &minus;0.11 0.02 0.19 &minus;0.30</td></tr>
+      <tr><td>median m</td><td>0.050</td></tr>
+      <tr><td>|r &minus; m|</td><td>0.07 0.10 0.26 0.27 0.03 0.39 0.16 0.03 0.14 0.35</td></tr>
+      <tr><td>median of those = MAD</td><td>0.150</td></tr>
+      <tr><td>&sigma; = 1.4826 &middot; 0.150</td><td>0.2224 &deg;C</td></tr>
+    </table>
+  </div>
+
+  <h3>Shrinkage toward the network</h3>
+  <p>One window of one station is a noisy estimate, and the stations it underestimates
+  are exactly the ones that will cry wolf. So each station's own estimate is pulled
+  halfway toward the network-wide median of all stations' MADs:</p>
+
+  <div class="eq">pooled = median<sub>all stations</sub>( MAD )
+<b>sd</b> = max( 0.5&middot;MAD + 0.5&middot;pooled , 1e&minus;6 )</div>
+
+  <div class="work">
+    <span class="wl">Worked &mdash; continuing, with a network pooled MAD of 0.42</span>
+    <table>
+      <tr><td>own estimate</td><td>0.2224</td></tr>
+      <tr><td>pooled</td><td>0.4200</td></tr>
+      <tr><td>sd = 0.5&middot;0.2224 + 0.5&middot;0.4200</td><td>0.3212 &deg;C</td></tr>
+    </table>
+  </div>
+
+  <h3>The window is trailing, lagged, and re-estimated on a stride</h3>
+  <p>This is the correction that mattered most in the whole project.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Parameter</th><th class="num">Value</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td class="k">SIGMA_WIN</td><td class="num">15 days</td><td>Long enough for four independent samples given a 2.5-day weather correlation time</td></tr>
+        <tr><td class="k">SIGMA_LAG</td><td class="num">1 day</td><td>Holds the reference behind the point being scored, so a slow drift cannot hide inside its own sigma</td></tr>
+        <tr><td class="k">SIGMA_STRIDE</td><td class="num">6 hours</td><td>The spread of a weather residual does not move in six hours; exact rolling MAD buys nothing for the cost</td></tr>
+        <tr><td class="k">MIN_BASE</td><td class="num">5 days</td><td>Never estimate a scale from less than this</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note warn">
+    <span class="lbl">The bug this replaced &mdash; measured</span>
+    <p>Sigma used to be the MAD of the first half of the record, applied to all of it.
+    On a network with <em>no faults injected at all</em>:</p>
+    <p class="mono" style="font-size:13px; line-height:1.7">baseline window &nbsp;|z| p95 = 2.78<br>
+    scoring period &nbsp;&nbsp;|z| p95 = 4.47 &nbsp;&larr; inflated 1.61&times;<br>
+    false alarms at 4&sigma;: 7.6% of station-hours</p>
+    <p>Two mistakes, both the same mistake. The estimate was <strong>in-sample</strong>
+    &mdash; fitted to the window it was then evaluated on &mdash; and it was
+    <strong>fixed</strong>, so a month of changing weather was scored against a fortnight
+    of one regime. A threshold of 4 was really about 2.5 by the end, and that is the
+    entire false-alarm rate. It is also the only version a deployed system could run: at
+    09:00 you have yesterday, not next week.</p>
+  </div>
+
+  <p><strong>Self-masking</strong> is the reason for the one-day lag. A drift that has
+  already entered the reference window inflates sigma and thereby hides itself. Holding
+  the reference a day behind buys the detector the beginning of the fault before the
+  fault can start defending itself. This does not solve self-masking for a fault longer
+  than the window &mdash; nothing that uses the station's own history can &mdash; and
+  that limit is stated wherever the recall figure appears.</p>
+</section>
+
+<section id="s9">
+  <div class="shead"><span class="num">09</span><h2>Step 4 &mdash; the z-score and the two bands</h2></div>
+  <div class="eq"><b>z(t, s)</b> = ( r(t, s) &minus; m ) / sd
+
+|z| &ge; 6  &rarr; <b>WATCH</b>   <span class="cm">WATCH_SIGMA = 6.0</span>
+|z| &ge; 8  &rarr; <b>FAULT</b>   <span class="cm">FAULT_SIGMA = 8.0</span></div>
+
+  <div class="work">
+    <span class="wl">Worked &mdash; carrying both stations through, sd = 0.3212, m = 0.050</span>
+    <table>
+      <tr><td>Healthy: z = (0.050 &minus; 0.050) / 0.3212</td><td>0.00 &rarr; ok</td></tr>
+      <tr><td>Offset fault: z = (2.050 &minus; 0.050) / 0.3212</td><td>6.23 &rarr; WATCH</td></tr>
+    </table>
+  </div>
+
+  <p>Six sigma sounds extreme against the usual "3 sigma" intuition, and it is
+  deliberately so. Three sigma on a Gaussian is roughly one exceedance in 370 samples;
+  across 344 stations at 96 steps a day, that is around 90 false flags <em>per day</em>
+  from noise alone. Residual distributions also have heavier tails than a Gaussian, which
+  makes it worse. The bands were calibrated empirically against a fault-free control run
+  rather than assumed from theory, which is why they are 6 and 8 rather than 3.</p>
+
+  <p>Both constants are named once, in <code>simulate/faults_and_export.py</code>, and
+  imported everywhere else. They were previously written in two places, and the map and
+  the alert list disagreed about what was flagged.</p>
+</section>
+
+<section id="s10">
+  <div class="shead"><span class="num">10</span><h2>Two passes &mdash; a faulty neighbour poisons the reference</h2></div>
+  <p>Measured on the first version: healthy stations had <code>|z| p95 = 2.00</code> in
+  the training window &mdash; exactly what the MAD predicts &mdash; and <code>4.33</code>
+  afterwards, which flagged half of them. The residual was not drifting. The
+  <em>reference</em> was.</p>
+
+  <p>A frozen or stepped station still sits inside its neighbours' median, and where a
+  station has only four or five neighbours, one bad member moves that median enough to
+  condemn the rest.</p>
+
+  <div class="eq"><span class="cm">pass 1</span>  z&#8321; = grade(all stations)
+<span class="cm">suspect if a station is beyond 3&sigma; for more than 20% of the record</span>
+suspect(s) = mean<sub>t</sub>( max<sub>channels</sub> |z&#8321;(t,s)| &ge; 3 ) &gt; 0.20
+
+<span class="cm">pass 2</span>  z  = grade(all stations, excluding suspects from everyone's N(s))</div>
+
+  <p>Note what is <em>not</em> consulted: ground truth. The second pass uses only the
+  first pass's own output, which is what a deployed system would have.</p>
+</section>
+
+<section id="s11">
+  <div class="shead"><span class="num">11</span><h2>What the detector can and cannot see</h2></div>
+  <p class="lede">The bands and sigma together imply a hard detection floor, and it is
+  worth stating in physical units rather than leaving it implicit.</p>
+
+  <p>A drift must accumulate past 6&middot;sd before it reaches WATCH. With the worked
+  example's sd of 0.3212 &deg;C:</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Drift rate</th><th class="num">Reaches WATCH (6&sigma; = 1.927 &deg;C)</th><th class="num">Reaches FAULT (8&sigma; = 2.570 &deg;C)</th></tr></thead>
+      <tbody>
+        <tr><td class="k">0.15 &deg;C / day</td><td class="num">12.8 days</td><td class="num">17.1 days</td></tr>
+        <tr><td class="k">0.05 &deg;C / day</td><td class="num">38.5 days</td><td class="num">51.4 days</td></tr>
+        <tr><td class="k">0.0642 &deg;C / day</td><td class="num">30 days &mdash; the whole record</td><td class="num">never, in this record</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note warn">
+    <span class="lbl">Say this out loud</span>
+    <p>Against a 30-day record and this sigma, <strong>a drift slower than roughly 0.064
+    &deg;C/day cannot reach the WATCH band at all</strong>, and slower than 0.086
+    &deg;C/day cannot reach FAULT. It is not that the detector is tuned badly &mdash; the
+    evidence is not there yet. A longer record moves this floor down proportionally.</p>
+    <p>This is also the honest answer to "why is recall 57% and not 95%": the injected
+    drift amplitudes deliberately go down to 0.005 &deg;C/day, far below anything a
+    month of data can support. A detector reporting 99% recall on this set would be
+    reporting a bug.</p>
+  </div>
+
+  <p>The second blind spot is <strong>dropout</strong>. A station that stops reporting
+  has no value to difference, so it produces no residual and no z at all. It is
+  <code>NO DATA</code>, not a fault &mdash; which is why the results carry a second recall
+  figure with dropouts excluded.</p>
+</section>
+
+<section id="s12">
+  <div class="shead"><span class="num">12</span><h2>Alerts as episodes, not flags</h2></div>
+  <p>A grade is recomputed every step with no memory of the last one. Thresholding it
+  directly produced <strong>2,484 flagged runs, half of them a single step long</strong>.
+  An alert therefore has a beginning and an end.</p>
+
+  <figure>
+    <div class="fbox">
+      <svg viewBox="0 0 760 210" role="img" aria-label="Alert state machine: clear becomes an open episode only after three consecutive flagged steps; an open episode returns to clear only after six consecutive clean steps.">
+        <defs>
+          <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,1 10,5 0,9" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g fill="none" stroke="currentColor" stroke-width="1.3">
+          <rect x="40" y="76" width="150" height="58" rx="29"/>
+          <rect x="300" y="76" width="160" height="58" rx="6" stroke="#1F5FAE" stroke-width="1.8"/>
+          <rect x="570" y="76" width="150" height="58" rx="29"/>
+          <path d="M190 96 L 296 96" marker-end="url(#ar3)"/>
+          <path d="M460 114 L 566 114" marker-end="url(#ar3)"/>
+          <path d="M300 128 C 240 178, 120 178, 60 140" marker-end="url(#ar3)" stroke-dasharray="4 3" opacity=".65"/>
+        </g>
+        <g font-family="Archivo, sans-serif" font-size="13.5" font-weight="600" fill="currentColor" text-anchor="middle">
+          <text x="115" y="112">clear</text>
+          <text x="645" y="112">clear</text>
+        </g>
+        <text x="380" y="103" font-family="Archivo, sans-serif" font-size="13.5" font-weight="600" fill="#1F5FAE" text-anchor="middle">open episode</text>
+        <text x="380" y="121" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".72" text-anchor="middle">shown on the board</text>
+        <g font-family="IBM Plex Mono, monospace" font-size="11" fill="currentColor" text-anchor="middle" font-weight="600">
+          <text x="243" y="88">3 flagged</text>
+          <text x="513" y="106">6 clean</text>
+        </g>
+        <text x="180" y="196" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".68" text-anchor="middle">one clean step resets the count</text>
+      </svg>
+    </div>
+    <figcaption><code>RAISE_AFTER = 3</code>, <code>CLEAR_AFTER = 6</code> in
+    <code>web/src/lib/alerts.ts</code>. Clearing is deliberately slower than raising
+    &mdash; otherwise a drifting sensor that wobbles across the band closes its own
+    alert.</figcaption>
+  </figure>
+</section>
+
+<div class="partrule"><span>Part III &mdash; The data</span></div>
+
+<section id="s13">
+  <div class="shead"><span class="num">13</span><h2>The network we made</h2></div>
+  <p>The generator places stations at <strong>real IMD coordinates</strong> and
+  synthesises a physically coherent weather field over them, then injects faults into a
+  known subset. Because the truth is known by construction, recall and precision can be
+  computed exactly &mdash; which is impossible with real IMD data, since no labelled
+  fault list is published.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Parameter</th><th class="num">Value</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Stations</td><td class="num">344</td></tr>
+        <tr><td class="k">States &amp; territories</td><td class="num">33</td></tr>
+        <tr><td class="k">Record length</td><td class="num">30 days</td></tr>
+        <tr><td class="k">Step</td><td class="num">15 min</td></tr>
+        <tr><td class="k">Steps per station</td><td class="num">2,880</td></tr>
+        <tr><td class="k">Channels</td><td class="num">temp &middot; rh &middot; pres</td></tr>
+        <tr><td class="k">Record starts</td><td class="num">2026-07-25</td></tr>
+        <tr><td class="k">Stations with an injected fault</td><td class="num">28</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Station assignment to states is by point-in-polygon against a simplified boundary,
+  with a nearest-polygon fallback for coastal and island sites that fall just outside
+  their polygon. The fallback ranks by <em>state</em>, not by polygon &mdash; ranking by
+  polygon made an island's runner-up the same state and the ambiguity test always
+  passed.</p>
+</section>
+
+<section id="s14">
+  <div class="shead"><span class="num">14</span><h2>Fault models &mdash; exactly what is injected</h2></div>
+  <p>Seven fault types, each with an amplitude range and duration drawn log-uniformly.
+  Amplitudes deliberately span from <em>trivially detectable</em> down to
+  <em>physically impossible to detect in this record</em>, so that the result is a
+  detection curve rather than a single flattering number.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Type</th><th>What happens to the value</th><th class="num">Weight</th></tr></thead>
+      <tbody>
+        <tr><td class="k m">spike</td><td>isolated points get <code>&plusmn;amp</code>; only those points are marked touched</td><td class="num">0.20</td></tr>
+        <tr><td class="k m">frozen</td><td><code>v[:] = v[0]</code> &mdash; the last good value repeats exactly</td><td class="num">0.18</td></tr>
+        <tr><td class="k m">calibration_drift</td><td><code>v += sign &middot; amp &middot; t / 24</code> &mdash; amp is per day</td><td class="num">0.17</td></tr>
+        <tr><td class="k m">step_offset</td><td><code>v += sign &middot; amp</code> &mdash; a constant shift</td><td class="num">0.15</td></tr>
+        <tr><td class="k m">dropout</td><td><code>v[:] = NaN</code> &mdash; no observation. Not zero, never imputed</td><td class="num">0.12</td></tr>
+        <tr><td class="k m">noise_burst</td><td><code>v += N(0, amp)</code> &mdash; variance inflation only</td><td class="num">0.10</td></tr>
+        <tr><td class="k m">saturation</td><td>pinned at a rail, plus the jitter a stuck ADC still shows</td><td class="num">0.08</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Amplitude ranges</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Type</th><th class="num">temp</th><th class="num">rh</th><th class="num">pres</th></tr></thead>
+      <tbody>
+        <tr><td class="k m">spike</td><td class="num">0.5 &ndash; 15.0 &deg;C</td><td class="num">3 &ndash; 60 %</td><td class="num">0.5 &ndash; 20 hPa</td></tr>
+        <tr><td class="k m">step_offset</td><td class="num">0.2 &ndash; 5.0 &deg;C</td><td class="num">1 &ndash; 20 %</td><td class="num">0.2 &ndash; 8 hPa</td></tr>
+        <tr><td class="k m">noise_burst</td><td class="num">0.2 &ndash; 4.0 &deg;C</td><td class="num">1 &ndash; 15 %</td><td class="num">0.2 &ndash; 5 hPa</td></tr>
+        <tr><td class="k m">calibration_drift</td><td class="num">0.005 &ndash; 0.15 /day</td><td class="num">0.02 &ndash; 0.6 /day</td><td class="num">0.005 &ndash; 0.2 /day</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Durations run from 1&ndash;3 hours for a spike to 240&ndash;1440 hours for a
+  calibration drift. Weights follow real AWS failure logs, where drift and frozen values
+  dominate.</p>
+
+  <div class="note">
+    <span class="lbl">Why the ranges go down so low</span>
+    <p>"A detector tuned against 5 K spikes will report 99% recall and miss every real
+    0.4 K drift." The point of the low end is to make the evaluation produce a
+    <em>probability-of-detection versus amplitude</em> curve, which tells you the
+    smallest fault the system can actually find &mdash; the number an operator needs
+    &mdash; instead of one recall figure that hides it.</p>
+  </div>
+
+  <p>One subtlety worth knowing: for spikes, only the displaced samples are marked as
+  touched. Marking the whole window depressed every spike metric in the repo, because a
+  three-hour spike window contains mostly untouched samples that were being scored
+  against a fault that never reached them.</p>
+</section>
+
+<section id="s15">
+  <div class="shead"><span class="num">15</span><h2>Real vs. generated</h2></div>
+  <p>The first question any reviewer asks, answered before anything else.
+  <strong>Station locations are real IMD sites. The readings are generated.</strong> They
+  will stay generated through the finals &mdash; what is being demonstrated is the
+  pipeline that judges them.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Plane</th><th>Locations</th><th>Readings</th><th>Fault labels</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Simulated network</td><td>real IMD sites</td><td>generated</td><td>injected &mdash; truth known</td></tr>
+        <tr><td class="k">Live node</td><td>real &mdash; Gandhinagar</td><td>generated, arriving now</td><td>injected on demand</td></tr>
+        <tr><td class="k">WDQMS</td><td>real IMD stations</td><td>real departures</td><td>none published</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="margin-top:18px">Every accuracy figure in this document rests on faults we
+  injected ourselves. IMD publishes station locations, not a labelled fault list, so there
+  is no real archive to validate against. What injected truth buys instead is exactness:
+  recall and precision here are computed against a ground truth known by construction,
+  not estimated.</p>
+</section>
+
+<section id="s16">
+  <div class="shead"><span class="num">16</span><h2>How accuracy is measured</h2></div>
+  <p class="lede">Every accuracy claim in this project is one of the definitions below.
+  They are not interchangeable, and quoting the wrong one is the easiest way to sound
+  better than you are.</p>
+
+  <h3>Precision and recall</h3>
+  <div class="eq"><b>recall</b>    = faults found / faults present      <span class="cm">did we miss anything?</span>
+<b>precision</b> = true alarms / all alarms          <span class="cm">is the queue worth working?</span></div>
+
+  <div class="work">
+    <span class="wl">Worked &mdash; the actual network result</span>
+    <table>
+      <tr><td>Stations with an injected fault</td><td>28</td></tr>
+      <tr><td>Stations the detector alerted on</td><td>42</td></tr>
+      <tr><td>Of those, genuinely faulty (0.38 &middot; 42)</td><td>16</td></tr>
+      <tr><td>recall = 16 / 28</td><td>0.57</td></tr>
+      <tr><td>precision = 16 / 42</td><td>0.38</td></tr>
+    </table>
+  </div>
+
+  <p>Read together: of 28 real faults we find 16, and to get those 16 an engineer is
+  asked to look at 42 stations. Twenty-six of those visits find nothing. That is the real
+  cost, and it is the number a maintenance planner cares about far more than recall.</p>
+
+  <h3>Event recall vs. point recall</h3>
+  <p>These answer different questions and usually differ a lot.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Measure</th><th>Counts</th><th>Tells you</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Point recall</td><td>individual flagged samples inside faults</td><td>whether you catch the <em>bulk</em> of a fault</td></tr>
+        <tr><td class="k">Event recall</td><td>an event is a hit if <strong>any</strong> sample in it is flagged</td><td>whether you catch the <em>onset</em> at all</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>High event recall with low point recall means the system notices faults but does not
+  track them; the reverse means it is good at long obvious faults and misses short ones.
+  The gap between the two is the diagnostic.</p>
+
+  <div class="note">
+    <span class="lbl">The operating point is a choice, not a result</span>
+    <p>This same detector reaches <strong>86% recall at 15% precision</strong> if the
+    bands are loosened. Neither setting is "the accuracy". We publish 57/38 because a
+    queue nobody trusts is worse than a shorter one &mdash; but the trade is a dial, and
+    an operator with more field crews should turn it.</p>
+  </div>
+</section>
+
+<section id="s17">
+  <div class="shead"><span class="num">17</span><h2>Measured results</h2></div>
+  <p>From <code>/api/summary</code> on the deployed service &mdash; 28 faults injected
+  into a 344-station network, with the grader given the readings and nothing else.</p>
+
+  <div class="metrics">
+    <div class="metric"><span class="v" style="color:var(--accent)">57%</span><span class="l">Recall</span><span class="s">of injected faults found</span></div>
+    <div class="metric"><span class="v" style="color:var(--accent)">38%</span><span class="l">Precision</span><span class="s">of alerting stations</span></div>
+    <div class="metric"><span class="v">72%</span><span class="l">Recall excl. dropouts</span><span class="s">silence has no residual</span></div>
+    <div class="metric"><span class="v">73</span><span class="l">Alert episodes</span><span class="s">42 stations alerting</span></div>
+  </div>
+
+  <p>The dropout-excluded figure jumps from 57% to 72% because a station that stops
+  reporting produces nothing to difference. Counting those as detection failures blames
+  the detector for a communications outage, so both numbers are published and the reason
+  is stated with them.</p>
+</section>
+
+<section id="s18">
+  <div class="shead"><span class="num">18</span><h2>Explainability, as built</h2></div>
+
+  <div class="note warn">
+    <span class="lbl">The honest headline</span>
+    <p><strong>There is no machine-learned model in the decision path.</strong> The three
+    agents are deterministic evaluators, the adjudicator is a fixed rule order, and nothing
+    trains or updates online. Calling the panel &ldquo;agents&rdquo; describes the
+    architecture &mdash; independent specialists, one arbiter, every verdict inspectable
+    &mdash; not an LLM in a loop.</p>
+  </div>
+
+  <h3>Why not SHAP</h3>
+  <p>The problem statement names SHAP/LIME as preferable. Both attribute a <em>model's</em>
+  prediction to <em>its features</em>; applied to a fixed threshold they return the
+  threshold. But SHAP is an <em>approximation</em> of the Shapley value from cooperative
+  game theory, and it approximates only because a model has hundreds of features and
+  2<sup>n</sup> coalitions is impossible to enumerate.</p>
+
+  <p><strong>We have three agents. 2<sup>3</sup> is eight.</strong> Every coalition is
+  evaluated, so this is the exact Shapley value &mdash; the original theorem, not a sampled
+  estimate &mdash; for three adjudications more than the verdict itself.</p>
+
+  <div class="eq"><span class="cm"># payout: how hard a coalition pushes toward a visit</span>
+v(S) = escalation( adjudicate with only the agents in S allowed to speak )
+       normal &rarr; 0.0    warning &rarr; 0.5    critical &rarr; 1.0
+
+<b>&phi;<sub>i</sub></b> = &Sigma;<sub>S</sub>  ( |S|! &middot; (n&minus;|S|&minus;1)! / n! ) &middot; [ v(S &cup; {i}) &minus; v(S) ]   <span class="cm">weights 1/3, 1/6, 1/3</span></div>
+
+  <p>An absent agent is <strong>silenced</strong>: it returns <code>unknown</code> with no
+  confidence, which is what the adjudicator already does with an agent that cannot see its
+  evidence, so absence needed no special case. The empty coalition scores zero &mdash; all
+  three silent reaches &ldquo;not enough readings yet&rdquo; &mdash; which makes the
+  contributions sum <em>exactly</em> to the escalation, the efficiency axiom a force plot
+  usually only claims.</p>
+
+  <div class="work">
+    <span class="wl">Worked &mdash; MANDI, relative humidity, from the deployed service</span>
+    <table>
+      <tr><td>Data quality &mdash; reading outside the band</td><td>&phi; = +0.25</td></tr>
+      <tr><td>Hardware health &mdash; nothing to look at</td><td>&phi; = 0.00</td></tr>
+      <tr><td>Weather or fault? &mdash; 15 neighbours moved 3.7&sigma;</td><td>&phi; = &minus;0.25</td></tr>
+      <tr><td>Sum = escalation as issued &rarr; MONITOR</td><td>0.00</td></tr>
+    </table>
+  </div>
+
+  <p>Read the third row: the weather check did not abstain, it argued <em>against</em>
+  dispatch by exactly as much as data quality argued for it, and won. A label saying
+  &ldquo;data quality carried this&rdquo; cannot express that; a signed number can.</p>
+
+  <p>Each contribution also ships the action the panel would reach without that agent,
+  computed by re-running the adjudicator with it silenced. <strong>&ldquo;Silence hardware
+  and this becomes CALIBRATE&rdquo;</strong> is the half people act on.</p>
+
+  <h3>The decision trace</h3>
+  <p>The adjudicator records every check it reached, in order, with the answer it got,
+  shown on the board in a collapsed disclosure. The checks that did <em>not</em> fire carry
+  most of the value: &ldquo;send someone&rdquo; means little, while &ldquo;hardware is
+  fine, the neighbours moved 0.0&sigma;, the readings are 8&sigma; out&rdquo; is a case.
+  Answers are three-valued &mdash; a check whose evidence is missing records
+  <code>n/a</code>, because folding that into &ldquo;no&rdquo; reads as a finding when it
+  is an absence.</p>
+
+  <div class="note warn">
+    <span class="lbl">A limit worth stating before someone else does</span>
+    <p>The trace walks a <strong>fixed decision tree</strong>: across all sixty flagged
+    board rows it takes exactly <strong>two distinct paths</strong> from six question
+    strings. It is an honest printout of the rules and it is not an autonomous
+    investigation &mdash; nothing chooses what to examine next based on what it just found.
+    See &sect;26.</p>
+  </div>
+
+  <h3>Is it really three agents?</h3>
+  <p>Gathering the same Shapley values across all 60 flagged rows answers what no single
+  row can &mdash; whether an agent is an ornament.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Agent</th><th class="num">Decided</th><th class="num">Mean &phi;</th><th>Reading</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Data quality</td><td class="num">60 / 60</td><td class="num">+0.63</td><td>Carries almost every call here</td></tr>
+        <tr><td class="k">Hardware health</td><td class="num">0 / 60</td><td class="num">0.00</td><td>An ornament on this network</td></tr>
+        <tr><td class="k">Weather or fault?</td><td class="num">9 / 60</td><td class="num">&minus;0.05</td><td>Only ever argues <em>against</em> a visit</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Grouped by the fault that was <em>injected</em> &mdash; which the panel is never shown
+  &mdash; the same numbers become a capability map, where an empty column is a fault class
+  nothing detects. Counts ship with every cell and thin cells are drawn back, because six
+  fault kinds across fourteen injected faults means some cells rest on two rows.</p>
+
+  <div class="note warn">
+    <span class="lbl">A finding, and a fix that did not work</span>
+    <p>Hardware scores zero on all sixty rows because the simulated export carries no
+    housekeeping channels, so it has nothing to read. It fires correctly on the live node,
+    which sends them.</p>
+    <p>A stuck probe should be visible in the readings, so flat fraction was tried two
+    ways: consecutive unchanged samples (<code>stuck</code> scored 0.24 and 0.50 against a
+    0.02&ndash;0.14 background) and longest unchanged run (<code>stuck</code> scored
+    <strong>0.004</strong>, below several healthy stations). Neither separates at this
+    sampling and quantisation, so it is not computed. Lowering the threshold until it fired
+    would be fitting the demonstration rather than detecting anything.</p>
+  </div>
+</section>
+
+<div class="partrule"><span>Part IV &mdash; As-built</span></div>
+
+<section id="s19">
+  <div class="shead"><span class="num">19</span><h2>Shape of the system</h2></div>
+  <p class="lede">One FastAPI process serves everything: the JSON exports, the live
+  WebSocket, the triage panel, and the compiled React app itself. There is no separate
+  frontend host and no database server.</p>
+
+  <p>The panel is the only place the decision rules exist. The board sends the evidence it
+  is allowed to see and renders whatever comes back, holding no judgement of its own &mdash;
+  reimplementing &ldquo;is this a fault&rdquo; in the browser to save a request is how two
+  screens end up disagreeing about the same sensor.</p>
+
+  <figure>
+    <div class="fbox">
+      <svg viewBox="0 0 900 486" role="img" aria-label="Topology: a React app in the browser talks to one FastAPI process over three channels - a one-time JSON fetch of the simulated network, a WebSocket carrying live node readings, and POST calls that ask the triage panel to judge a whole board at once. Offline generators write the JSON exports the API serves.">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,1 10,5 0,9" fill="currentColor"/>
+          </marker>
+          <marker id="ara" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,1 10,5 0,9" fill="#1F5FAE"/>
+          </marker>
+        </defs>
+        <g fill="none" stroke="currentColor" stroke-width="1.25">
+        <rect x="30" y="26" width="300" height="150" rx="4"/>
+        <rect x="46" y="90" width="76" height="24" rx="3" stroke-opacity=".45"/>
+        <rect x="130" y="90" width="86" height="24" rx="3" stroke-opacity=".45"/>
+        <rect x="224" y="90" width="76" height="24" rx="3" stroke-opacity=".45"/>
+        <line x1="330" y1="66" x2="556" y2="66" marker-end="url(#ar)"/>
+        <line x1="556" y1="104" x2="330" y2="104" marker-end="url(#ara)" stroke="#1F5FAE" stroke-width="1.6"/>
+        <line x1="330" y1="142" x2="556" y2="142" marker-end="url(#ar)" stroke-dasharray="4 3"/>
+        <rect x="556" y="26" width="314" height="330" rx="4"/>
+        <rect x="574" y="64" width="278" height="52" rx="3" stroke-opacity=".5"/>
+        <rect x="574" y="126" width="278" height="66" rx="3" stroke="#1F5FAE" stroke-width="1.6"/>
+        <rect x="574" y="202" width="278" height="52" rx="3" stroke="#1F5FAE" stroke-width="1.6"/>
+        <rect x="574" y="264" width="278" height="52" rx="3" stroke-opacity=".5"/>
+        <rect x="30" y="256" width="300" height="100" rx="4" stroke-dasharray="5 4"/>
+        <path d="M330 306 L 452 306 L 452 90 L 556 90" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+        <rect x="556" y="392" width="314" height="72" rx="4" stroke-dasharray="5 4" stroke-opacity=".7"/>
+        <line x1="713" y1="356" x2="713" y2="392" stroke-dasharray="4 3" marker-end="url(#ar)" stroke-opacity=".7"/>
+        </g>
+        <text x="46" y="50" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="currentColor" letter-spacing="1.4">BROWSER</text>
+        <text x="46" y="74" font-family="Archivo, sans-serif" font-size="14" font-weight="600" fill="currentColor">React 19 &middot; Vite &middot; TanStack Query</text>
+        <text x="84" y="106" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="currentColor" text-anchor="middle">/</text>
+        <text x="173" y="106" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="currentColor" text-anchor="middle">/network</text>
+        <text x="262" y="106" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="currentColor" text-anchor="middle">/board</text>
+        <text x="46" y="140" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".72">Clock is driven by readings arriving,</text>
+        <text x="46" y="156" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".72">not by a browser timer.</text>
+        <text x="443" y="58" font-family="IBM Plex Mono, monospace" font-size="10" fill="currentColor" text-anchor="middle">GET /api/map/sim &middot; once</text>
+        <text x="443" y="96" font-family="IBM Plex Mono, monospace" font-size="10" fill="#1F5FAE" text-anchor="middle" font-weight="600">WS /api/live &middot; stream</text>
+        <text x="443" y="134" font-family="IBM Plex Mono, monospace" font-size="10" fill="currentColor" text-anchor="middle">POST /api/board/triage &middot; /api/live/*</text>
+        <text x="574" y="50" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="currentColor" letter-spacing="1.4">FASTAPI &middot; ONE PROCESS</text>
+        <text x="586" y="84" font-family="IBM Plex Mono, monospace" font-size="11" fill="currentColor">api/mapdata.py</text>
+        <text x="586" y="101" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".72">serves the pre-built network export</text>
+        <text x="586" y="146" font-family="IBM Plex Mono, monospace" font-size="11" fill="#1F5FAE" font-weight="600">api/live.py &middot; Hub + feeder + grader</text>
+        <text x="586" y="163" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".72">one node reporting through the real</text>
+        <text x="586" y="179" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".72">ingest path; broadcasts to all sockets</text>
+        <text x="586" y="222" font-family="IBM Plex Mono, monospace" font-size="11" fill="#1F5FAE" font-weight="600">api/orchestrator.py &middot; api/neighbours.py</text>
+        <text x="586" y="239" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".72">three agents, adjudicator, exact Shapley</text>
+        <text x="586" y="284" font-family="IBM Plex Mono, monospace" font-size="11" fill="currentColor">api/store.py &middot; SQLite (WAL)</text>
+        <text x="586" y="301" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".72">every ingested reading, durable</text>
+        <text x="574" y="338" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".72">also mounts the compiled SPA at /app</text>
+        <text x="46" y="280" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="currentColor" letter-spacing="1.4">OFFLINE &middot; RUN BY HAND</text>
+        <text x="46" y="302" font-family="IBM Plex Mono, monospace" font-size="11" fill="currentColor">simulate.faults_and_export</text>
+        <text x="46" y="320" font-family="IBM Plex Mono, monospace" font-size="11" fill="currentColor">dashboard.export_wdqms</text>
+        <text x="46" y="342" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".72">344 stations &middot; 28 injected faults</text>
+        <text x="462" y="200" font-family="IBM Plex Mono, monospace" font-size="10" fill="currentColor" opacity=".8">writes sim_map.json</text>
+        <text x="574" y="416" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="currentColor" letter-spacing="1.4" opacity=".8">NOT BUILT &middot; SAME DOOR</text>
+        <text x="574" y="437" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".75">A real ESP32 POSTs to /api/ingest and</text>
+        <text x="574" y="453" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".75">replaces the feeder. Nothing else moves.</text>
+      </svg>
+    </div>
+    <figcaption>The browser holds three channels to one process. The dashed box on the
+    left is not a service &mdash; it is two commands a developer runs to regenerate the
+    JSON the API serves. The dashed box at the bottom is the only piece that hardware
+    changes.</figcaption>
+  </figure>
+</section>
+
+<section id="s20">
+  <div class="shead"><span class="num">20</span><h2>The live node</h2></div>
+  <p class="lede">A stand-in for hardware, not a simulation shortcut. It posts through the
+  same <code>/api/ingest</code> door an ESP32 would use, and it is graded online, against
+  real neighbours, by the same sigma bands the map uses.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Field</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Station id / name</td><td class="m">ESP32-01 &middot; SKYGUARD ESP32</td></tr>
+        <tr><td class="k">Location</td><td class="m">Gandhinagar, Gujarat &middot; 23.2156, 72.6369 &middot; 81 m</td></tr>
+        <tr><td class="k">Neighbours used</td><td class="m">6 simulated stations within 120 km</td></tr>
+        <tr><td class="k">Simulated step</td><td class="m">30 min per reading</td></tr>
+        <tr><td class="k">Baseline before judging</td><td class="m">40 readings &mdash; reports "learning" until then</td></tr>
+        <tr><td class="k">Sensor noise added</td><td class="m">T 0.25 &deg;C &middot; RH 1.2 % &middot; P 0.15 hPa</td></tr>
+        <tr><td class="k">Injectable faults</td><td class="m">drift &middot; offset &middot; stuck &middot; spike &middot; dropout</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure>
+    <div class="fbox">
+      <svg viewBox="0 0 880 350" role="img" aria-label="Live node loop: neighbours give an expected value, the node adds its own noise and any injected fault, posts to the ingest endpoint, the grader compares the reading against the neighbours' expectation, and the hub broadcasts to every socket, which advances the dashboard clock.">
+        <defs>
+          <marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,1 10,5 0,9" fill="currentColor"/>
+          </marker>
+          <marker id="ar4a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,1 10,5 0,9" fill="#1F5FAE"/>
+          </marker>
+        </defs>
+        <g fill="none" stroke="currentColor" stroke-width="1.25">
+          <rect x="20" y="30" width="168" height="66" rx="4"/>
+          <rect x="234" y="30" width="168" height="66" rx="4"/>
+          <rect x="448" y="30" width="168" height="66" rx="4"/>
+          <rect x="662" y="30" width="196" height="66" rx="4"/>
+          <rect x="448" y="176" width="168" height="70" rx="4" stroke="#1F5FAE" stroke-width="1.7"/>
+          <rect x="662" y="176" width="196" height="70" rx="4"/>
+          <rect x="234" y="176" width="168" height="70" rx="4"/>
+          <line x1="188" y1="63" x2="230" y2="63" marker-end="url(#ar4)"/>
+          <line x1="402" y1="63" x2="444" y2="63" marker-end="url(#ar4)"/>
+          <line x1="616" y1="63" x2="658" y2="63" marker-end="url(#ar4)"/>
+          <path d="M760 96 L 760 172" marker-end="url(#ar4)"/>
+          <line x1="662" y1="211" x2="620" y2="211" marker-end="url(#ar4a)" stroke="#1F5FAE" stroke-width="1.6"/>
+          <line x1="448" y1="211" x2="406" y2="211" marker-end="url(#ar4a)" stroke="#1F5FAE" stroke-width="1.6"/>
+          <path d="M234 211 L 104 211 L 104 100" marker-end="url(#ar4)" stroke-dasharray="4 3" opacity=".6"/>
+        </g>
+        <g font-family="Archivo, sans-serif" font-size="12.5" font-weight="600" fill="currentColor">
+          <text x="34" y="58">Neighbours</text>
+          <text x="248" y="58">_expected()</text>
+          <text x="462" y="58">_reading()</text>
+          <text x="676" y="58">POST /api/ingest</text>
+          <text x="676" y="204">Hub.publish</text>
+          <text x="248" y="204">Browser clock</text>
+        </g>
+        <text x="462" y="204" font-family="Archivo, sans-serif" font-size="12.5" font-weight="600" fill="#1F5FAE">Grader</text>
+        <g font-family="IBM Plex Sans, sans-serif" font-size="10.5" fill="currentColor" opacity=".72">
+          <text x="34" y="78">6 sim stations</text>
+          <text x="34" y="92">within 120 km</text>
+          <text x="248" y="78">what the place</text>
+          <text x="248" y="92">should read &mdash; no noise</text>
+          <text x="462" y="78">+ sensor noise</text>
+          <text x="462" y="92">+ injected fault</text>
+          <text x="676" y="78">WMO screen, then</text>
+          <text x="676" y="92">stored in SQLite</text>
+          <text x="676" y="224">broadcast to every</text>
+          <text x="676" y="238">open WebSocket</text>
+          <text x="462" y="224">reading vs expected</text>
+          <text x="462" y="238">&rarr; z, band</text>
+          <text x="248" y="224">frame advances the</text>
+          <text x="248" y="238">whole dashboard</text>
+        </g>
+        <text x="20" y="300" font-family="IBM Plex Sans, sans-serif" font-size="11" font-weight="600" fill="#1F5FAE">Why _expected() and _reading() are separate functions:</text>
+        <g font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".8">
+          <text x="20" y="318">the grader once compared the reading against the value it was generated from, so a healthy</text>
+          <text x="20" y="334">residual was exactly 0.00 and the first injected fault scored z = 789,154.</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>The node drives the clock. Nothing starts by itself &mdash; Play starts
+    it, and only Play.</figcaption>
+  </figure>
+
+  <div class="note">
+    <span class="lbl">Behaviour worth knowing</span>
+    <p>Pause and resume continue the record rather than restarting it, because a station
+    that stops transmitting and starts again does not begin its record over. Changing
+    Speed retunes the running node in place via <code>/api/live/rate</code> &mdash; it
+    does not restart it, which would reset the clock to day 0.</p>
+  </div>
+</section>
+
+<section id="s21">
+  <div class="shead"><span class="num">21</span><h2>Ingest and storage</h2></div>
+  <p><code>POST /api/ingest</code> is the single door into the system. It applies the
+  WMO-No. 8 Annex 1.A physics screen (<code>physics/wmo_limits.py</code>), then writes the
+  reading to SQLite in WAL mode via <code>api/store.py</code>. Readings survive a restart;
+  <code>/api/ingest/history</code> and <code>/api/ingest/recent</code> read them back.</p>
+  <p>This matters for the demo's credibility: in the real world the data is stored, so it
+  is stored here too.</p>
+  <p><strong>The simulated network does not come through here.</strong> It is a pre-built
+  export the panel reads directly, so nothing about it is ingested or stored &mdash; the
+  two sources meet at the triage panel rather than at the door. Making the simulation
+  travel the same path is deferred work, listed in &sect;26.</p>
+</section>
+
+<section id="s22">
+  <div class="shead"><span class="num">22</span><h2>Module inventory</h2></div>
+  <p>What is in the serving path, what is offline tooling, and what is research code that
+  no longer runs in production. <span class="chip c-built">served</span> means the API
+  imports it at runtime.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Module</th><th>Status</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td class="k m">api/main.py</td><td><span class="chip c-built">served</span></td><td>App, routers, SPA mount, GZip</td></tr>
+        <tr><td class="k m">api/live.py</td><td><span class="chip c-built">served</span></td><td>Hub, WebSocket, feeder, online grader, fault injection &mdash; 699 lines</td></tr>
+        <tr><td class="k m">api/ingest.py</td><td><span class="chip c-built">served</span></td><td>The single ingest door; WMO screen</td></tr>
+        <tr><td class="k m">api/store.py</td><td><span class="chip c-built">served</span></td><td>SQLite WAL persistence</td></tr>
+        <tr><td class="k m">api/orchestrator.py</td><td><span class="chip c-built">served</span></td><td>Three agents, adjudicator, exact Shapley, decision trace &mdash; 702 lines</td></tr>
+        <tr><td class="k m">api/neighbours.py</td><td><span class="chip c-built">served</span></td><td>Measured regional movement and the comparison series &mdash; 364 lines</td></tr>
+        <tr><td class="k m">api/engine.py</td><td><span class="chip c-built">served</span></td><td>Station series and baselines</td></tr>
+        <tr><td class="k m">api/mapdata.py</td><td><span class="chip c-built">served</span></td><td>Serves the pre-built exports</td></tr>
+        <tr><td class="k m">api/tiles.py</td><td><span class="chip c-built">served</span></td><td>Map and boundary tiles</td></tr>
+        <tr><td class="k m">physics/relations.py</td><td><span class="chip c-built">served</span></td><td>Magnus, dew point, q, MSL reduction &mdash; dependency-free, transliterates to C++</td></tr>
+        <tr><td class="k m">physics/wmo_limits.py</td><td><span class="chip c-built">served</span></td><td>WMO-No. 8 Annex 1.A limits</td></tr>
+        <tr><td class="k m">detect/ baseline &middot; features &middot; learned &middot; belief &middot; checkers</td><td><span class="chip c-built">served</span></td><td>Imported by the engine</td></tr>
+        <tr><td class="k m">health/state.py</td><td><span class="chip c-res">research</span></td><td>Sensor health state; not imported by the API</td></tr>
+        <tr><td class="k m">simulate/ network &middot; faults_and_export</td><td><span class="chip c-part">offline</span></td><td>Builds the 344-station network, injects faults, grades, exports</td></tr>
+        <tr><td class="k m">inject/faults.py</td><td><span class="chip c-part">offline</span></td><td>The seven fault models of &sect;14</td></tr>
+        <tr><td class="k m">dashboard/export*.py</td><td><span class="chip c-part">offline</span></td><td>Writes the JSON the API serves</td></tr>
+        <tr><td class="k m">detect/ trust &middot; allocate &middot; supervised</td><td><span class="chip c-res">research</span></td><td>Not imported by the API</td></tr>
+        <tr><td class="k m">evaluation/ &mdash; 18 modules</td><td><span class="chip c-res">research</span></td><td>Offline experiments; only <code>metrics.py</code> is imported</td></tr>
+        <tr><td class="k m">firmware/skyguard_node</td><td><span class="chip c-part">runs in simulation</span></td><td>ESP32 sketch. <code>#define SENSOR_BME280</code> picks the sensor: BME280 on real hardware, DHT22 + potentiometer in Wokwi, which has no BME280 at all. Verified end to end in Wokwi &mdash; TLS uplink to the Space, housekeeping accepted, panel returns &ldquo;check power and communications&rdquo;. Never run on physical hardware.</td></tr>
+        <tr><td class="k m">firmware/virtual_node.py</td><td><span class="chip c-part">offline</span></td><td>Same wire protocol in plain Python</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s23">
+  <div class="shead"><span class="num">23</span><h2>API surface</h2></div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Group</th><th>Endpoints</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Live node</td><td class="m">WS /api/live &middot; /api/live/replay &middot; /stop &middot; /rate &middot; /seek &middot; /fault &middot; /standing &middot; /station &middot; /status</td></tr>
+        <tr><td class="k">Ingest</td><td class="m">POST /api/ingest &middot; /api/ingest/history &middot; /api/ingest/recent</td></tr>
+        <tr><td class="k">Network data</td><td class="m">/api/map &middot; /api/map/{name} &middot; /api/stations &middot; /api/stations/{station}/series</td></tr>
+        <tr><td class="k">Triage panel</td><td class="m">POST /api/board/triage &middot; /api/board/panel &middot; /api/board/region &middot; /api/board/behaviour</td></tr>
+        <tr><td class="k">Node health</td><td class="m">/api/node/{station}/health</td></tr>
+        <tr><td class="k">Alerts</td><td class="m">/api/alerts &middot; /api/alerts/{id} &middot; /api/baseline/{station} &middot; /api/explain &middot; /api/rescore</td></tr>
+        <tr><td class="k">Tiles</td><td class="m">/api/tiles/{ver}/{z}/{x}/{y}.png &middot; /api/boundary/... &middot; /api/tiles/status</td></tr>
+        <tr><td class="k">Meta</td><td class="m">/api/summary &middot; /api/meta &middot; /api/clock &middot; /api/snapshot &middot; /healthz &middot; /readyz</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="margin-top:16px"><code>/api/summary</code> is the authoritative source for
+  every headline number. Do not hardcode these figures anywhere &mdash; read them.</p>
+</section>
+
+<section id="s24">
+  <div class="shead"><span class="num">24</span><h2>Frontend</h2></div>
+  <p>React 19 + Vite + TypeScript, TanStack Query for server state, react-router for
+  routing, Leaflet for the map. Compiled to <code>web/dist</code> and mounted by FastAPI
+  at <code>/app</code>. Four routes, and no console &mdash; the old HTML console was
+  retired.</p>
+
+  <p>Styling is <strong>Tailwind v4</strong> via <code>@tailwindcss/vite</code>, with
+  shadcn-idiom primitives (<code>cva</code> + <code>cn</code>). The migration turned on one
+  detail worth recording: the pre-existing stylesheets are imported into an explicitly
+  declared <code>@layer legacy</code> that is listed <em>first</em>, so Tailwind utilities
+  outrank them. Without that declaration unlayered legacy CSS wins every tie by
+  specificity, converted pages render as though nothing changed, and
+  <code>bg-ink text-paper</code> comes out black on black.</p>
+
+  <div class="pathlist">web/src/
+  routes/      HomeRoute &middot; NetworkRoute &middot; BoardRoute &middot; TeamRoute
+  lib/         useLive (WebSocket singleton) &middot; alerts (episodes) &middot; triage (panel client)
+               sticky (sessionStorage state) &middot; bands &middot; field &middot; sim &middot; theme &middot; title &middot; cn
+  api/         client &middot; queries &middot; types &middot; mapTypes &middot; sites
+  components/  AgentPanel &middot; PanelAttribution &middot; DecisionTrace &middot; PanelBehaviour
+               RegionCompare &middot; ExplainMath &middot; StationChannels &middot; BeliefChart
+               Callout &middot; Field &middot; Badge &middot; ThemeToggle &middot; Async
+  components/home/  SkyPanel &middot; XaiLoop &middot; EdgeTiers &middot; DriftFigure &middot; Reveal</div>
+
+  <p>The explainability surface is four components and they are deliberately separate:
+  <code>AgentPanel</code> shows the three opinions, <code>PanelAttribution</code> the exact
+  Shapley values as a waterfall with a lane per agent, <code>DecisionTrace</code> the
+  adjudicator's walk in a collapsed disclosure, and <code>PanelBehaviour</code> the same
+  attribution gathered across the whole network. <code>RegionCompare</code> draws the
+  station against its neighbours, which is the evidence the verdict rests on.</p>
+
+  <p><code>lib/sticky.ts</code> keeps the network page's eleven controls in
+  <strong>sessionStorage</strong>, not localStorage, on purpose: these are working settings
+  that should survive navigating to the board and back but should not still be there
+  tomorrow showing a colleague a view they never chose.</p>
+
+  <p><code>lib/useLive.ts</code> is the other file worth reading before touching anything
+  live: a module-level socket shared by every subscriber, with reconnect and backoff,
+  holding <code>byFrame</code>, <code>grades</code>, <code>frame</code>,
+  <code>pass</code>, <code>running</code> and <code>fault</code>. The dashboard clock is
+  derived from <code>live.frame</code> &mdash; <strong>if readings stop arriving, time
+  stops on the page.</strong> That coupling is deliberate, and it is also why several past
+  bugs presented as "the Play button is broken".</p>
+</section>
+
+<section id="s25">
+  <div class="shead"><span class="num">25</span><h2>Deployment</h2></div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Target</th><th>Location</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Live service</td><td class="m">Dev-66/skyguard-api</td><td>Hugging Face Space, public. Serves API + SPA at <code>/app</code>.</td></tr>
+        <tr><td class="k">Source</td><td class="m">Devansh-66/skyguard</td><td>GitHub, branch <code>main</code></td></tr>
+        <tr><td class="k">SDK</td><td class="m">Gradio on ZeroGPU</td><td>See the caveat below</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="lbl">Two things that will confuse the next person</span>
+    <p><strong>ZeroGPU on a CPU-only project.</strong> A free account cannot create a
+    Docker or cpu-basic Space &mdash; the API answers 402. ZeroGPU is the only free way to
+    get a Python process, using the documented no-op <code>@spaces.GPU</code> pattern with
+    all real work outside it. No GPU is ever requested and no quota is consumed.</p>
+    <p><strong>One line holds the whole API up.</strong> The entrypoint launches Gradio
+    with <code>prevent_thread_lock=True</code>, then <code>demo.app.mount("/", api)</code>.
+    Delete that line and every API route 404s while the Space still reports RUNNING.</p>
+  </div>
+</section>
+
+<section id="s26">
+  <div class="shead"><span class="num">26</span><h2>Not built</h2></div>
+  <p>Stated plainly, so nobody rediscovers these as surprises.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Gap</th><th>State</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td class="k">An autonomous explanation trajectory</td><td><span class="chip c-no">not built</span></td><td><strong>The largest gap.</strong> The decision trace is a walk through a fixed tree &mdash; two distinct paths across all sixty board rows, from six question strings. A trajectory chooses the next probe <em>because of</em> the previous answer, so different sensors produce genuinely different investigations. The probes largely exist; the controller that selects among them and the stopping rule do not.</td></tr>
+        <tr><td class="k">A learned reference model</td><td><span class="chip c-no">not built</span></td><td>The place a model belongs is predicting what a station <em>should</em> have read, so the anomaly is the subtraction and SHAP over its features is honest. Designed, not trained. Until it exists there is no model in the decision path at all.</td></tr>
+        <tr><td class="k">Faithfulness testing</td><td><span class="chip c-no">not built</span></td><td>Nothing verifies the explanations are not lying. We inject the faults, so &ldquo;does the top-attributed factor match the injected cause?&rdquo; is measurable here in a way it is not for most entrants. Not yet measured.</td></tr>
+        <tr><td class="k">One door for both sources</td><td><span class="chip c-no">deferred</span></td><td><strong>Agreed, and not yet done.</strong> The live node and a real ESP32 post through <code>/api/ingest</code> and are stored; the simulated network does neither. It is a pre-built export the panel reads directly, and <code>store.record()</code> is called only from <code>api/ingest.py</code>. Routing the simulation through the same door is the correct shape &mdash; one path, one screen, nothing special-cased &mdash; and the blueprint's system diagram already draws it that way. Until then the shared door is the <em>panel</em>, not ingest: both sources are judged by the same three agents, which is what actually stops two screens disagreeing about one sensor.</td></tr>
+        <tr><td class="k">Real hardware</td><td><span class="chip c-no">not built</span></td><td>The firmware runs end to end in Wokwi against the deployed Space. It has never run on a physical ESP32.</td></tr>
+        <tr><td class="k">Housekeeping on simulated rows</td><td><span class="chip c-no">not built</span></td><td>The export carries no supply, logger or link channels, so the hardware agent is silent across the whole simulated board. See &sect;18 &mdash; deriving it from the readings was attempted and does not separate.</td></tr>
+        <tr><td class="k">Authentication</td><td><span class="chip c-no">not built</span></td><td>Every endpoint is open, including the control POSTs.</td></tr>
+        <tr><td class="k">Multi-node live tier</td><td><span class="chip c-no">not built</span></td><td>Exactly one live node exists; <code>_state</code> is a single global.</td></tr>
+        <tr><td class="k">TimescaleDB / Postgres</td><td><span class="chip c-no">not built</span></td><td>The blueprint proposes it; storage today is one SQLite file.</td></tr>
+        <tr><td class="k">Corrected-value output</td><td><span class="chip c-no">not built</span></td><td>Listed as optional in the problem statement; not attempted.</td></tr>
+        <tr><td class="k">Automated tests</td><td><span class="chip c-no">not built</span></td><td>Verification is manual, through the browser and the API.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s27">
+  <div class="shead"><span class="num">27</span><h2>Traps already paid for</h2></div>
+  <p>Each of these cost real debugging time. They are recorded so they cost it once.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Trap</th><th>What actually happens</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Differencing raw values</td><td>Flags 49% of healthy stations. Remove each station's hourly climatology first (&sect;06).</td></tr>
+        <tr><td class="k">Sigma fitted in-sample</td><td>Inflated 1.61&times;, 7.6% false alarms. It must be a trailing, lagged rolling MAD (&sect;08).</td></tr>
+        <tr><td class="k">Skipping the MSL reduction</td><td>100 m of elevation is ~11.6 hPa of pure artefact. Every hill station looks broken.</td></tr>
+        <tr><td class="k">Magnus water coefficients below 0 &deg;C</td><td>Manufactures supersaturation at cold and high stations. Select the coefficient set by temperature.</td></tr>
+        <tr><td class="k">Marking a whole spike window as touched</td><td>Depresses every spike metric: most samples in the window were never displaced.</td></tr>
+        <tr><td class="k">Mounted ASGI apps get no lifespan events</td><td>Startup hooks on the mounted FastAPI app never fire on the Space.</td></tr>
+        <tr><td class="k">Awaiting inside a <code>finally</code> during cancellation</td><td>The await is cancelled immediately, so a "publish on shutdown" placed there never leaves the process.</td></tr>
+        <tr><td class="k">The boundary GeoJSON is a bare <code>Feature</code></td><td>Not a <code>FeatureCollection</code> &mdash; clipping is skipped silently if you assume otherwise.</td></tr>
+        <tr><td class="k">A frame high-water mark</td><td><code>Math.max</code> made the clock a ratchet: after a restart it could never go back, and froze permanently.</td></tr>
+        <tr><td class="k"><code>pkill</code> on Windows</td><td>Does nothing. The old server keeps serving stale code while a second one fails to bind. Kill the port owner found via <code>netstat -ano</code>.</td></tr>
+        <tr><td class="k">Unlayered legacy CSS beats Tailwind</td><td>Utilities lose every tie to un-layered stylesheets. Declare <code>@layer legacy, theme, base, components, utilities</code> first and import the old CSS into <code>legacy</code>, or converted pages render unconverted.</td></tr>
+        <tr><td class="k">Gating an entrance animation on opacity</td><td>A <em>paused</em> animation still applies its current keyframe, so a stalled or never-started entrance leaves content at opacity 0 permanently. Five sections shipped invisible. Animate transform only &mdash; the worst case is then content fourteen pixels low.</td></tr>
+        <tr><td class="k">Wokwi has no BME280</td><td>The part does not exist in its library, so the I&sup2;C bus is simply empty and the node looks mute. Use DHT22 behind a <code>#define</code>. Its serial pins are <code>TX</code>/<code>RX</code>, not <code>esp:TX0</code>/<code>esp:RX0</code>, and a slide switch must ground pin 3 &mdash; grounding pin 1 boots with the link already cut.</td></tr>
+        <tr><td class="k">Counting the wrong bits</td><td><code>checks_passed</code> counted zero bits in the self-test mask and reported 1 when all 12 passed. It is <code>12 &minus; popcount(mask)</code>.</td></tr>
+        <tr><td class="k">Handing an agent its own conclusion</td><td>Asserting <code>neighbours_agree: false</code> on every flagged row made the context agent's Shapley value structurally zero. An agent that cannot change any outcome is an ornament, and only a global view reveals it.</td></tr>
+        <tr><td class="k">Attribution ties on a vetoed row</td><td>Picking the carrier by largest |&phi;| credits the agent that <em>lost</em>: +0.25 and &minus;0.25 tie, and the verdict was &ldquo;no visit&rdquo;. The carrier is the agent whose absence would change the action.</td></tr>
+        <tr><td class="k">Overlapping segments on one track</td><td>Drawn on a shared axis, two agents who disagree overlap and the one painted last hides the other &mdash; erasing exactly the case worth seeing. A lane per agent.</td></tr>
+        <tr><td class="k">A strict <code>&gt;</code> on a shaded window</td><td>An episode shorter than one chart point collapses to zero width and never draws, on precisely the rows whose window matters most.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s28">
+  <div class="shead"><span class="num">28</span><h2>Running it</h2></div>
+  <h3>Serve locally</h3>
+  <div class="pathlist">python -m uvicorn api.main:app --port 8000
+# then open http://localhost:8000/app/network</div>
+
+  <h3>Rebuild the frontend</h3>
+  <div class="pathlist">cd web &amp;&amp; npm run build     # writes web/dist, which FastAPI mounts at /app</div>
+
+  <h3>Regenerate the network</h3>
+  <div class="pathlist">python -m simulate.faults_and_export   # 344 stations, 28 faults -&gt; dashboard/sim_map.json
+python -m dashboard.export_wdqms      # real WDQMS departures</div>
+
+  <p>The node does not start on its own, locally or on the Space. Press Play, or
+  <code>POST /api/live/replay?per_second=4</code>.</p>
+</section>
+
+<footer>
+  <span>SkyGuard &middot; PS26073</span>
+  <span>As-built 6 Sep 2026</span>
+  <span>Supersedes docs/BLUEPRINT.md where they disagree</span>
+</footer>
+
+</main>
+</div>
+</div>
+
+</body></html>
