@@ -169,12 +169,26 @@ def observe(station: str, temp: float, rh: float, pres: float,
     return out
 
 
+def _with_age(row: dict) -> dict:
+    """The same verdict, plus how long it has been the verdict.
+
+    The board sorts by how long a case has been open, so a standing without an
+    age is a row it cannot place. Computed on read rather than stored, since
+    the answer changes every second whether anyone asks or not.
+    """
+    out = dict(row)
+    since = out.get("since")
+    out["open_seconds"] = round(time.time() - since, 1) if since else None
+    return out
+
+
 def standing(station: str | None = None) -> dict:
     """The current verdict per edge station, for the board and the API."""
     with _lock:
         if station is not None:
-            return dict(_standing.get(station) or {})
-        return {k: dict(v) for k, v in _standing.items()}
+            row = _standing.get(station)
+            return _with_age(row) if row else {}
+        return {k: _with_age(v) for k, v in _standing.items()}
 
 
 def reset(station: str | None = None) -> None:

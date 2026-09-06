@@ -24,7 +24,7 @@
 import { useMemo } from 'react'
 import { usePageTitle } from '../lib/title'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { useLiveStanding, useSimMap } from '../api/queries'
+import { useEdgeStanding, useLiveStanding, useSimMap } from '../api/queries'
 import { type Band, type SimMap, type SimStation } from '../api/mapTypes'
 import { alertsFor } from '../lib/alerts'
 import { Badge } from '@/components/ui/badge'
@@ -49,6 +49,10 @@ export function BoardRoute() {
   const navigate = useNavigate()
   const sim = useSimMap()
   const node = useLiveStanding()
+  /* Hardware nodes. The feeder above generates its readings; these
+   * measure them. Both are graded the same way and both belong in the
+   * queue, but a technician needs to know which is which. */
+  const edge = useEdgeStanding()
 
   const sims = useMemo(() => simItems(sim.data), [sim.data])
 
@@ -67,8 +71,26 @@ export function BoardRoute() {
           ? node.data.open_seconds / 86400 : null,
       })
     }
+    // The node submits the same evidence shape as every other station, so
+    // the panel judges it with the same rules rather than a parallel path.
+    // "learning" is withheld deliberately: a node with fewer than forty
+    // readings has no scale to be judged against, and asking the adjudicator
+    // to rule on it would produce a verdict with nothing behind it.
+    for (const st of Object.values(edge.data?.stations ?? {})) {
+      const g = edge.data?.standing[st.id]
+      if (!g || g.band === 'learning') continue
+      out.push({
+        id: `edge:${st.id}`, source: 'live', sensor: 'temp',
+        label: 'Temperature',
+        band: g.band,
+        bias_sigma: g.z,
+        evidence_n: g.readings ?? null,
+        neighbours_agree: g.band === 'ok',
+        days_open: g.open_seconds ? g.open_seconds / 86400 : null,
+      })
+    }
     return out
-  }, [sims, node.data])
+  }, [sims, node.data, edge.data])
 
   const tri = useTriage(evidence)
   const verdictOf = (id: string): Assessment | undefined =>
@@ -87,6 +109,17 @@ export function BoardRoute() {
   const shown = ordered.slice(0, 40)
   const liveOpen = node.data && node.data.band !== 'learning'
                    && node.data.band !== 'ok'
+
+  /** Hardware nodes with something actually wrong. Derived once: the group
+   *  header and the list must agree about what is in it, and computing the
+   *  same predicate twice is how they stop agreeing. */
+  const edgeOpen = useMemo(() => {
+    const stations = edge.data?.stations ?? {}
+    const standing = edge.data?.standing ?? {}
+    return Object.values(stations)
+      .map((st) => ({ st, g: standing[st.id] }))
+      .filter((r) => r.g && r.g.band !== 'learning' && r.g.band !== 'ok')
+  }, [edge.data])
 
   return (
     <div className="mx-auto grid max-w-[1600px] gap-6 px-5 py-6
@@ -113,9 +146,35 @@ export function BoardRoute() {
           </div>
         </header>
 
+        {/* HARDWARE NODES, as their own group.
+            This first went inside the feeder's `liveOpen &&` branch by
+            mistake, so a faulted ESP32 was invisible unless the Python feeder
+            happened to be faulted at the same time -- two unrelated things,
+            one of them silently gating the other. */}
+        {edgeOpen.length > 0 && (
+          <>
+            <GroupHead>Hardware nodes</GroupHead>
+            <ul className="mb-4 flex flex-col gap-2">
+              {edgeOpen.map(({ st, g }) => (
+                <WorkCard key={st.id}
+                  place={st.name}
+                  where={`${st.state} · ${st.elev} m`}
+                  sensor="Temperature"
+                  age={g.open_seconds
+                    ? `open ${Math.round(g.open_seconds)}s` : 'just now'}
+                  a={verdictOf(`edge:${st.id}`)}
+                  badge={<Badge tone="brand">node</Badge>}
+                  active={selected === `edge:${st.id}`}
+                  onPick={() => navigate(`/board/edge:${st.id}`)}
+                />
+              ))}
+            </ul>
+          </>
+        )}
+
         {liveOpen && node.data && (
           <>
-            <GroupHead>Reporting now</GroupHead>
+<GroupHead>Reporting now</GroupHead>
             <ul className="mb-4 flex flex-col gap-2">
               <WorkCard
                 place={node.data.station.name}

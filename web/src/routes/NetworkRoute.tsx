@@ -26,7 +26,7 @@
 import { GeoJSON, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
-  useBoundaryGeo, useLiveStation, useSimMap, useStatesGeo,
+  useBoundaryGeo, useEdgeStanding, useLiveStation, useSimMap, useStatesGeo,
   useTileStatus, useWdqmsMap,
 } from '../api/queries'
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
@@ -213,6 +213,10 @@ export function NetworkRoute() {
   const states = useStatesGeo()
   const boundary = useBoundaryGeo()
   const node = useLiveStation()
+  /* Hardware nodes -- the ESP32 in Wokwi -- as opposed to the feeder
+   * above. Registered with coordinates and graded against neighbours,
+   * so they belong on this map as dots rather than in a side panel. */
+  const edge = useEdgeStanding()
   const live = useLive(import.meta.env.VITE_API_BASE ?? '')
 
   const [net, setNet] = useSticky<Net>('net', 'sim')
@@ -609,6 +613,53 @@ export function NetworkRoute() {
                 </CircleMarker>
               )}
 
+              {/* HARDWARE NODES. A device measuring its own readings, as
+                  opposed to the feeder above which generates them. Dashed ring
+                  so the two are never confused on a projector; fill is the
+                  band, exactly as for every other dot. */}
+              {net === 'sim' && edge.data && Object.values(edge.data.stations).map((st) => {
+                const g = edge.data!.standing[st.id]
+                const band = g?.band ?? 'learning'
+                return (
+                  <CircleMarker key={st.id} center={[st.lat, st.lon]}
+                    radius={8}
+                    eventHandlers={{ click: () => setSelected(st.id) }}
+                    pathOptions={{
+                      color: band === 'fault' ? '#E01B24'
+                        : band === 'watch' ? '#B07908' : '#3B7A57',
+                      weight: 2.5,
+                      dashArray: '4 3',
+                      fillColor: band === 'fault' ? '#E01B24'
+                        : band === 'watch' ? '#F0B429' : '#FFFFFF',
+                      fillOpacity: 0.95,
+                    }}>
+                    <Tooltip direction="top" offset={[0, -8]}>
+                      <b>{st.name}</b> — {st.label}<br />
+                      {st.state} · {st.elev} m<br />
+                      {g ? (
+                        <>
+                          <span className="mono">
+                            {g.reported.temp.toFixed(1)} °C ·{' '}
+                            {g.reported.rh.toFixed(1)} % ·{' '}
+                            {g.reported.pres.toFixed(1)} hPa
+                          </span><br />
+                          <b>{band === 'learning'
+                            ? `learning its baseline (${g.readings}/40)`
+                            : `${band} · ${g.z.toFixed(1)}σ from its neighbours`}</b>
+                          <br />
+                          <span className="mono">
+                            neighbours say {g.expected.temp.toFixed(1)} °C ·{' '}
+                            residual {g.residual > 0 ? '+' : ''}{g.residual.toFixed(2)}
+                          </span>
+                        </>
+                      ) : <span className="mono">no readings yet</span>}
+                      <br />
+                      <span className="mono">{g?.neighbours ?? 6} neighbours · frame {g?.frame ?? '—'}</span>
+                    </Tooltip>
+                  </CircleMarker>
+                )
+              })}
+
               {showStates && states.data != null && (
                 <GeoJSON data={states.data as never}
                          style={{ color: '#FFFFFF', weight: 1.2, opacity: 0.85, fill: false }} />
@@ -857,7 +908,11 @@ export function NetworkRoute() {
           <summary className={SUMMARY}>
             Station index
             <span className="ml-2 font-normal text-ink-3">
-              {graded.length} stations{node.data ? ' + 1 live node' : ''} ·{' '}
+              {graded.length} stations{node.data ? ' + 1 live node' : ''}
+              {edge.data && Object.keys(edge.data.stations).length
+                ? ` + ${Object.keys(edge.data.stations).length} hardware node`
+                  + (Object.keys(edge.data.stations).length > 1 ? 's' : '')
+                : ''} ·{' '}
               {flagged.length} flagged right now
             </span>
           </summary>

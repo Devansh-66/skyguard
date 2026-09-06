@@ -113,6 +113,47 @@ export function useLiveStanding() {
   })
 }
 
+/** Hardware nodes posting through /api/ingest, and where each one stands.
+ *
+ *  Separate from useLiveStanding on purpose. That one is the Python feeder --
+ *  a stand-in that generates its readings. These are devices that MEASURE
+ *  them, are registered with coordinates, and are differenced against their
+ *  neighbours exactly like the 344. Merging the two into one call would make
+ *  the demo unable to answer the first question anyone asks about it: which of
+ *  these am I looking at.
+ *
+ *  Polled, like the board's other sources: a maintenance queue that refreshes
+ *  every few seconds refreshes far faster than anyone works down it. */
+export interface EdgeStation {
+  id: string; name: string; label: string
+  state: string; lat: number; lon: number; elev: number
+}
+export interface EdgeStanding {
+  station: string
+  band: 'learning' | 'ok' | 'watch' | 'fault'
+  z: number
+  residual: number
+  expected: { temp: number; rh: number; pres: number }
+  reported: { temp: number; rh: number; pres: number }
+  frame: number
+  readings: number
+  neighbours: number
+  open_seconds: number | null
+}
+export function useEdgeStanding() {
+  return useQuery({
+    queryKey: ['edge', 'standing'] as const,
+    queryFn: ({ signal }) => get<{
+      stations: Record<string, EdgeStation>
+      standing: Record<string, EdgeStanding>
+    }>('/api/edge/standing', signal),
+    refetchInterval: 5000,
+    // A build with no hardware node configured is not an error worth a red
+    // box; the map simply has one fewer dot.
+    retry: false,
+  })
+}
+
 export function useStatesGeo() {
   return useQuery({
     queryKey: keys.map('states'),
