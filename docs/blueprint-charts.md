@@ -1,196 +1,137 @@
-# Blueprint charts, redrawn against the built system
+# The four blueprint charts — what to change
 
-The blueprint's four architecture figures are base64-rendered mermaid embedded as
-`<img src="data:image/svg+xml;base64,...">` — about 279 KB of encoded SVG across four
-lines. These are the replacements, as live mermaid source.
+Decoded from the rendered SVGs in the blueprint, so every node named below is a node
+that actually exists in the current diagrams. Build them in the same tool and style;
+this is only the content diff.
 
-Artifacts render mermaid natively, so in the blueprint each `<img>` can be replaced by:
-
-```html
-<pre class="mermaid">
-  ...source below...
-</pre>
-```
-
-which is editable afterwards instead of being a picture of a diagram.
+**Legend:** ✂️ delete · ✏️ reword · ➕ add · ✅ leave alone
 
 ---
 
-## 1 — The system end to end
+## Chart 1 — "The system end to end"
 
-**What changed:** the station tier now really exists (ESP32 in simulation, TLS to the
-Space). The learned residual model is gone. The panel replaced the five-checker design.
-The store is SQLite, not TimescaleDB.
+*4 clusters, 23 nodes. This one needs the most work: a whole cluster goes.*
 
-```mermaid
-flowchart LR
-  subgraph NODE["On the node — no network needed"]
-    S["Sensors<br/>T · P · RH"] --> SCR["WMO screen<br/>range · step · self-test"]
-    SCR -->|"fails"| DROP["Dropped at the pole<br/>never transmitted"]
-    HK["Housekeeping<br/>supply · logger · link"] --> SCR
-  end
+### Clusters
 
-  SCR -->|"passes"| UP(["TLS uplink<br/>POST /api/ingest"])
+| Cluster | Change |
+|---|---|
+| AWS Station — ESP32 / datalogger | ✅ keep — it is real now, runs end to end in Wokwi with a TLS uplink |
+| Central SkyGuard service — on-premise VM | ✏️ **"Central SkyGuard service — one FastAPI process"** (no VM, no worker pool) |
+| Offline training and calibration — never in live request path | ✂️ **delete the entire cluster** — there is no model and no training |
+| Operator outputs | ✅ keep |
 
-  subgraph SRV["In the network — one FastAPI process"]
-    UP --> ST[("SQLite WAL<br/>every reading, durable")]
-    ST --> ANOM["Anomaly<br/>minus own hourly climatology"]
-    ANOM --> NB["Neighbour difference<br/>minus median of N(s), 250 km"]
-    NB --> SIG["Standardise<br/>trailing lagged rolling MAD"]
-    SIG --> BAND{"Band<br/>6σ watch · 8σ fault"}
-    BAND --> EP["Episode<br/>raise 3 · clear 6"]
-    EP --> PANEL["Triage panel<br/>api/orchestrator.py"]
-  end
+### Nodes inside the deleted cluster — all go
 
-  PANEL --> WO["Work order<br/>action · priority · why"]
+✂️ `ARM measurements + human DQR fault windows`
+✂️ `USCRN preserved raw stream — redundant probes + hardware diagnostics`
+✂️ `Train / evaluate / calibrate — lead time · false alarms · coverage · model version approval`
+✂️ `approved model version + thresholds` (edge label)
+✂️ `approved clean reference only` (edge label)
 
-  NB -.->|"fewer than 3 neighbours"| UNJ["Not scored<br/>said, not guessed"]
+➕ Keep one survivor, but move it **out** of the cluster and label it plainly, because it
+still exists as `simulate/` + `inject/faults.py`:
+> **Offline network generator** — 344 stations at real IMD sites · 28 injected faults · run by hand, writes `sim_map.json`
 
-  classDef gone fill:#fff,stroke:#B32B22,stroke-dasharray:4 3,color:#B32B22
-  class DROP,UNJ gone
-```
+### The five checkers become three agents
 
----
+| Old node | Change |
+|---|---|
+| `Physical-consistency checker — dew point · humidity · pressure · weather coherence` | ✂️ **delete from the central service.** This moved onto the station: it is the WMO screen in `Level-0 safety checks` |
+| `Spatial and history checker — neighbour residual · drift · step · noise · dropout` | ✏️ **"Data Quality Agent — offset, drift and noise against the neighbours"** |
+| `Hardware-health checker — housekeeping trends · voltage / logger temperature / QC` | ✏️ **"Hardware Health Agent — supply · logger · link · stuck values"** and add the small line *"silent on simulated rows — the export carries no housekeeping"* |
+| `Learned precursor model — predicts risk of a future sensor fault from hardware patterns` | ✂️ **delete** — never built |
+| — | ➕ **"Weather-or-Fault Agent — did the region move? measured neighbour median anomaly"** |
 
-## 2 — The reasoning layer  ← **the biggest change**
+### The adjudicator and what hangs off it
 
-**What changed:** five checkers became **three agents and an adjudicator**. The offline
-ARM/DQR label path is deleted entirely. Attribution is exact Shapley over the panel, not
-SHAP over a model. There is no model.
+| Old node | Change |
+|---|---|
+| `Evidence adjudicator — corroborate · score · abstain · UNKNOWN when evidence conflicts` | ✏️ **"Adjudicator — fixed rule order, first rule to fire decides"**. It does still abstain, so keep that word |
+| — | ➕ dashed off the adjudicator: **"Exact Shapley — all 8 coalitions · contributions sum to the verdict"** |
+| — | ➕ dashed off the adjudicator: **"Decision trace — every check, in order, with its answer"** |
 
-```mermaid
-flowchart TB
-  EV["Evidence<br/>band · residual · gaps · episodes<br/>measured regional movement"]
+Both new nodes should feed **Explainable verdict**.
 
-  EV --> A1["Data quality<br/><i>the observation stream</i>"]
-  EV --> A2["Hardware health<br/><i>the device</i>"]
-  EV --> A3["Weather or fault?<br/><i>the neighbouring stations</i>"]
+### Everything else
 
-  A1 --> ADJ{{"Adjudicator<br/>fixed rule order"}}
-  A2 --> ADJ
-  A3 --> ADJ
-
-  ADJ --> R1["1 · hardware alarm?<br/>a dead link is a fault in any weather"]
-  R1 --> R2["2 · did the region move?<br/>unconditional veto"]
-  R2 --> R3["3 · readings clean?"]
-  R3 --> R4["4 · enough evidence?"]
-  R4 --> R5["5 · will a correction hold<br/>until the next visit?"]
-
-  R5 --> OUT["Decision · action · priority<br/>INSPECT | CALIBRATE | COMMS | MONITOR"]
-
-  ADJ -.->|"re-run on all 2³ coalitions"| SHAP["Exact Shapley φ per agent<br/>Σφ = escalation, exactly"]
-  SHAP --> CF["Counterfactual per agent<br/>'without it: MONITOR'"]
-  ADJ -.-> TR["Decision trace<br/>every check, in order, with its answer"]
-
-  OUT --> BOARD["Maintenance board"]
-  SHAP --> BOARD
-  CF --> BOARD
-  TR --> BOARD
-
-  classDef agent fill:#EEF5FD,stroke:#1F5FAE,color:#0E1720
-  classDef xai fill:#fff,stroke:#15694A,color:#15694A
-  class A1,A2,A3 agent
-  class SHAP,CF,TR xai
-```
-
-**Note for the caption:** the old caption claims ARM historical DQR labels feed the
-offline path. That corpus and its classifier were deleted — the caption has to go with
-the diagram.
+| Old node | Change |
+|---|---|
+| `Reference builder — frozen seasonal baseline · trusted-neighbour consensus` | ✏️ **"Reference — hourly climatology removed · neighbour median · trailing lagged MAD"** (it is not frozen; that was the bug) |
+| `Ingest and validation — deduplicate · timestamp · sentinel check` | ✅ keep |
+| — | ➕ after ingest: **"SQLite (WAL) — every reading, durable"** |
+| `Persistent sensor-health state — bias · drift · noise · trust · last service · uncertainty` | ✂️ delete or mark dashed — `health/state.py` exists but the API does not import it |
+| `Explainable verdict — fault hypothesis · evidence · why it is not weather` | ✏️ **"Explainable verdict — which agent decided, by how much, and what it would say without them"** |
+| `Live network board — health map + alert queue` | ✏️ **"Network map + maintenance board"** |
+| `Maintenance work order — priority · onset estimate · inspect / replace / do not dispatch` | ✅ keep — this is exactly right |
+| `Audit trail — raw reading is never overwritten` | ✅ keep |
+| `T, Pressure, RH sensor readings` · `Available housekeeping…` · `Level-0 safety checks` · `Local record` · `15-minute readings / streamed records` | ✅ all keep |
 
 ---
 
-## 3 — What the operator sees
+## Chart 2 — "The reasoning layer, and where the labels come from"
 
-**What changed:** three screens became four routes, and "Device Health" is no longer a
-panel on a dashboard — it is one of the three agents, and it is silent on simulated rows
-because the export carries no housekeeping.
+*18 nodes. Closest to reality already — one branch goes, two nodes arrive.*
 
-```mermaid
-flowchart TB
-  subgraph HOME["/ — the argument"]
-    H1["What drift looks like"]
-    H2["Three specialists, one decision"]
-    H3["Explainability, running"]
-    H4["Edge tier: node vs network"]
-  end
+| Old node | Change |
+|---|---|
+| `ARM Historical DQR Labels — Verified past faults` | ✂️ **delete** |
+| `Offline Training Pipeline` | ✂️ **delete** |
+| `Fault Detection Model` | ✂️ **delete** |
+| `Central AI Adjudicator` | ✏️ **"Adjudicator — fixed rule order"**. It is not a model, and the subtitle should not imply one |
+| `Weather Context — Nearby stations • Forecast • History` | ✏️ **"Weather Context — nearby stations · measured regional movement"**. There is no forecast feed and no history feed |
+| `Logger & Device Data — Voltage • Temperature • Network` | ✏️ add *"live node only"* — it is absent on every simulated row |
+| `Technician Feedback` | ✏️ keep but **draw it dashed** — the loop is designed, not built |
+| `Data Quality Agent` · `Hardware Health Agent` · `Context Validation Agent` · `Live Sensor Data` · `Decision` · `Normal` / `Warning` / `Critical Fault` · `Continue Monitoring` · `Dashboard Alert` · `Maintenance Workflow` | ✅ all keep |
+| — | ➕ dashed from the adjudicator: **"Exact Shapley φ per agent — 8 coalitions"** → into `Dashboard Alert` |
+| — | ➕ dashed from the adjudicator: **"Decision trace — the walk it took"** → into `Dashboard Alert` |
 
-  subgraph NET["/network — the whole country"]
-    N1["Map · 344 stations · colour by channel"]
-    N2["Clock driven by the node, not a browser timer"]
-    N3["Per-station charts · ledger · index"]
-  end
-
-  subgraph BOARD["/board — the work"]
-    B1["Queue, worst first<br/>each row names the agent that decided"]
-    B2["Verdict · three opinions"]
-    B3["Shapley attribution · counterfactuals"]
-    B4["Decision trace, collapsed"]
-    B5["Station vs its region"]
-    B6["Empty state: how the panel behaves<br/>across the whole network"]
-  end
-
-  subgraph TEAM["/team — the submission"]
-    T1["Who built it"]
-    T2["The problem statement, verbatim"]
-  end
-
-  HOME --> NET
-  HOME --> BOARD
-  BOARD --> NET
-```
+> **The title needs changing too.** "…and where the labels come from" described the ARM
+> branch. There are no labels any more. Suggest: **"The reasoning layer — three agents,
+> one adjudicator"**.
 
 ---
 
-## 4 — What the operator does
+## Chart 3 — "What the operator sees"
 
-**What changed:** the loop still closes twice, but the "rejected → weather event" branch
-is now a *measured* veto with a number on it, not an operator judgement.
+*9 nodes. The dashboard grew from three screens to four routes.*
 
-```mermaid
-flowchart LR
-  EP["Episode opens<br/>3 consecutive flagged steps"] --> PANEL["Panel judges"]
-
-  PANEL --> V{"Weather or fault?"}
-  V -->|"region moved ≥2σ, same way,<br/>explains ≥40%"| WX["Weather<br/>no visit · keep monitoring"]
-  V -->|"region quiet"| ACT{"Which job?"}
-
-  ACT -->|"hardware alarm"| INS["INSPECT<br/>sensor, wiring, logger"]
-  ACT -->|"link or power"| COM["COMMS<br/>check power and communications"]
-  ACT -->|"readings adrift,<br/>device healthy"| CAL["CALIBRATE<br/>or replace the sensor"]
-  ACT -->|"correction holds<br/>to the next visit"| REM["Correct centrally<br/>no site visit"]
-
-  INS --> WO["Work order<br/>priority 1 today · 2 this week · 3 next visit"]
-  COM --> WO
-  CAL --> WO
-  WO --> FIX["Technician attends"]
-  FIX --> CLR["Episode clears<br/>6 consecutive clean steps"]
-  WX --> CLR
-
-  classDef ok fill:#fff,stroke:#15694A,color:#15694A
-  class WX,REM ok
-```
+| Old node | Change |
+|---|---|
+| `SkyGuard Command Dashboard` | ✏️ **"SkyGuard — four routes"** |
+| `🔋 Device Health — Battery • Logger • Connectivity` | ✏️ add *"live node only"*. It is no longer a dashboard panel — it is one of the three agents |
+| `🗺 Network Map` · `📈 Live Sensor Charts` · `⚠ AI Alert Panel` · `📊 Network KPIs` · `Select Station` · `Station Health Summary` · `Live Weather Stations` | ✅ all keep |
+| — | ➕ **"🔍 Why this verdict — Shapley waterfall · counterfactual · decision trace"** |
+| — | ➕ **"📐 Station vs its region — the evidence the verdict rests on"** |
+| — | ➕ **"🧪 Panel behaviour — how the three agents perform across the whole network"** |
+| — | ➕ **"👥 Team — the problem statement, verbatim"** |
 
 ---
 
-# Sections to remove or mark superseded
+## Chart 4 — "What the operator does"
 
-Ordered by how misleading they are now.
+*15 nodes. The shape is right; two steps stopped being human.*
 
-| § | Section | What to do |
-|---|---|---|
-| 319 | The AI architecture — a panel that must corroborate | **Replace the five-checker SVG** with chart 2. The built panel is three agents. |
-| 702 | The learned layer, revised | **Delete.** The model was deleted; the section plans a thing that no longer exists. |
-| 718 | The ML layer, concretely | **Delete.** The 12-element feature vector and its worked figure describe the deleted classifier. |
-| 904 | Explainability, done properly | **Rewrite.** It plans SHAP over a model. Replace with exact Shapley over the panel — as-built §18 has the text. |
-| 581 | Architecture (four-stage pipeline) | **Amend.** Stage 3 "learned residual model" does not exist. The pipeline is anomaly → neighbour → sigma → band → panel. |
-| 1050 | The dashboard — three screens | **Mark superseded.** Three wireframes vs four built routes; keep as design history, point at chart 3. |
-| 1829 | What carries over from the PS26178 work | **Delete.** Previous problem statement; nothing carries over that is still in the tree. |
-| 1785 | Optional hardware — ₹1,120 per station | **Amend.** Firmware now runs end to end in Wokwi against the deployed Space. Not optional, not untested — just not on physical hardware. |
-| 1515 | Production architecture | **Keep, marked aspirational.** TimescaleDB, Redis, worker pool — none built. Storage is one SQLite file. |
-| 1730 | Work split · 1748 Demo script · 1677 Build order | **Delete or rewrite.** All predate the current shape of the work. |
-| — | Every ARM mention | **Delete.** 24 Python and 8 web files removed; there is no ARM corpus in the project. |
+| Old node | Change |
+|---|---|
+| `Remote Validation` | ✏️ **"Weather-or-fault check — automatic"**. This is no longer a person looking |
+| `Confirmed Fault?` | ✏️ **"Did the region move?"** with the test underneath: *≥2σ of its own spread · same direction · explains ≥40%* |
+| `Mark as Weather Event / Continue Monitoring` | ✅ keep — and it is worth a note that this branch is now measured: **89% precision, removes 17% of false alarms** |
+| `AI Recommended Action` | ✏️ **"Adjudicator action"** |
+| `Prioritise by Severity • Confidence • Impact` | ✏️ **"Priority — 1 today · 2 this week · 3 next visit"** (that is the actual vocabulary) |
+| `Inspect Sensor / Wiring / Logger` · `Calibrate or Replace Sensor` · `Check Power / Communication` | ✅ keep — these are exactly the built actions |
+| — | ➕ fourth action: **"Monitor — no visit needed"** |
+| `Close Case + Feed Result Back to AI Model` | ✏️ **"Close case — episode clears after 6 clean steps"**. There is no model to feed back into |
+| `AI Fault Alert` · `Create Maintenance Case` · `Technician Work Order` · `Repair Verification` · `Yes` / `No` | ✅ all keep |
 
-**Keep untouched** — these are the reasoning that got us here and they still hold:
-the problem statement, "the one problem that actually matters", the physics with three
-parameters, where the accuracy comes from, traps that will bite you, evaluation protocol,
-prior art and references.
+---
+
+## Where they go when you have them
+
+The four `<img src="data:image/svg+xml;base64,…">` blocks are gone from
+`docs/blueprint.html` — I replaced them with live mermaid holding the corrected content,
+because a placeholder that is *right* beats a rendered picture that is *wrong*. It does
+not match the house style, which is the point you made.
+
+Hand me the four rendered SVGs (or the base64) and I will drop them straight back into
+the same four slots and republish. Nothing else in the document needs to move.
