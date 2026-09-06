@@ -7,3 +7,10 @@ pandas>=2.1
 fastapi>=0.110
 uvicorn[standard]>=0.29
 scikit-learn>=1.4
+
+# The learned reference and its TreeSHAP explanation. LightGBM computes the
+# SHAP values itself -- the `shap` package draws them and is not needed to get
+# them -- so this is the whole dependency for the model tier. Without it the
+# /api/reference endpoints report unavailable and the board omits that
+# section; nothing else changes.
+lightgbm>=4.3
