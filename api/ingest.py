@@ -245,6 +245,11 @@ def ingest(r: Reading) -> dict:
                "selftest_mask": r.selftest_mask, "health": r.health,
                "boot_id": r.boot_id, "reboot_count": r.reboot_count,
                "replayed": r.replayed,
+               # Which moment of the shared record this reading is for. Stored
+               # rather than derived: frame == seq holds only until a node
+               # reboots, replays a spool, or wraps the record, and a trace
+               # drawn from that assumption is wrong exactly when it matters.
+               "frame": r.frame, "pass_no": r.pass_no,
                "accepted": accepted}
         q.append(rec)
         n = len(q)
@@ -411,6 +416,63 @@ def edge_standing(station: str | None = None) -> dict:
     from api import edge_grade
     return {"stations": edge_grade.EDGE_STATIONS,
             "standing": edge_grade.standing(station)}
+
+
+@router.get("/api/edge/series")
+def edge_series(station: str, limit: int = 3000) -> dict:
+    """A hardware node's readings placed on the shared record axis.
+
+    A dot on a map says where a node is, not what it has been doing. This is
+    the other thing every one of the 344 stations has and a node did not: a
+    trace, on the same frames, against what its neighbours were reading at each
+    of them.
+
+    Three arrays per channel rather than one: what the node reported, what the
+    neighbours say it should have reported, and the band the difference fell
+    in. The residual is then something a reader can see rather than a number
+    they are told, which is the whole argument for showing it at all.
+
+    Read from the store, not the ring buffer, so the trace survives a restart.
+    """
+    from api import edge_grade, store
+    if station not in edge_grade.EDGE_STATIONS:
+        raise HTTPException(404, f"{station!r} is not a registered edge station")
+
+    # store.history is newest-first, which is right for a ledger and wrong for
+    # a trace: a chart reading the last element as "where the pen has reached"
+    # would find frame 0 and draw nothing.
+    rows = sorted(store.history(station, max(1, min(limit, 20000))),
+                  key=lambda r: (r.get("pass_no") or 0, r.get("frame") or 0))
+    frames, temp, rh, pres = [], [], [], []
+    exp_t, exp_h, exp_p = [], [], []
+    for rec in rows:
+        f = rec.get("frame")
+        if f is None:
+            continue
+        try:
+            et, eh, ep = edge_grade._expectation(station, int(f))
+        except Exception:
+            et = eh = ep = None
+        frames.append(int(f))
+        temp.append(rec.get("temp"))
+        rh.append(rec.get("rh"))
+        pres.append(rec.get("pres"))
+        exp_t.append(round(et, 2) if et is not None else None)
+        exp_h.append(round(eh, 1) if eh is not None else None)
+        exp_p.append(round(ep, 2) if ep is not None else None)
+
+    return {
+        "station": station,
+        "n": len(frames),
+        "frames": frames,
+        "reported": {"temp": temp, "rh": rh, "pres": pres},
+        "expected": {"temp": exp_t, "rh": exp_h, "pres": exp_p},
+        "standing": edge_grade.standing(station),
+        # What one frame is worth, so a reader is never left to assume the
+        # spacing. The record itself is 15-minute data; the field the map and
+        # this comparison are drawn from is exported every second step.
+        "minutes_per_frame": 30,
+    }
 
 
 @router.get("/api/ingest/history")

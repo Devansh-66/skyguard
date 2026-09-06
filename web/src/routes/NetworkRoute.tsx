@@ -26,7 +26,8 @@
 import { GeoJSON, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
-  useBoundaryGeo, useEdgeStanding, useLiveStation, useSimMap, useStatesGeo,
+  useBoundaryGeo, useEdgeSeries, useEdgeStanding, useLiveStation, useSimMap,
+  useStatesGeo,
   useTileStatus, useWdqmsMap,
 } from '../api/queries'
 import { BAND_ORDER, type Band, type SimMap, type SimStation } from '../api/mapTypes'
@@ -217,7 +218,8 @@ export function NetworkRoute() {
    * above. Registered with coordinates and graded against neighbours,
    * so they belong on this map as dots rather than in a side panel. */
   const edge = useEdgeStanding()
-  const live = useLive(import.meta.env.VITE_API_BASE ?? '')
+  const live = useLive(import.meta.env.VITE_API_BASE ?? '',
+                       node.data?.name ?? '')
 
   const [net, setNet] = useSticky<Net>('net', 'sim')
   const [base, setBase] = useSticky<BaseKey>('base', 'imagery')
@@ -231,6 +233,10 @@ export function NetworkRoute() {
   const [windowH, setWindowH] = useSticky('windowH', 0)   // 0 = the whole record
   const [hour, setHour] = useSticky('hour', 0)
   const [selected, setSelected] = useSticky<string | null>('selected', null)
+
+  /** The hardware node being looked at, if the selection is one. */
+  const edgePicked = (selected && edge.data?.stations[selected]) || null
+  const edgeSeries = useEdgeSeries(edgePicked ? edgePicked.id : null)
 
   /* FINDING A STATION IN 344 OF THEM.
    *
@@ -438,6 +444,38 @@ export function NetworkRoute() {
    * than letting the replay slider look as though it governs a device that is
    * reporting right now. */
   const nodeSelected = Boolean(node.data && selected === node.data.id)
+
+  /* THE HARDWARE NODE, DRESSED AS A STATION SO THE STATION CHART CAN DRAW IT.
+   *
+   * StationChannels takes a SimStation and a per-frame overlay. The node is
+   * not in the simulated export -- that is the point of it -- so it borrows
+   * the shape of one and supplies its own identity, exactly as the feeder does
+   * above, and its readings are placed on the shared frame axis. */
+  const edgeStanding = edgePicked ? edge.data?.standing[edgePicked.id] : undefined
+  const edgeStation: SimStation | null = edgePicked && sim.data
+    ? { ...sim.data.stations[0], id: edgePicked.id, name: edgePicked.name,
+        state: edgePicked.state, lat: edgePicked.lat, lon: edgePicked.lon,
+        elev: edgePicked.elev, fault: null }
+    : null
+  /** The fetched series as the frame-indexed overlay the chart wants. */
+  const edgeLive = useMemo(() => {
+    const d = edgeSeries.data
+    if (!d) return undefined
+    const put = (vals: (number | null)[]) => {
+      const out: (number | null)[] = []
+      d.frames.forEach((f, i) => { out[f] = vals[i] ?? null })
+      return out
+    }
+    return {
+      byFrame: { temp: put(d.reported.temp), rh: put(d.reported.rh),
+                 pres: put(d.reported.pres) },
+      // Per-frame bands are not stored with the readings, so the trace is
+      // drawn uncoloured rather than coloured from a guess. The band for the
+      // node as a whole is on the badge above, where it is a fact.
+      grades: [] as string[],
+      upto: d.frames.length ? d.frames[d.frames.length - 1] : 0,
+    }
+  }, [edgeSeries.data])
 
 
 
@@ -801,10 +839,69 @@ export function NetworkRoute() {
       {net === 'sim' && (
         <details className="mt-6 rounded-[--radius-lg] border border-rule bg-surface" open>
           <summary className={SUMMARY}>
-            {nodeSelected && node.data ? node.data.name
+            {edgePicked ? edgePicked.name
+              : nodeSelected && node.data ? node.data.name
               : chosen ? chosen.name : 'Selected station'}
           </summary>
-          {nodeSelected && node.data && sim.data
+          {edgePicked && sim.data
+            ? (<>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 pb-3 text-sm text-ink-2">
+                  <span className="tnum font-mono text-xs text-ink-3">
+                    {edgePicked.state} · {edgePicked.elev} m ·{' '}
+                    {Math.abs(edgePicked.lat).toFixed(2)}N{' '}
+                    {Math.abs(edgePicked.lon).toFixed(2)}E
+                  </span>
+                  <span className="badge" style={{ color: 'var(--ink-2)' }}>
+                    hardware node
+                  </span>
+                  {edgeStanding && (
+                    <span className="badge" style={{
+                      color: edgeStanding.band === 'fault' ? 'var(--oxide)'
+                        : edgeStanding.band === 'watch' ? 'var(--amber)'
+                        : 'var(--ink-2)' }}>
+                      {edgeStanding.band === 'learning'
+                        ? `learning (${edgeStanding.readings}/40)`
+                        : `${edgeStanding.band} · ${edgeStanding.z.toFixed(1)}σ`}
+                    </span>
+                  )}
+                  <span className="tnum ml-auto font-mono text-xs text-ink-3">
+                    {edgeSeries.data ? `${edgeSeries.data.n} readings` : 'loading'}
+                  </span>
+                </div>
+
+                {/* The SAME chart the other 344 use, so the node is read the
+                    way every other station is read. Its trace is drawn from
+                    what it actually sent; the grey line underneath is what its
+                    neighbours were reading at those frames, which is the
+                    comparison the verdict is made of. */}
+                <StationChannels
+                  sim={sim.data}
+                  s={edgeStation!}
+                  hour={hour}
+                  windowH={windowH}
+                  live={edgeLive} />
+
+                <p className="small muted">
+                  This node measures its own readings on an ESP32 and posts
+                  them to <code>/api/ingest</code> over TLS, through the same
+                  door the rest of the network uses. Each sample is one frame
+                  of the record —{' '}
+                  <strong>
+                    {edgeSeries.data?.minutes_per_frame ?? 30} simulated minutes
+                  </strong>
+                  {' '}— and the pen has reached{' '}
+                  <strong>
+                    {edgeSeries.data?.frames.length
+                      ? edgeSeries.data.frames[edgeSeries.data.frames.length - 1]
+                      : 0} of {sim.data.n_fields}
+                  </strong>{' '}frames. Nothing to the right of the pen has been
+                  measured, so nothing is drawn there. It is screened against
+                  the WMO rails on the board, screened again on arrival, and
+                  differenced against{' '}
+                  {edgeStanding?.neighbours ?? 6} simulated neighbours.
+                </p>
+              </>)
+            : nodeSelected && node.data && sim.data
             ? (<>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 pb-3 text-sm text-ink-2">
                   <span className="tnum font-mono text-xs text-ink-3">

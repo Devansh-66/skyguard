@@ -186,6 +186,17 @@ function connect() {
     }
     if (m.type !== 'reading') return
 
+    // EVERY READING GOES IN THE LEDGER; ONLY ONE STATION MOVES THE PEN.
+    //
+    // Both the feeder and the ESP32 post through /api/ingest and are published
+    // on this socket. Writing both into byFrame drew two stations as one trace
+    // -- and worse, let a hardware node in Maharashtra drive the clock for a
+    // page showing a feeder in Gujarat.
+    if (traceStation && m.station !== traceStation) {
+      push({ rows: [m, ...state.rows].slice(0, KEEP) })
+      return
+    }
+
     const f = (m as unknown as { frame?: number }).frame
     const p = (m as unknown as { pass?: number }).pass ?? 0
     const next: Partial<LiveState> = {
@@ -239,10 +250,23 @@ function connect() {
 }
 
 /** Subscribe to the feed. */
-export function useLive(apiBase = ''): LiveState {
+/** Whose readings drive the trace and the clock.
+ *
+ *  Empty means "the first station we hear from", which is what the single-node
+ *  build did implicitly. Set explicitly by the page once it knows the feeder's
+ *  name, because the socket now carries hardware nodes too. */
+let traceStation = ''
+
+export function useLive(apiBase = '', station = ''): LiveState {
   const [, force] = useState(0)
   useEffect(() => {
     base = apiBase
+    if (station && station !== traceStation) {
+      // A different station owns the pen: the frames on the sheet are not its
+      // readings, so start a fresh one rather than continuing someone else's.
+      traceStation = station
+      resetTrace()
+    }
     const fn = () => force((n) => n + 1)
     subs.add(fn)
     connect()
@@ -254,7 +278,7 @@ export function useLive(apiBase = ''): LiveState {
         if (sock) { sock.close(); sock = null }
       }
     }
-  }, [apiBase])
+  }, [apiBase, station])
   return state
 }
 

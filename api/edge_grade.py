@@ -21,14 +21,21 @@ so a node is registered here with coordinates before it can be judged; anything
 posting to /api/ingest without an entry is still screened, stored and shown,
 just not graded. That is the honest degradation: less capable, not broken.
 
-WHY THE WOKWI NODE IS AT PUNE AND THE FEEDER IS AT GANDHINAGAR
+WHERE THE NODES STAND, AND WHY NOT ON TOP OF ANYTHING
 
 They are deliberately different stations in different places. The feeder is a
 stand-in that generates its readings; the Wokwi node is a device that measures
 them. Putting both at the same coordinates would make two rows that look like
 one station reporting twice, and the first question anyone asks about the demo
-is which of the two they are looking at. Pune also has the denser support --
-ten simulated neighbours within 120 km against Gandhinagar's six.
+is which of the two they are looking at.
+
+The first placement put this node 1.6 km from the simulated PUNE, which is
+realistic -- a new AWS does go up beside existing ones -- and unreadable: at
+every zoom the two dots drew on top of each other, so the marker that is
+supposed to say "this is the hardware" was hidden behind a station. Moved
+north-west into the Ghats, where the nearest simulated station is 45 km away
+and the neighbour support is actually better: eleven within 120 km against
+Pune's ten.
 """
 from __future__ import annotations
 
@@ -47,9 +54,9 @@ EDGE_STATIONS: dict[str, dict] = {
         "name": "WOKWI-ESP32",
         "label": "SkyGuard node (Wokwi)",
         "state": "Maharashtra",
-        "lat": 18.5204,
-        "lon": 73.8567,
-        "elev": 560,
+        "lat": 18.9400,
+        "lon": 73.8500,
+        "elev": 600,
     },
 }
 

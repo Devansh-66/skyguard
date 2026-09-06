@@ -154,6 +154,29 @@ export function useEdgeStanding() {
   })
 }
 
+/** One hardware node's trace: what it reported, and what its neighbours say
+ *  it should have reported, on the shared record axis.
+ *
+ *  Fetched rather than accumulated from the socket, because the node's history
+ *  outlives the page -- a board reporting for an hour should draw an hour on
+ *  first paint. Only fetched for the node actually being looked at. */
+export function useEdgeSeries(station: string | null) {
+  return useQuery({
+    queryKey: ['edge', 'series', station] as const,
+    queryFn: ({ signal }) => get<{
+      station: string
+      n: number
+      frames: number[]
+      reported: { temp: (number | null)[]; rh: (number | null)[]; pres: (number | null)[] }
+      expected: { temp: (number | null)[]; rh: (number | null)[]; pres: (number | null)[] }
+      minutes_per_frame: number
+    }>(`/api/edge/series?station=${encodeURIComponent(station!)}`, signal),
+    enabled: Boolean(station),
+    refetchInterval: 5000,
+    retry: false,
+  })
+}
+
 export function useStatesGeo() {
   return useQuery({
     queryKey: keys.map('states'),

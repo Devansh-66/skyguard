@@ -52,7 +52,9 @@ CREATE TABLE IF NOT EXISTS readings (
   pres      REAL,
   node_flags   TEXT,                   -- what the node's own screen found
   server_flags TEXT,                   -- what this server found
-  accepted  INTEGER NOT NULL
+  accepted  INTEGER NOT NULL,
+  frame     INTEGER,                   -- which frame of the shared record
+  pass_no   INTEGER                    -- which traverse of it
 );
 -- The query this table exists to answer is "what has station X sent lately",
 -- and without this index that is a full scan the moment the table is large.
@@ -66,7 +68,7 @@ CREATE INDEX IF NOT EXISTS readings_station_t ON readings (station, t DESC);
 # not work on every machine that already has data -- including the deployed
 # Space. PRAGMA user_version is the version marker; each step is idempotent and
 # additive, and no step ever drops a column.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def _migrate(c: sqlite3.Connection) -> None:
@@ -90,6 +92,18 @@ def _migrate(c: sqlite3.Connection) -> None:
             ("reboot_count",  "INTEGER"),
             ("replayed",      "INTEGER"),   # arrived from the store-and-forward spool
         ):
+            if name not in existing:
+                c.execute(f"ALTER TABLE readings ADD COLUMN {name} {decl}")
+    if have < 3:
+        # WHICH MOMENT OF THE RECORD A READING IS FOR.
+        #
+        # Kept because it is not derivable afterwards. A node's trace is drawn
+        # on the shared frame axis, and without this column the only way to
+        # place a stored reading is to assume frame == seq -- which is true
+        # only until a node reboots, replays a spool, or wraps the record.
+        cols = c.execute("PRAGMA table_info(readings)").fetchall()
+        existing = {row[1] for row in cols}
+        for name, decl in (("frame", "INTEGER"), ("pass_no", "INTEGER")):
             if name not in existing:
                 c.execute(f"ALTER TABLE readings ADD COLUMN {name} {decl}")
     c.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -129,8 +143,9 @@ def record(rec: dict) -> None:
                 "INSERT INTO readings (t, station, seq, temp, rh, pres,"
                 " node_flags, server_flags, accepted,"
                 " vbat_mv, log_temp_c100, flat_pct, gap_pct,"
-                " selftest_mask, health, boot_id, reboot_count, replayed)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " selftest_mask, health, boot_id, reboot_count, replayed,"
+                " frame, pass_no)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (rec["t"], rec["station"], rec.get("seq"),
                  rec.get("temp"), rec.get("rh"), rec.get("pres"),
                  ",".join(rec.get("node_flags") or []),
@@ -140,7 +155,8 @@ def record(rec: dict) -> None:
                  rec.get("flat_pct"), rec.get("gap_pct"),
                  rec.get("selftest_mask"), rec.get("health"),
                  rec.get("boot_id"), rec.get("reboot_count"),
-                 1 if rec.get("replayed") else 0))
+                 1 if rec.get("replayed") else 0,
+                 rec.get("frame"), rec.get("pass_no")))
             c.commit()
     except Exception:
         pass
@@ -154,17 +170,18 @@ def history(station: str | None = None, limit: int = 200) -> list[dict]:
             if station:
                 rows = c.execute(
                     "SELECT t, station, seq, temp, rh, pres, node_flags,"
-                    " server_flags, accepted FROM readings WHERE station = ?"
+                    " server_flags, accepted, frame, pass_no FROM readings"
+                    " WHERE station = ?"
                     " ORDER BY t DESC LIMIT ?", (station, limit)).fetchall()
             else:
                 rows = c.execute(
                     "SELECT t, station, seq, temp, rh, pres, node_flags,"
-                    " server_flags, accepted FROM readings"
+                    " server_flags, accepted, frame, pass_no FROM readings"
                     " ORDER BY t DESC LIMIT ?", (limit,)).fetchall()
     except Exception:
         return []
     cols = ("t", "station", "seq", "temp", "rh", "pres",
-            "node_flags", "server_flags", "accepted")
+            "node_flags", "server_flags", "accepted", "frame", "pass_no")
     out = []
     for r in rows:
         d = dict(zip(cols, r))

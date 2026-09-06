@@ -156,18 +156,22 @@ def _decode(sim: dict, s: dict, frame: int):
 # graded against its neighbours like every other station, and the only thing
 # that makes it special is that its numbers arrive instead of being loaded.
 #
-# Gandhinagar: six simulated neighbours within 120 km and fourteen within 250.
-# That is not decoration -- neighbour differencing needs three inside 250 km, so
-# a live station in the middle of nowhere could be watched forever and never
-# judged. The nearest are the simulated GANDHINAGAR at 8 km and AHMADABAD at
-# 17 km, which is what a new AWS beside existing ones actually looks like.
+# Central Gujarat: six simulated neighbours within 120 km and thirteen within
+# 250. That is not decoration -- neighbour differencing needs three inside
+# 250 km, so a live station in the middle of nowhere could be watched forever
+# and never judged.
+#
+# It used to sit 8 km from the simulated GANDHINAGAR, which is what a new AWS
+# beside existing ones actually looks like and is also two dots in the same
+# place on a map. Moved south to Kheda district: nearest simulated station
+# 45 km, same neighbour support, and the marker is now its own.
 LIVE_STATION = {
     "id": "ESP32-01",
     "name": "SKYGUARD ESP32",
     "state": "Gujarat",
-    "lat": 23.2156,
-    "lon": 72.6369,
-    "elev": 81,
+    "lat": 22.7300,
+    "lon": 72.3900,
+    "elev": 30,
 }
 
 # What is wrong with the node, if anything. Set from the dashboard so a fault
