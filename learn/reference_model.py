@@ -215,6 +215,59 @@ def build_matrix(d: Data, ch: str, nb_idx: np.ndarray, nb_dist: np.ndarray,
     return X, y, step_of_row, station_of_row, names, anom
 
 
+def row_features(d: Data, ch: str, nb_idx: np.ndarray, nb_dist: np.ndarray,
+                 clim: np.ndarray, station: int, step: int) -> np.ndarray:
+    """The same feature vector as build_matrix, for ONE station at ONE step.
+
+    Serving does not need the other 990,719 rows, and materialising them costs
+    over 300 MB across three channels. This must stay in step with
+    build_matrix; tests/test_reference_row.py asserts that it does, because two
+    implementations of one feature set is a bug that hides until the model is
+    quietly being served the wrong numbers.
+    """
+    x = d.vals[ch]
+    hod = (step * STEP_MIN // 60) % 24
+    doy = step * STEP_MIN / 1440.0
+    k = nb_idx.shape[1]
+
+    nb = np.array([x[step, j] - clim[hod, j] for j in nb_idx[station]],
+                  dtype=np.float64)
+    nb[np.isnan(nb_dist[station])] = np.nan
+
+    with np.errstate(invalid="ignore"):
+        nb_med = np.nanmedian(nb) if np.isfinite(nb).any() else np.nan
+        nb_mad = (np.nanmedian(np.abs(nb - nb_med))
+                  if np.isfinite(nb).any() else np.nan)
+        n = float(np.sum(np.isfinite(nb)))
+        srt = np.sort(nb)
+        trim = (np.nanmean(srt[1:int(n) - 1])
+                if 3 <= n <= k and int(n) - 1 > 1 else np.nan)
+        near3 = np.nanmedian(nb[:3]) if np.isfinite(nb[:3]).any() else np.nan
+        mean_km = np.nanmean(nb_dist[station])
+        nb_elev = np.nanmean(np.where(np.isnan(nb_dist[station]), np.nan,
+                                      d.elev[nb_idx[station]]))
+
+    return np.array([
+        nb_med, trim, nb_mad, n, near3, mean_km, nb_dist[station][0],
+        math.sin(2 * math.pi * hod / 24), math.cos(2 * math.pi * hod / 24),
+        math.sin(2 * math.pi * doy / 365.25), math.cos(2 * math.pi * doy / 365.25),
+        d.elev[station], d.elev[station] - nb_elev,
+    ], dtype=np.float64)[None, :]
+
+
+FEATURE_NAMES = ["nb_median", "nb_trimmed_mean", "nb_spread", "nb_count",
+                 "nb_median_near3", "nb_mean_km", "nearest_km",
+                 "hour_sin", "hour_cos", "season_sin", "season_cos",
+                 "elev_m", "elev_above_nb"]
+
+
+def climatology_for(d: Data, ch: str, split: int) -> np.ndarray:
+    """The training-window climatology a served row needs."""
+    steps = np.arange(d.n_steps)
+    hod = (steps * STEP_MIN // 60) % 24
+    return climatology(d.vals[ch], hod, split)
+
+
 def robust_sigma(r: np.ndarray) -> float:
     r = r[np.isfinite(r)]
     if r.size == 0:

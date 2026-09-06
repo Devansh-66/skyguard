@@ -31,6 +31,7 @@ import { Badge } from '@/components/ui/badge'
 import { Callout } from '../components/Callout'
 import { ActionCard, AgentVerdicts, CaseProgress } from '../components/AgentPanel'
 import { ExplainMath } from '../components/ExplainMath'
+import { ReferenceExplain } from '../components/ReferenceExplain'
 import { PanelAttribution } from '../components/PanelAttribution'
 import { DecisionTrace } from '../components/DecisionTrace'
 import { PanelBehaviour } from '../components/PanelBehaviour'
@@ -606,6 +607,14 @@ function SimDetail({ id, sim, a }: {
   const injected = st.fault
   const onThisChannel = injected && injected.channel === ch
 
+  /* WHICH MOMENT THE MODEL IS ASKED ABOUT.
+   *
+   * The last step of the episode -- where the case stands now, or where it
+   * stood when it closed. `from` and `hours` are both counted in grade-string
+   * characters, and one character is one fifteen-minute step, which is the
+   * same index the model was trained on. */
+  const step = it ? (it.to ?? it.from + Math.max(0, it.hours - 1)) : 0
+
   return (
     <article className="flex flex-col gap-5">
       <header className="mb-5">
@@ -645,6 +654,19 @@ function SimDetail({ id, sim, a }: {
       <SectionLabel>This station against its neighbours</SectionLabel>
       <RegionCompare station={stationId} channel={ch as 'temp' | 'rh' | 'pres'}
                      from={it?.from} to={it?.to} />
+
+      {/* THE LEARNED REFERENCE, BESIDE THE VERDICT RATHER THAN INSIDE IT.
+        *
+        * Everything above was decided by differencing against the median of
+        * six neighbours. This is the same reading put to a model that predicts
+        * what the station should have read, with TreeSHAP saying which of its
+        * inputs made that number -- the one question the panel's own Shapley
+        * values cannot answer, because a median has no features to attribute
+        * to. It renders nothing at all where the model has not been trained. */}
+      <SectionLabel>What a learned reference expected, and why</SectionLabel>
+      <ReferenceExplain station={st.name}
+                        channel={ch as 'temp' | 'rh' | 'pres'}
+                        step={step} />
 
       {/* Marking our own homework, kept last and clearly separated: the panel
           never saw any of this. */}

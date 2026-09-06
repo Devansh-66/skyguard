@@ -167,6 +167,13 @@ app.include_router(orchestrator_router)
 # for why the two frontends differ on this.
 from api.mapdata import router as mapdata_router  # noqa: E402
 app.include_router(mapdata_router)
+
+# The learned reference and its TreeSHAP account of itself. Imported after the
+# others because it is the only router that may legitimately fail to serve --
+# the model files are optional at runtime and the endpoint says so rather than
+# taking the process down with it.
+from api.reference import router as reference_router  # noqa: E402
+app.include_router(reference_router)
 # /api/model is withdrawn. It served a classifier trained on a corpus this
 # project no longer carries. It returns when one is trained on the simulated
 # network, where the injected truth is known by construction.
