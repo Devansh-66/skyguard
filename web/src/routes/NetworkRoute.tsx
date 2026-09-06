@@ -386,10 +386,65 @@ export function NetworkRoute() {
     ? `${Math.max(1, Math.round(live.grade.openFrames / 2))} h`
     : null
 
+  /* HARDWARE NODES IN THE LEDGER.
+   *
+   * An episode that never reaches the alert list is an episode nobody reads.
+   * The feeder gets a row below from its socket grade; these get one from the
+   * polled standing, which is the same verdict arriving by a different route.
+   *
+   * `from` is a RECORD STEP for a simulated row. A node carries its duration
+   * explicitly instead, for the same reason the feeder does: subtracting a
+   * frame index from a step index is where "open -4 h" came from. */
+  const edgeAlerts = useMemo(() => {
+    // openLabel is carried on top of an Alert rather than in it: only rows
+    // that own a wall clock have one, and widening the shared Alert type for
+    // two of them would put a field on 344 rows that can never fill it.
+    const out: (typeof ledger[number] & { openLabel?: string | null })[] = []
+    for (const st of Object.values(edge.data?.stations ?? {})) {
+      const g = edge.data?.standing[st.id]
+      if (!g || (g.band !== 'watch' && g.band !== 'fault')) continue
+      if (!sim.data) continue
+      out.push({
+        id: 'edge:' + st.id,
+        s: { ...sim.data.stations[0], id: st.id, name: st.name,
+             state: st.state, lat: st.lat, lon: st.lon, elev: st.elev,
+             fault: null },
+        ch: 'temp' as const,
+        from: g.frame,
+        to: null,
+        openLabel: g.open_seconds != null
+          ? `${Math.max(1, Math.round(g.open_seconds / 60))} min` : null,
+        band: (g.band === 'fault' ? 'FAULT' : 'WATCH') as Band,
+        hours: 0,
+        status: 'OPEN' as const,
+        // Open by definition: a closed case is one the node stopped being in,
+        // and the standing only ever reports the band it is in now.
+        closedAt: null,
+      })
+    }
+    return out
+  }, [edge.data, sim.data])
+
+  /** Hardware nodes that survive the index's search box and flagged filter.
+   *  Same two rules the 344 obey, so the list does not quietly answer
+   *  "flagged only" without a node that is in fault. */
+  const edgeRows = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return Object.values(edge.data?.stations ?? {})
+      .map((st) => ({ st, g: edge.data?.standing[st.id] }))
+      .filter(({ st, g }) => {
+        if (q && !(`${st.name} ${st.state}`.toLowerCase().includes(q))) return false
+        if (flaggedOnly && !(g && (g.band === 'watch' || g.band === 'fault'))) return false
+        return true
+      })
+  }, [edge.data, query, flaggedOnly])
+
   const ledgerWithNode = useMemo(() => {
     const b = live.grade?.band
-    if (!nodeStation || !b || (b !== 'watch' && b !== 'fault')) return ledger
-    return [{
+    if (!nodeStation || !b || (b !== 'watch' && b !== 'fault')) {
+      return edgeAlerts.length ? [...edgeAlerts, ...ledger] : ledger
+    }
+    return [...edgeAlerts, {
       id: 'live:' + nodeStation.id,
       s: nodeStation,
       ch: 'temp' as const,
@@ -1031,7 +1086,7 @@ export function NetworkRoute() {
             </label>
             {(query || flaggedOnly) && (
               <span className="tnum font-mono text-xs text-ink-3">
-                {indexRows.length} of {graded.length}
+                {indexRows.length + edgeRows.length} of {graded.length + Object.keys(edge.data?.stations ?? {}).length}
               </span>
             )}
           </div>
@@ -1080,6 +1135,27 @@ export function NetworkRoute() {
                     </td>
                   </tr>
                 )}
+                {edgeRows.map(({ st, g }) => (
+                  <tr key={st.id} tabIndex={0}
+                      className={TROW + (st.id === selected ? ' bg-brand-soft' : '')}
+                      onClick={() => setSelected(st.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') setSelected(st.id) }}>
+                    <td className={TD + ' font-medium'}>{st.name}</td>
+                    <td className={TD + ' text-ink-2'}>{st.state}</td>
+                    <td className={TD + ' tnum text-right font-mono text-xs text-ink-2'}>
+                      {st.elev} m
+                    </td>
+                    <td className={TD}>
+                      <span className="badge" style={{ color: 'var(--ink-2)' }}>node</span>
+                      {g && g.band !== 'ok' && g.band !== 'learning' && (
+                        <span className="badge" style={{
+                          color: HUE[g.band === 'fault' ? 'FAULT' : 'WATCH']!,
+                          borderColor: HUE[g.band === 'fault' ? 'FAULT' : 'WATCH']!,
+                        }}>{g.band}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
                 {indexRows.map(({ s, band }) => (
                   <tr key={s.id} tabIndex={0}
                       className={TROW + (s.id === selected ? ' bg-brand-soft' : '')}
@@ -1103,7 +1179,10 @@ export function NetworkRoute() {
                     </td>
                   </tr>
                 ))}
-                {!indexRows.length && (
+                {/* The empty state counts the hardware rows too. It used to
+                    count only the simulated ones, so searching for the node
+                    showed its row and "nothing matches" underneath it. */}
+                {!indexRows.length && !edgeRows.length && (
                   <tr><td colSpan={4} className="muted small">
                     Nothing matches. {flaggedOnly && 'Nothing is flagged at this hour. '}
                     {query && `No station or state contains "${query}".`}

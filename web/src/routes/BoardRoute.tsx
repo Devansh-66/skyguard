@@ -225,7 +225,9 @@ export function BoardRoute() {
       </aside>
 
       <section className="min-w-0">
-        {selected === 'live' ? (
+        {selected.startsWith('edge:') ? (
+          <EdgeDetail id={selected.slice(5)} a={verdictOf(selected)} />
+        ) : selected === 'live' ? (
           <LiveDetail a={verdictOf('live')} />
         ) : selected.startsWith('sim:') ? (
           <SimDetail id={selected} sim={sim.data} a={verdictOf(selected)} />
@@ -474,6 +476,60 @@ function simEvidence(it: SimItem): EvidenceIn {
 }
 
 /** The live node, judged by the same panel as everything else. */
+/** One hardware node's case. Same sections as the feeder's, in the same
+ *  order, because the difference between them is where the readings come from
+ *  and nothing a technician does about it. */
+function EdgeDetail({ id, a }: { id: string; a: Assessment | undefined }) {
+  const edge = useEdgeStanding()
+  const st = edge.data?.stations[id]
+  const g = edge.data?.standing[id]
+  if (!st) return <p className="text-ink-3">Waiting for the node…</p>
+  return (
+    <article className="flex flex-col gap-5">
+      <header className="mb-5">
+        <h2 className="text-2xl font-semibold tracking-tight">{st.name}</h2>
+        <p className="mt-1 font-mono text-xs text-ink-3">
+          Temperature · {st.state} · {st.elev} m · {st.label}
+          {g ? ` · ${g.readings} readings` : ''}
+        </p>
+      </header>
+      {a ? <ActionCard a={a} /> : <p className="text-sm text-ink-3">Asking the panel…</p>}
+      <SectionLabel>Why the panel says so</SectionLabel>
+      {a && <AgentVerdicts a={a} />}
+
+      {a?.attribution && (
+        <>
+          <SectionLabel>How much each agent mattered</SectionLabel>
+          <PanelAttribution at={a.attribution} a={a} />
+        </>
+      )}
+
+      {a?.trace?.length ? <DecisionTrace a={a} /> : null}
+
+      {/* The arithmetic behind the number, with the node's own values. Only
+          drawn where they exist -- a worked example with an invented figure in
+          it is worse than none. */}
+      {g && (
+        <>
+          <SectionLabel>How that number was reached</SectionLabel>
+          <ExplainMath
+            reading={g.reported.temp}
+            neighbour={g.expected.temp}
+            z={g.z}
+            sigma={g.z ? Math.abs(g.residual / g.z) : null}
+            unit="°C"
+          />
+          <p className="text-xs text-ink-3">
+            Measured on an ESP32 and posted to <code>/api/ingest</code> over
+            TLS, then differenced against {g.neighbours} simulated neighbours at
+            the same frame of the record.
+          </p>
+        </>
+      )}
+    </article>
+  )
+}
+
 function LiveDetail({ a }: { a: Assessment | undefined }) {
   const node = useLiveStanding()
   if (!node.data) return <p className="text-ink-3">Waiting for the node…</p>
