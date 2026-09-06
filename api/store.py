@@ -192,6 +192,29 @@ def history(station: str | None = None, limit: int = 200) -> list[dict]:
     return out
 
 
+def forget(station: str) -> int:
+    """Delete one station's readings. Returns how many were removed.
+
+    Only ever called for a station whose record is being deliberately restarted
+    -- a scenario replayed again. Without it a second replay draws on top of the
+    first: same frames, two sets of values, and a trace that appears to double
+    back on itself.
+
+    There is no bulk delete and there should not be. The observation record is
+    the archive; this exists for a demo station that is explicitly being reset,
+    which is a different thing from data being tidied away.
+    """
+    try:
+        with _lock:
+            c = _connect()
+            n = c.execute("DELETE FROM readings WHERE station = ?",
+                          (station,)).rowcount
+            c.commit()
+            return int(n or 0)
+    except Exception:
+        return 0
+
+
 def stats() -> dict:
     """How much is stored, and where."""
     try:

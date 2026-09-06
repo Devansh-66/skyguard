@@ -174,6 +174,14 @@ app.include_router(mapdata_router)
 # taking the process down with it.
 from api.reference import router as reference_router  # noqa: E402
 app.include_router(reference_router)
+
+# Replaying the node's scenario on demand. Deliberately not a startup task: the
+# feeder beside it does not start by itself either, for the same reason -- a
+# record that begins replaying the moment someone opens the page is one nobody
+# asked for. A rebuild clears the readings and that is what a reset looks like;
+# this is the one call that brings it back.
+from api.edge_replay import router as edge_replay_router  # noqa: E402
+app.include_router(edge_replay_router)
 # /api/model is withdrawn. It served a classifier trained on a corpus this
 # project no longer carries. It returns when one is trained on the simulated
 # network, where the injected truth is known by construction.

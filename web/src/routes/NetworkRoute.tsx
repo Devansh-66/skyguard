@@ -24,7 +24,7 @@
  *   reads on satellite imagery and disappears on a pale one.
  */
 import { GeoJSON, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   useBoundaryGeo, useEdgeSeries, useEdgeStanding, useLiveStation, useSimMap,
   useStatesGeo,
@@ -247,6 +247,9 @@ export function NetworkRoute() {
    * "Flagged only" is the other question this list is asked -- what needs
    * attention -- and answering it by expanding 33 groups and scanning is not
    * answering it. */
+  /* Not sticky: whether a replay is in flight is about this second, not a
+     preference to remember for the next visit. */
+  const [replaying, setReplaying] = useState(false)
   const [query, setQuery] = useSticky('query', '')
   const [flaggedOnly, setFlaggedOnly] = useSticky('flaggedOnly', false)
   /** How the index is ordered. State first, because that is how a person who
@@ -934,10 +937,41 @@ export function NetworkRoute() {
                         : `${edgeStanding.case} · ${edgeStanding.z.toFixed(1)}σ`}
                     </span>
                   )}
+                  {/* THE ONE CONTROL THIS NODE NEEDS.
+                      A rebuild clears the readings -- that is what a reset
+                      looks like on an ephemeral host -- and this is the way
+                      back. It clears first: replaying without clearing draws
+                      the same frames twice and the trace appears to double
+                      back on itself. */}
+                  <button type="button"
+                    className="rounded-[--radius-md] border border-rule px-2.5 py-1
+                               font-mono text-[11px] uppercase tracking-wider
+                               text-ink-2 hover:bg-sunk
+                               focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]
+                               disabled:opacity-50"
+                    disabled={replaying}
+                    onClick={async () => {
+                      setReplaying(true)
+                      try {
+                        await liveCommand(import.meta.env.VITE_API_BASE ?? '',
+                          `/api/edge/replay?station=${edgePicked.id}&rate=25`)
+                      } catch { /* the panel already shows the count */ }
+                      finally { setReplaying(false) }
+                    }}>
+                    {replaying ? 'replaying…' : 'replay scenario'}
+                  </button>
                   <span className="tnum ml-auto font-mono text-xs text-ink-3">
                     {edgeSeries.data ? `${edgeSeries.data.n} readings` : 'loading'}
                   </span>
                 </div>
+                {edgeSeries.data && edgeSeries.data.n === 0 && (
+                  <p className="small muted">
+                    This node has never reported to this server. The readings
+                    live on the host's disk, which a rebuild clears &mdash; so
+                    a fresh deployment starts empty until either an ESP32 in
+                    Wokwi posts to it or the scenario above is replayed.
+                  </p>
+                )}
 
                 {/* The SAME chart the other 344 use, so the node is read the
                     way every other station is read. Its trace is drawn from
