@@ -60,7 +60,6 @@ dashboard/console.html
 
 # Basemap tile cache — regenerable, sometimes large
 data/tilecache/
-docs/SkyGuard-Blueprint.pdf
 data/uscrn_tx/
 
 # ---- generated, and it was all committed once ----
