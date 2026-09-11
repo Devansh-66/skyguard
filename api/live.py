@@ -389,8 +389,20 @@ async def _run(per_second: float, limit: int) -> None:
     # The fault clock rides on the same counter, so a drift that was halfway
     # developed stays halfway developed rather than starting over.
     sent = int(_state.get("sent") or 0)
+
+    # THE LIMIT IS PER RUN, NOT PER LIFETIME.
+    #
+    # `sent` survives stop/start on purpose -- that is what makes Play a resume.
+    # Comparing the cap against that lifetime counter meant a process that had
+    # already sent 100,000 readings could never start again: Play returned
+    # started=true, the loop condition was false on entry, and the button was
+    # dead. Seen on the deployed Space after days of uptime, and never locally,
+    # where the process restarts often enough that the counter stays small.
+    # A station that has reported for a week is not thereby forbidden from
+    # reporting tomorrow.
+    stop_at = sent + int(limit)
     try:
-        while _state["running"] and sent < limit:
+        while _state["running"] and sent < stop_at:
             # HOW FAST THE WEATHER MOVES.
             #
             # This was one frame per reading, and a frame is thirty simulated
