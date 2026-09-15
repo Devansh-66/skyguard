@@ -41,6 +41,12 @@ models/**
 !models/reference/
 !models/reference/*.txt
 !models/reference/report.json
+# The edge autoencoder experiment: the int8 .tflite a node would run (13 KB),
+# and the measurements that say whether it should. Kept for the same reason.
+!models/edge/
+!models/edge/*.tflite
+!models/edge/*.keras
+!models/edge/report.json
 
 # Old project â€” superseded, kept locally for reference only
 SIH2026_Disaster_Engine_Master_Blueprint.pdf
@@ -88,3 +94,4 @@ data/skyguard.db*
 # PlatformIO build output: toolchain artefacts, ~1 MB binaries, regenerated
 # by `pio run`. Never source.
 .pio/
+catboost_info/

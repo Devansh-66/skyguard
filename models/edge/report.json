@@ -1,0 +1,137 @@
+{
+  "windows_train": 193272,
+  "windows_test": 82836,
+  "cnn_params": 1143,
+  "cnn_fit_s": 46.4,
+  "false_alarm_rate": 0.01,
+  "faults": {
+    "noise_burst": {
+      "cnn_auc": 1.0,
+      "rules_auc": 1.0,
+      "cnn_detect": 1.0,
+      "rules_detect": 1.0
+    },
+    "spike": {
+      "cnn_auc": 1.0,
+      "rules_auc": 1.0,
+      "cnn_detect": 1.0,
+      "rules_detect": 1.0
+    },
+    "stiction": {
+      "cnn_auc": 0.229,
+      "rules_auc": 1.0,
+      "cnn_detect": 0.0,
+      "rules_detect": 1.0
+    },
+    "step": {
+      "cnn_auc": 0.998,
+      "rules_auc": 1.0,
+      "cnn_detect": 0.97,
+      "rules_detect": 0.996
+    },
+    "dropout_hold": {
+      "cnn_auc": 0.323,
+      "rules_auc": 1.0,
+      "cnn_detect": 0.002,
+      "rules_detect": 1.0
+    }
+  },
+  "sweep": {
+    "noise_burst@1.5": {
+      "amp": 1.5,
+      "cnn_auc": 0.967,
+      "rules_auc": 0.945,
+      "cnn_detect": 0.772,
+      "rules_detect": 0.63
+    },
+    "noise_burst@2.0": {
+      "amp": 2.0,
+      "cnn_auc": 0.991,
+      "rules_auc": 0.988,
+      "cnn_detect": 0.932,
+      "rules_detect": 0.898
+    },
+    "noise_burst@3.0": {
+      "amp": 3.0,
+      "cnn_auc": 0.999,
+      "rules_auc": 0.999,
+      "cnn_detect": 0.993,
+      "rules_detect": 0.993
+    },
+    "spike@3.0": {
+      "amp": 3.0,
+      "cnn_auc": 0.697,
+      "rules_auc": 0.723,
+      "cnn_detect": 0.065,
+      "rules_detect": 0.106
+    },
+    "spike@4.0": {
+      "amp": 4.0,
+      "cnn_auc": 0.815,
+      "rules_auc": 0.909,
+      "cnn_detect": 0.17,
+      "rules_detect": 0.438
+    },
+    "spike@6.0": {
+      "amp": 6.0,
+      "cnn_auc": 0.968,
+      "rules_auc": 0.999,
+      "cnn_detect": 0.663,
+      "rules_detect": 0.98
+    },
+    "step@1.0": {
+      "amp": 1.0,
+      "cnn_auc": 0.514,
+      "rules_auc": 0.465,
+      "cnn_detect": 0.011,
+      "rules_detect": 0.008
+    },
+    "step@2.0": {
+      "amp": 2.0,
+      "cnn_auc": 0.604,
+      "rules_auc": 0.525,
+      "cnn_detect": 0.032,
+      "rules_detect": 0.017
+    },
+    "step@3.0": {
+      "amp": 3.0,
+      "cnn_auc": 0.835,
+      "rules_auc": 0.815,
+      "cnn_detect": 0.322,
+      "rules_detect": 0.242
+    }
+  },
+  "cnn_macs_per_window": 45600,
+  "cnn_int8_weights_bytes": 1143,
+  "esp32_latency_ms_estimate": [
+    2.3,
+    9.1
+  ],
+  "tflite": {
+    "tflite_bytes": 13232,
+    "int8_float_score_corr": 0.9997,
+    "int8_vs_float_detect": {
+      "noise_burst": {
+        "int8_detect": 1.0,
+        "float_detect": 1.0
+      },
+      "spike": {
+        "int8_detect": 1.0,
+        "float_detect": 1.0
+      },
+      "stiction": {
+        "int8_detect": 0.001,
+        "float_detect": 0.001
+      },
+      "step": {
+        "int8_detect": 1.0,
+        "float_detect": 0.969
+      },
+      "dropout_hold": {
+        "int8_detect": 0.003,
+        "float_detect": 0.003
+      }
+    },
+    "tensor_arena_est_bytes": 8941
+  }
+}
