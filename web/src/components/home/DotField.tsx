@@ -98,6 +98,11 @@ interface Shape {
   aspect: number
   /** Where on the screen it lives. See the note at the top of this file. */
   place: 'right' | 'wide' | 'center' | 'full'
+  /** Depth in [-1, 1] per point, for the shapes that are solids rather than
+   *  drawings. Near points are drawn larger and at higher contrast, which is
+   *  the whole of the three-dimensional effect. A shape without it is flat,
+   *  and flat is the neutral value: a depth of 0 changes nothing. */
+  z?: Float32Array
 }
 
 export function DotField({ className }: { className?: string }) {
@@ -149,6 +154,10 @@ export function DotField({ className }: { className?: string }) {
     let at = 0
     /** Where the scroll says it should be. */
     let want = 0
+    /** Resolved positions and depths for the current frame. Allocated once:
+     *  1,500 points redrawn sixty times a second is not the place to be
+     *  handing the collector three arrays a frame. */
+    const PX = new Float32Array(N), PY = new Float32Array(N), PZ = new Float32Array(N)
 
     /* Layout's idea of the viewport, not the window's.
      *
@@ -242,10 +251,6 @@ export function DotField({ className }: { className?: string }) {
       return { x: x0 + (bw - sw) / 2, y: (h - sy) / 2, sx: sw, sy }
     }
 
-    type Box = ReturnType<typeof fit>
-    const unit = (b: Box, sh: Shape, k: number) =>
-      [b.x + sh.p[k * 2] * b.sx, b.y + sh.p[k * 2 + 1] * b.sy] as const
-
     function draw() {
       ctx!.clearRect(0, 0, w, h)
       const segs = shapes.length - 1
@@ -266,54 +271,59 @@ export function DotField({ className }: { className?: string }) {
       const A = fit(a), B = fit(b)
       const rf = 0.6 + 0.4 * Math.min(1, w / 1300)
 
-      const xy = (k: number) => {
-        const [ax, ay] = unit(A, a, k)
-        const [bx, by] = unit(B, b, k)
-        return [ax + (bx - ax) * t, ay + (by - ay) * t] as const
+      /* Resolve the whole population once, rather than once per colour pass.
+       * The passes below then only read, which is what makes a dozen of them
+       * affordable. */
+      for (let k = 0; k < N; k++) {
+        const ax = A.x + a.p[k * 2] * A.sx, ay = A.y + a.p[k * 2 + 1] * A.sy
+        const bx = B.x + b.p[k * 2] * B.sx, by = B.y + b.p[k * 2 + 1] * B.sy
+        PX[k] = ax + (bx - ax) * t
+        PY[k] = ay + (by - ay) * t
+        const za = a.z ? a.z[k] : 0, zb = b.z ? b.z[k] : 0
+        PZ[k] = za + (zb - za) * t
+      }
+
+      /* DEPTH IS DRAWN TWICE: IN SIZE, AND IN CONTRAST.
+       *
+       * Size alone gives a weak read and contrast alone gives a flat one; a
+       * solid only looks solid when its near face is both bigger and darker
+       * than its far one. Size can vary per point inside a single path, but
+       * alpha cannot, so each group is drawn in two passes split at z = 0.
+       * Two bands are enough -- the size gradient carries the rest. */
+      const pass = (from: number, to: number, keep: (k: number) => boolean,
+                    baseR: number, alpha: number) => {
+        for (let near = 0; near < 2; near++) {
+          ctx!.globalAlpha = alpha * (near ? 1.34 : 0.74)
+          ctx!.beginPath()
+          for (let k = from; k < to; k++) {
+            if (!keep(k)) continue
+            if ((PZ[k] > 0 ? 1 : 0) !== near) continue
+            const r = rf * baseR * (1 + 0.45 * PZ[k])
+            ctx!.moveTo(PX[k] + r, PY[k]); ctx!.arc(PX[k], PY[k], r, 0, Math.PI * 2)
+          }
+          ctx!.fill()
+        }
       }
 
       // the field: plain ink, quiet
       ctx!.fillStyle = palette[0]
-      ctx!.globalAlpha = baseAlpha
-      ctx!.beginPath()
-      for (let k = 0; k < N - STATIONS; k++) {
-        if (TONE[k]) continue
-        const [x, y] = xy(k)
-        ctx!.moveTo(x + rf, y); ctx!.arc(x, y, rf, 0, Math.PI * 2)
-      }
-      ctx!.fill()
+      pass(0, N - STATIONS, (k) => !TONE[k], 1, baseAlpha)
 
       /* THE COLOURED DOTS ARE THE PAGE'S OWN VOCABULARY.
        *
-       * They are not sprinkles: the tone is chosen by the same `k % 4` that
-       * decides which circle a dot joins in the Venn, so a dot wearing the
-       * data-quality blue is the dot that ends up in the data-quality circle.
-       * The red ones are the failing station -- the same points that sit out
-       * in the tail of the distribution, wherever else the field goes. */
+       * They are not sprinkles: a dot wearing the data-quality blue is a dot
+       * that builds the data-quality drum in the margin, and the red ones are
+       * the failing station -- the same points that sit out in the tail of the
+       * distribution, wherever else the field goes. */
       for (let tone = 1; tone < palette.length; tone++) {
         ctx!.fillStyle = palette[tone]
-        ctx!.globalAlpha = tone === 5 ? 0.34 : 0.62
-        ctx!.beginPath()
-        for (let k = 0; k < N; k++) {
-          if (TONE[k] !== tone) continue
-          const [x, y] = xy(k)
-          const r = rf * (k >= N - STATIONS ? 1.6 : 1.3)
-          ctx!.moveTo(x + r, y); ctx!.arc(x, y, r, 0, Math.PI * 2)
-        }
-        ctx!.fill()
+        pass(0, N, (k) => TONE[k] === tone,
+             1.3, tone === 5 ? 0.34 : 0.62)
       }
 
       // the stations: ink again, and bigger, because they are the subject
       ctx!.fillStyle = palette[0]
-      ctx!.globalAlpha = inkIsLight ? 0.55 : 0.42
-      ctx!.beginPath()
-      for (let k = N - STATIONS; k < N; k++) {
-        if (TONE[k]) continue
-        const [x, y] = xy(k)
-        const r = rf * 1.7
-        ctx!.moveTo(x + r, y); ctx!.arc(x, y, r, 0, Math.PI * 2)
-      }
-      ctx!.fill()
+      pass(N - STATIONS, N, (k) => !TONE[k], 1.7, inkIsLight ? 0.55 : 0.42)
       ctx!.globalAlpha = 1
     }
 
@@ -589,170 +599,318 @@ function shapeSpiral(): Shape {
  * THE MIDDLE OF THE PAGE BELONGS TO THE CONTENT, SO THE FIELD TAKES THE EDGES.
  *
  * Between the three specialists and the results the page is all cards, and a
- * single formation there is either hidden behind them or shrunk to nothing. So
- * for those three sections the population divides into the two margins and
- * builds several small things instead of one big one: the instruments the
- * product actually reads -- a thermometer, a barometer dial, a hygrometer's
- * droplet -- with plain geometry between them.
+ * single formation there was either hidden behind them or shrunk to a smudge.
+ * So for those three sections the population divides into the two margins and
+ * builds several small things instead of one big one.
  *
- * Instruments rather than abstract marks because this is a page about
- * instruments; geometry between them because at 157px a glyph that is almost a
- * picture is worse than one that is plainly a shape.
+ * THEY ARE SOLIDS, NOT OUTLINES
  *
- * The sides alternate their weight -- left, right, left -- so the stretch has a
- * rhythm and the dots visibly cross the page as you scroll, instead of three
- * identical screens with two busy margins.
+ * The first version of these drew line art: a ring, a square, a triangle. A
+ * ring of dots is a circle and nothing more -- there is no way to tell it from
+ * a hole. So every glyph here is points sampled on the SURFACE OF A SOLID and
+ * carries a depth with it, and the draw stage uses that depth twice: near
+ * points are drawn larger and at higher contrast than far ones. That is what
+ * makes a scatter of dots read as a ball rather than as a circle, and it costs
+ * one extra number per point.
  *
- * Every glyph is written in its own unit square and placed by slot. The bands
- * are fixed fractions of the viewport, so like every other placement in this
- * file they cannot change while you scroll, and nothing can jump.
+ * The view is a fixed oblique one -- slightly above, slightly to the side --
+ * because a solid seen straight on is a silhouette, which is an outline again.
+ *
+ * THE THREE SPECIALISTS ARE THREE DIFFERENT THINGS
+ *
+ * They used to be three identical discs in three colours, which said the
+ * agents are interchangeable. They are not: one reads the observation stream,
+ * one reads the device, one reads the weather around it. So each gets the
+ * figure its own subject would be drawn as -- a drum for the data, a chip for
+ * the hardware, a cloud for the weather -- in its own colour.
+ *
+ * The bands are fixed fractions of the viewport, so like every other placement
+ * in this file they cannot change while you scroll, and nothing can jump.
  */
 
-/** Points along a polyline, spaced evenly by length. The workhorse: most of
- *  these glyphs are outlines, and an outline is a polyline. */
-function poly(pts: number[][], n: number, rand: () => number, close = true): Float32Array {
-  const p = close ? [...pts, pts[0]] : pts
-  const seg: number[] = []
-  let total = 0
-  for (let i = 1; i < p.length; i++) {
-    const d = Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1])
-    seg.push(d); total += d
+/** A glyph's points, in its own unit square, with a depth in [-1, 1]. */
+interface Cloud3D { p: Float32Array; z: Float32Array }
+
+const TAU = Math.PI * 2
+
+/** The one view everything is seen from: a little above, a little to the side.
+ *
+ *  Model space is centred on the origin with Y up and Z toward the viewer.
+ *  The projection is oblique rather than perspective because these are 150px
+ *  objects -- a vanishing point at that size is a distortion nobody reads as
+ *  depth, while the shading does the work on its own. */
+const SCALE = 1.34   // so a solid fills its cell instead of floating in it
+
+function project(X: number, Y: number, Z: number) {
+  const x = X * SCALE, y = Y * SCALE, z = Z * SCALE
+  return {
+    x: 0.5 + x + z * 0.20,
+    y: 0.5 - y * 0.88 + z * 0.26,
+    d: z * 0.90 + y * 0.30,
   }
-  const out = new Float32Array(n * 2)
+}
+
+/** A scratch builder: glyphs push points into it and it hands back a cloud. */
+function builder(n: number) {
+  const p = new Float32Array(n * 2)
+  const z = new Float32Array(n)
+  let i = 0
+  return {
+    get left() { return n - i },
+    at(X: number, Y: number, Z: number) {
+      if (i >= n) return
+      const q = project(X, Y, Z)
+      p[i * 2] = q.x; p[i * 2 + 1] = q.y; z[i] = Math.max(-1, Math.min(1, q.d * 2.2))
+      i++
+    },
+    done(): Cloud3D {
+      // Anything unclaimed sits at the centre rather than at (0,0), which
+      // would be a stray dot in the corner of every glyph that rounds down.
+      while (i < n) this.at(0, 0, 0)
+      return { p, z }
+    },
+  }
+}
+
+type B = ReturnType<typeof builder>
+type Rand = () => number
+
+/** Points spread evenly over a sphere's surface. The `u` trick is what keeps
+ *  them even: sampling the angle directly crowds both poles. */
+function sphere(b: B, n: number, cx: number, cy: number, cz: number, r: number, rand: Rand) {
   for (let k = 0; k < n; k++) {
-    let d = ((k + 0.5) / n) * total, i = 0
-    while (i < seg.length - 1 && d > seg[i]) { d -= seg[i]; i++ }
-    const t = seg[i] ? d / seg[i] : 0
-    out[k * 2] = p[i][0] + (p[i + 1][0] - p[i][0]) * t + (rand() - 0.5) * 0.02
-    out[k * 2 + 1] = p[i][1] + (p[i + 1][1] - p[i][1]) * t + (rand() - 0.5) * 0.02
+    const u = rand() * 2 - 1, th = rand() * TAU, s = Math.sqrt(1 - u * u)
+    b.at(cx + s * Math.cos(th) * r, cy + u * r, cz + s * Math.sin(th) * r)
   }
-  return out
 }
 
-function ngon(sides: number, r: number, turn = 0): number[][] {
-  const p: number[][] = []
-  for (let i = 0; i < sides; i++) {
-    const a = turn + (i / sides) * Math.PI * 2
-    p.push([0.5 + Math.cos(a) * r, 0.5 + Math.sin(a) * r])
+/** A cylinder standing on its axis: the curved side, and a cap on top. */
+function cylinder(b: B, n: number, cx: number, cy: number, r: number, h: number,
+                  rand: Rand, caps = true) {
+  const capN = caps ? Math.round(n * 0.26) : 0
+  for (let k = 0; k < n - capN; k++) {
+    const th = rand() * TAU
+    b.at(cx + Math.cos(th) * r, cy + (rand() - 0.5) * h, Math.sin(th) * r)
   }
-  return p
+  for (let k = 0; k < capN; k++) {
+    const th = rand() * TAU, rr = r * Math.sqrt(rand())
+    b.at(cx + Math.cos(th) * rr, cy + h / 2, Math.sin(th) * rr)
+  }
 }
 
-type Glyph = (n: number, rand: () => number) => Float32Array
-
-const gDisc: Glyph = (n, rand) => {
-  const o = new Float32Array(n * 2)
+/** A box, sampled over its faces in proportion to their area, so a flat slab
+ *  does not end up with as many points on its edge as on its face. */
+function box(b: B, n: number, cx: number, cy: number, cz: number,
+             sx: number, sy: number, sz: number, rand: Rand) {
+  const areas = [sx * sy, sx * sy, sy * sz, sy * sz, sx * sz, sx * sz]
+  const total = areas.reduce((a, v) => a + v, 0)
   for (let k = 0; k < n; k++) {
-    const a = rand() * Math.PI * 2, r = 0.40 * Math.sqrt(rand())
-    o[k * 2] = 0.5 + Math.cos(a) * r; o[k * 2 + 1] = 0.5 + Math.sin(a) * r
+    let pick = rand() * total, f = 0
+    while (f < 5 && pick > areas[f]) { pick -= areas[f]; f++ }
+    const a = rand() - 0.5, c = rand() - 0.5
+    if (f < 2) b.at(cx + a * sx, cy + c * sy, cz + (f ? -0.5 : 0.5) * sz)
+    else if (f < 4) b.at(cx + (f === 2 ? 0.5 : -0.5) * sx, cy + a * sy, cz + c * sz)
+    else b.at(cx + a * sx, cy + (f === 4 ? 0.5 : -0.5) * sy, cz + c * sz)
   }
-  return o
 }
 
-const gRing: Glyph = (n, rand) => poly(ngon(48, 0.40), n, rand)
-const gHex: Glyph = (n, rand) => poly(ngon(6, 0.42, -Math.PI / 2), n, rand)
-const gTri: Glyph = (n, rand) => poly(ngon(3, 0.44, -Math.PI / 2), n, rand)
-const gSquare: Glyph = (n, rand) =>
-  poly([[0.14, 0.14], [0.86, 0.14], [0.86, 0.86], [0.14, 0.86]], n, rand)
+/* --------------------------------------------------------------- the glyphs */
 
-/** A thermometer: a stem, and a bulb that is filled, because a thermometer
- *  with an empty bulb reads as a nail. */
+type Glyph = (n: number, rand: Rand) => Cloud3D
+
+/** DATA QUALITY -- a drum.
+ *  The shape every stored stream has been drawn as for forty years: a cylinder
+ *  with a rim where each layer meets the next. What this agent reads is the
+ *  observation stream, so it gets the stream's own figure. */
+const gDrum: Glyph = (n, rand) => {
+  const b = builder(n)
+  const r = 0.30, h = 0.46
+  cylinder(b, Math.round(n * 0.62), 0, 0, r, h, rand, false)
+  // the rims: three discs up the drum, which is what makes it a drum and not
+  // a tin can
+  const ring = Math.round(n * 0.38 / 3)
+  for (let i = 0; i < 3; i++) {
+    const y = h / 2 - i * (h / 2.2)
+    for (let k = 0; k < ring; k++) {
+      const th = rand() * TAU
+      const rr = i === 0 ? r * Math.sqrt(rand()) : r * (0.96 + rand() * 0.08)
+      b.at(Math.cos(th) * rr, y, Math.sin(th) * rr)
+    }
+  }
+  return b.done()
+}
+
+/** HARDWARE HEALTH -- a chip.
+ *  A flat package with two rows of legs. Nobody has to be told what it is, and
+ *  it is literally what this agent is asking about: the board on the pole. */
+const gChip: Glyph = (n, rand) => {
+  const b = builder(n)
+  box(b, Math.round(n * 0.66), 0, 0.03, 0, 0.40, 0.20, 0.34, rand)
+  const legs = 4, per = Math.max(1, Math.round(n * 0.34 / (legs * 2)))
+  for (let i = 0; i < legs; i++) {
+    const z = -0.13 + (i / (legs - 1)) * 0.26
+    for (const side of [-1, 1]) {
+      box(b, per, side * 0.28, -0.09, z, 0.16, 0.055, 0.04, rand)
+    }
+  }
+  return b.done()
+}
+
+/** WEATHER OR FAULT -- a cloud.
+ *  Three overlapping balls, which is how a cloud has been drawn since anyone
+ *  drew one. This agent's whole job is to ask whether the neighbours moved
+ *  too, and the neighbours move because of this. */
+const gCloud: Glyph = (n, rand) => {
+  const b = builder(n)
+  const lobes: [number, number, number, number][] = [
+    [-0.17, -0.03, 0.02, 0.17],
+    [0.02, 0.06, -0.02, 0.22],
+    [0.20, -0.02, 0.03, 0.16],
+    [0.02, -0.08, 0.10, 0.15],
+  ]
+  const per = Math.floor(n / lobes.length)
+  for (const [x, y, z, r] of lobes) sphere(b, per, x, y, z, r, rand)
+  return b.done()
+}
+
+/** A sphere on its own: the arbiter's single decision. */
+const gBall: Glyph = (n, rand) => {
+  const b = builder(n)
+  sphere(b, n, 0, 0, 0, 0.34, rand)
+  return b.done()
+}
+
+/** A cube. Plain, solid, and the only thing on the page with a right angle. */
+const gCube: Glyph = (n, rand) => {
+  const b = builder(n)
+  box(b, n, 0, 0, 0, 0.42, 0.42, 0.42, rand)
+  return b.done()
+}
+
+/** A thermometer: a stem with a ball of mercury at the bottom. */
 const gThermo: Glyph = (n, rand) => {
-  const stemN = Math.round(n * 0.55)
-  const stem = poly([[0.40, 0.10], [0.60, 0.10], [0.60, 0.62], [0.40, 0.62]], stemN, rand)
-  const o = new Float32Array(n * 2)
-  o.set(stem, 0)
-  for (let k = stemN; k < n; k++) {
-    const a = rand() * Math.PI * 2, r = 0.19 * Math.sqrt(rand())
-    o[k * 2] = 0.5 + Math.cos(a) * r; o[k * 2 + 1] = 0.76 + Math.sin(a) * r
-  }
-  return o
+  const b = builder(n)
+  cylinder(b, Math.round(n * 0.55), 0, 0.10, 0.075, 0.52, rand)
+  sphere(b, n - Math.round(n * 0.55), 0, -0.24, 0, 0.16, rand)
+  return b.done()
 }
 
-/** A barometer: a face, a needle, and the tick marks that make a circle read
- *  as an instrument rather than as a ring. */
+/** A barometer: a coin-thin drum seen from above and the side at once, with a
+ *  needle standing proud of its face. */
 const gDial: Glyph = (n, rand) => {
-  const faceN = Math.round(n * 0.52)
-  const needleN = Math.round(n * 0.22)
-  const o = new Float32Array(n * 2)
-  o.set(poly(ngon(48, 0.42), faceN, rand), 0)
-  o.set(poly([[0.5, 0.5], [0.73, 0.29]], needleN, rand, false), faceN * 2)
-  const rest = n - faceN - needleN
-  for (let i = 0; i < rest; i++) {
-    const k = faceN + needleN + i
-    const a = (i / Math.max(1, rest)) * Math.PI * 2
-    o[k * 2] = 0.5 + Math.cos(a) * 0.32; o[k * 2 + 1] = 0.5 + Math.sin(a) * 0.32
+  const b = builder(n)
+  const faceN = Math.round(n * 0.46), rimN = Math.round(n * 0.26)
+  for (let k = 0; k < faceN; k++) {
+    const th = rand() * TAU, rr = 0.32 * Math.sqrt(rand())
+    b.at(Math.cos(th) * rr, 0.07, Math.sin(th) * rr)
   }
-  return o
+  for (let k = 0; k < rimN; k++) {
+    const th = rand() * TAU
+    b.at(Math.cos(th) * 0.32, 0.07 - rand() * 0.10, Math.sin(th) * 0.32)
+  }
+  const rest = n - faceN - rimN
+  for (let k = 0; k < rest; k++) {
+    const t = k / Math.max(1, rest)
+    b.at(t * 0.22, 0.10, -t * 0.16)
+  }
+  return b.done()
 }
 
-/** Humidity, as the drop it is measured from. */
+/** Humidity, as the drop it is measured from: a ball drawn up to a point. */
 const gDrop: Glyph = (n, rand) => {
-  const pts: number[][] = []
-  for (let i = 0; i <= 44; i++) {
-    const a = -Math.PI / 2 + (i / 44) * Math.PI * 2
-    const r = 0.34 * (1 + 0.55 * Math.sin(a))
-    pts.push([0.5 + Math.cos(a) * r * 0.85, 0.58 + Math.sin(a) * r])
+  const b = builder(n)
+  for (let k = 0; k < n; k++) {
+    // a teardrop is a sphere whose radius falls away toward the top
+    const u = rand() * 2 - 1, th = rand() * TAU
+    const taper = Math.pow((1 - u) / 2, 1.5)
+    const r = 0.30 * Math.sqrt(1 - u * u) * (0.35 + 0.65 * taper)
+    b.at(Math.cos(th) * r, -u * 0.34 - 0.02, Math.sin(th) * r)
   }
-  return poly(pts, n, rand, false)
+  return b.done()
 }
 
 /** Three stops on one route: detect, diagnose, dispatch. */
 const gRoute: Glyph = (n, rand) => {
-  const lineN = Math.round(n * 0.24)
-  const o = new Float32Array(n * 2)
-  o.set(poly([[0.5, 0.08], [0.5, 0.92]], lineN, rand, false), 0)
-  let k = lineN
-  const per = Math.max(1, Math.floor((n - lineN) / 3))
-  for (let s = 0; s < 3 && k < n; s++) {
-    const cy = 0.20 + s * 0.30
-    for (let i = 0; i < per && k < n; i++, k++) {
-      const a = (i / per) * Math.PI * 2
-      o[k * 2] = 0.5 + Math.cos(a) * 0.21; o[k * 2 + 1] = cy + Math.sin(a) * 0.21
+  const b = builder(n)
+  const stopN = Math.round(n * 0.24)
+  for (let i = 0; i < 3; i++) sphere(b, stopN, 0, 0.30 - i * 0.30, 0, 0.115, rand)
+  const rest = b.left
+  for (let k = 0; k < rest; k++) {
+    b.at((rand() - 0.5) * 0.03, 0.30 - (k / rest) * 0.60, (rand() - 0.5) * 0.03)
+  }
+  return b.done()
+}
+
+/** The closed job: a solid block with a tick standing on its face. */
+const gDone: Glyph = (n, rand) => {
+  const b = builder(n)
+  box(b, Math.round(n * 0.64), 0, 0, 0, 0.40, 0.40, 0.30, rand)
+  const rest = b.left
+  const path: [number, number][] = [[-0.15, 0.00], [-0.04, -0.11], [0.17, 0.15]]
+  for (let k = 0; k < rest; k++) {
+    const t = (k / rest) * 2
+    const i = t < 1 ? 0 : 1, f = t < 1 ? t : t - 1
+    const x = path[i][0] + (path[i + 1][0] - path[i][0]) * f
+    const y = path[i][1] + (path[i + 1][1] - path[i][1]) * f
+    b.at(x, y, 0.17 + (rand() - 0.5) * 0.02)
+  }
+  return b.done()
+}
+
+/** One node on a pole: a hexagonal prism, which is the shape a screen's
+ *  louvres make and the shape a cell of a network is drawn as. */
+const gPrism: Glyph = (n, rand) => {
+  const b = builder(n)
+  const r = 0.32, h = 0.34
+  const sideN = Math.round(n * 0.7), per = Math.max(1, Math.round(sideN / 6))
+  for (let f = 0; f < 6; f++) {
+    const a0 = (f / 6) * TAU, a1 = ((f + 1) / 6) * TAU
+    for (let k = 0; k < per; k++) {
+      const t = rand()
+      const x = Math.cos(a0) * r + (Math.cos(a1) - Math.cos(a0)) * r * t
+      const z = Math.sin(a0) * r + (Math.sin(a1) - Math.sin(a0)) * r * t
+      b.at(x, (rand() - 0.5) * h, z)
     }
   }
-  for (; k < n; k++) { o[k * 2] = 0.5; o[k * 2 + 1] = 0.82 }
-  return o
-}
-
-/** The closed job: a box with a tick in it. */
-const gTick: Glyph = (n, rand) => {
-  const boxN = Math.round(n * 0.55)
-  const o = new Float32Array(n * 2)
-  o.set(poly([[0.12, 0.12], [0.88, 0.12], [0.88, 0.88], [0.12, 0.88]], boxN, rand), 0)
-  o.set(poly([[0.26, 0.52], [0.44, 0.70], [0.76, 0.30]], n - boxN, rand, false), boxN * 2)
-  return o
-}
-
-/** The network: a hexagonal packing, which is what a field of stations spaced
- *  as evenly as geography allows actually looks like. */
-const gLattice: Glyph = (n, rand) => {
-  const o = new Float32Array(n * 2)
-  const cols = 7, rows = Math.max(2, Math.ceil(n / cols))
-  for (let k = 0; k < n; k++) {
-    const c = k % cols, r = (k / cols) | 0
-    o[k * 2] = 0.08 + (c + (r % 2 ? 0.5 : 0)) * (0.84 / cols) + (rand() - 0.5) * 0.02
-    o[k * 2 + 1] = 0.06 + r * (0.88 / (rows - 1)) + (rand() - 0.5) * 0.02
+  const rest = b.left
+  for (let k = 0; k < rest; k++) {
+    const th = rand() * TAU, rr = r * Math.sqrt(rand())
+    b.at(Math.cos(th) * rr, h / 2, Math.sin(th) * rr)
   }
-  return o
+  return b.done()
+}
+
+/** The network: a field of small balls on a plane, receding. The same node,
+ *  four hundred times. */
+const gField: Glyph = (n, rand) => {
+  const b = builder(n)
+  const cols = 6, rows = 6, per = Math.max(1, Math.floor(n / (cols * rows)))
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = -0.34 + (c + (r % 2 ? 0.5 : 0)) * (0.68 / (cols - 1))
+      const z = -0.30 + r * (0.60 / (rows - 1))
+      sphere(b, per, x, -0.06 + z * 0.10, z, 0.042, rand)
+    }
+  }
+  return b.done()
 }
 
 interface Slot { g: Glyph; side: 'L' | 'R'; tone?: number }
 
 /** Lay a stack of glyphs down each margin.
  *
- *  `ar` is the viewport's width over its height, and it is here so that a
- *  glyph drawn in a unit square comes out square in pixels: unit space is
- *  stretched by the window, and a circle that forgets that is an egg. */
+ *  `ar` is the viewport's width over its height, and it is here so a glyph
+ *  drawn in a unit square comes out square in pixels: unit space is stretched
+ *  by the window, and a ball that forgets that is an egg. */
 function compose(seed: number, ar: number, slots: Slot[], weightL: number): Shape {
   const rand = mulberry(seed)
   const BW = 0.115                       // band width, as a fraction of the page
   const gh = BW * ar                     // the same span, measured down the page
   const stack = (side: 'L' | 'R') => slots.filter((s) => s.side === side).length
 
-  const box = (s: Slot, i: number) => {
+  const cell = (s: Slot, i: number) => {
     const count = stack(s.side)
-    const gap = gh * 0.34
+    const gap = gh * 0.30
     const total = count * gh + (count - 1) * gap
     const k = total > 0.94 ? 0.94 / total : 1
     const H = gh * k, G = gap * k
@@ -788,58 +946,62 @@ function compose(seed: number, ar: number, slots: Slot[], weightL: number): Shap
   }
 
   const out = new Float32Array(N * 2)
+  const depth = new Float32Array(N)
   const seen: Record<string, number> = { L: 0, R: 0 }
   slots.forEach((s, i) => {
-    const b = box(s, seen[s.side]++)
-    const pts = s.g(Math.max(1, buckets[i].length), rand)
+    const b = cell(s, seen[s.side]++)
+    const c = s.g(Math.max(1, buckets[i].length), rand)
     buckets[i].forEach((k, j) => {
-      out[k * 2] = b.x0 + pts[j * 2] * b.w
-      out[k * 2 + 1] = b.y0 + pts[j * 2 + 1] * b.h
+      out[k * 2] = b.x0 + c.p[j * 2] * b.w
+      out[k * 2 + 1] = b.y0 + c.p[j * 2 + 1] * b.h
+      depth[k] = c.z[j]
     })
   })
-  return { p: out, aspect: 0, place: 'full' }
+  return { p: out, z: depth, aspect: 0, place: 'full' }
 }
 
 /** THREE SPECIALISTS -- weighted left.
  *
- *  Three discs in the agents' own colours down one margin, the arbiter's single
- *  verdict on the other, with the thermometer every reading starts from above
- *  them and a triangle to balance the quiet side. */
+ *  A drum, a chip and a cloud, in the three agents' own colours and made of
+ *  the dots that wear those colours everywhere else on the page: the stream,
+ *  the device, and the weather around it. Three identical discs said the
+ *  agents were interchangeable, which is the one thing this section is
+ *  arguing against. The arbiter's single decision faces them from the other
+ *  margin, above the cube that closes every case. */
 function splitPanel(ar: number): Shape {
   return compose(61, ar, [
-    { g: gThermo, side: 'L' },
-    { g: gDisc, side: 'L', tone: 1 },
-    { g: gDisc, side: 'L', tone: 2 },
-    { g: gDisc, side: 'L', tone: 3 },
-    { g: gRing, side: 'R' },
-    { g: gTri, side: 'R' },
+    { g: gDrum, side: 'L', tone: 1 },
+    { g: gChip, side: 'L', tone: 2 },
+    { g: gCloud, side: 'L', tone: 3 },
+    { g: gBall, side: 'R' },
+    { g: gCube, side: 'R' },
   ], 0.72)
 }
 
 /** SUSPICION TO WORK ORDER -- weighted right.
  *
- *  The route with its three stops and the closed job it ends in, against a
- *  barometer and a square on the quiet side. */
+ *  The route with its three stops and the job it closes, against the
+ *  instruments that raised it on the quiet side. */
 function splitOrder(ar: number): Shape {
   return compose(67, ar, [
     { g: gDrop, side: 'L' },
-    { g: gSquare, side: 'L' },
+    { g: gThermo, side: 'L' },
     { g: gDial, side: 'R' },
     { g: gRoute, side: 'R' },
-    { g: gTick, side: 'R' },
+    { g: gDone, side: 'R' },
   ], 0.30)
 }
 
 /** BUILT FOR A NETWORK -- weighted left.
  *
  *  One node on a pole, with the two other things it measures, and the same
- *  thing at national scale on the far side. */
+ *  node four hundred times over on the far side. */
 function splitNetwork(ar: number): Shape {
   return compose(71, ar, [
-    { g: gHex, side: 'L' },
+    { g: gPrism, side: 'L' },
     { g: gThermo, side: 'L' },
     { g: gDrop, side: 'L' },
-    { g: gLattice, side: 'R' },
+    { g: gField, side: 'R' },
   ], 0.70)
 }
 
