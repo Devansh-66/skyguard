@@ -5,50 +5,44 @@
  * picture of an argument instead of watching the argument happen.
  *
  * So there are no charts. There is one field of points behind the entire page,
- * and scrolling moves it through the argument:
+ * and scrolling moves it through five shapes a person already knows how to
+ * read -- a country, a wave, a distribution, a Venn, a vortex:
  *
- *   India          the network -- 344 stations inside the real boundary
- *   traces         thirty days of seven stations, all rising and falling as one
- *   the residual   the same seven after their neighbours are subtracted, six
- *                  collapsed onto zero and one walking out of the band
- *   the panel      three streams of evidence converging on one verdict
- *   the lattice    every station accounted for, in order
+ *   India          the network: hundreds of instruments across a country
+ *   the wave       weather, shared by all of them, which is what hides a fault
+ *   the curve      the spread readings fall into once their neighbours are
+ *                  subtracted -- and the broken one, red, out in the tail
+ *   three circles  three specialists, and the verdict living where they agree
+ *   the vortex     the atmosphere itself, which is what all of it is for
  *
- * It does NOT end back on the map. Returning to the opening shape made the
- * page a loop, and the page is an argument: it starts with a country full of
- * instruments nobody can vouch for and ends with every one of them graded. An
- * ordered lattice is what that looks like.
+ * The shapes are the point. An abstract knot or lattice of dots is a texture;
+ * a map, a wave and a bell curve are things the reader has already understood
+ * before they finish the sentence beside them. Every point keeps its identity
+ * throughout -- the 344 that are stations in the first shape are the same 344
+ * that are darker in the last, and the handful that sit in the tail of the
+ * distribution are red everywhere, because they are the failing station in
+ * every one of these pictures.
  *
- * Every point keeps its identity throughout -- the 344 that are stations in
- * the first shape are the same 344 that are darker in the last, and a dot
- * carrying the data-quality blue is the dot that joins the data-quality stream
- * in the fourth -- so the page reads as one thing being re-arranged rather
- * than five pictures.
+ * ONE FORMATION AT A TIME, AND IT NEVER DUPLICATES
  *
- * THE FIELD USES EVERY SIDE THE PAGE LEAVES IT
+ * An earlier version split the dots across the free regions and had each
+ * region draw the shape, which put two half-density Indias on the screen at
+ * once. One population, one shape.
  *
- * The first version put the shapes in one fixed right-hand band, and the
- * second put them in whichever single margin was widest. Both were wrong in
- * the same way: a page with a grid of cards down the middle has free space on
- * BOTH sides, and using one of them leaves the screen lopsided and the shape
- * thin.
- *
- * So the free space is found as a set of regions rather than a band, and the
- * field fills all of them. Where two regions are comparable -- the two margins
- * beside a full-width grid -- the dots split evenly and each region draws the
- * shape at half density, so the animation runs down both sides at once. Where
- * one is much bigger, it takes the shape and the others carry a drift of the
- * remaining points, so no free side of the screen is ever simply empty.
- *
- * A region much taller than it is wide transposes the shape it is given: in a
- * margin, thirty days of weather runs DOWN the column. A chart squeezed
- * sideways into a ribbon is the thing that looked like nothing.
+ * Where the page leaves a wide free area the shape is drawn whole in it. Where
+ * a full-width grid of cards runs down the middle there is no wide area, so
+ * the single shape is TORN around them: the points left of its middle go into
+ * the left margin, the points right of it into the right, in proportion to
+ * how much room each margin has. That reads as the content pushing the field
+ * apart, which is what it is, rather than as a copy on either side. The map is
+ * the one shape never torn -- half an India each side is not an India -- so
+ * where there is no room it is drawn small in the wider margin.
  *
  * The keep-out is only what has a surface of its own, read from the computed
  * background rather than guessed from a class name, because a card hides a dot
  * and a paragraph does not. Where a screen holds no cards at all the field
- * takes the whole width, which is where the traces and the residual get to be
- * full size.
+ * takes the whole width, which is where the wave and the curve get to be full
+ * size.
  *
  * WHY NONE OF THIS IS LOAD-BEARING
  *
@@ -71,8 +65,7 @@ import { get } from '../../api/client'
 import type { SimMap } from '../../api/mapTypes'
 
 /** Points in the field. Enough to read as a surface at 1440px, few enough that
- *  a full redraw every frame stays under a millisecond on a laptop. 1,500 is
- *  also exactly 50 x 30, which is what the closing lattice wants. */
+ *  a full redraw every frame stays under a millisecond on a laptop. */
 const N = 1500
 /** How many of those are real stations. The rest are the country around them. */
 const STATIONS = 344
@@ -84,20 +77,20 @@ const LAT = [6.2, 37.6] as const
 
 /* WHERE EACH SHAPE IS FULLY ITSELF, as a fraction of the page's scroll.
  *
- * Spreading five shapes evenly over the page put the residual under the
- * three-agent section and the closing shape under the call to action -- the
- * field was moving, but never in step with the sentence being read. These are
- * measured against the sections. Between two anchors the field is in
- * transition, which is the point: the change happens while you read the copy
- * that explains it. */
+ * Spreading five shapes evenly over the page put the curve under the
+ * three-agent section -- the field was moving, but never in step with the
+ * sentence being read. These are measured against the sections. Between two
+ * anchors the field is in transition, which is the point: the change happens
+ * while you read the copy that explains it. */
 const ANCHORS = [0.06, 0.17, 0.32, 0.52, 0.90]
 
 /** Gap between a surface and the field, in CSS pixels. */
 const GAP = 26
-/** Narrower than this and a region is not worth drawing into. Deliberately
- *  small: a ribbon down the margin beside a full-width grid of cards is still
- *  the field going past the section, which is what it is for. */
+/** A region narrower than this is not worth drawing into at all. */
 const MIN_REGION = 96
+/** Below this width a region cannot hold a whole shape, so the shape is torn
+ *  across both margins instead. */
+const WHOLE_REGION = 300
 /** Taller than this many times its width and a region transposes the shape it
  *  is given, so time runs down the column instead of across a sliver. */
 const UPRIGHT = 1.3
@@ -108,9 +101,13 @@ interface Shape {
   p: Float32Array
   /** width/height the shape wants, or 0 for "fill the region". */
   aspect: number
+  /** Does its x axis mean something (time, value)? Only these transpose. */
+  axial?: boolean
+  /** May it be torn across two margins? The map may not. */
+  tearable?: boolean
 }
 
-interface Region { x0: number; x1: number; y0: number; y1: number }
+interface Region { x0: number; x1: number }
 
 export function DotField({ className }: { className?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -225,8 +222,8 @@ export function DotField({ className }: { className?: string }) {
       inkIsLight = light(palette[0])
       baseAlpha = inkIsLight ? 0.20 : 0.13
 
-      shapes = [shapeIndia(data.current), shapeTraces(), shapeResidual(),
-                shapeConverge(), shapeLattice()]
+      shapes = [shapeIndia(data.current), shapeWave(), shapeCurve(),
+                shapeCircles(), shapeVortex()]
       measure()
       dirty.current = false
     }
@@ -251,52 +248,71 @@ export function DotField({ className }: { className?: string }) {
       return span > 0 ? Math.min(1, Math.max(0, window.scrollY / span)) : 0
     }
 
-    /** Every strip of this screen the page is not using, widest first.
+    /** The strips of this screen the page is not using, in page order.
      *
      *  With no surfaces in view that is the whole width, which is where the
-     *  traces and the residual get to be full size. With a grid of cards down
-     *  the middle it is both margins, and the field runs down both of them. */
+     *  wave and the curve get to be full size. With a grid of cards down the
+     *  middle it is the two margins. */
     function regions(): Region[] {
       const top = window.scrollY, bot = top + h
-      const y0 = h * 0.06, y1 = h * 0.94
       let left = Infinity, right = -Infinity
       for (const b of blocks) {
         if (b.bottom < top || b.top > bot) continue
         if (b.left < left) left = b.left
         if (b.right > right) right = b.right
       }
-      if (right < 0) return [{ x0: 8, x1: w - 8, y0, y1 }]
+      if (right < 0) return [{ x0: 8, x1: w - 8 }]
       const out: Region[] = []
-      if (w - (right + GAP) >= MIN_REGION) out.push({ x0: right + GAP, x1: w - 8, y0, y1 })
-      if (left - GAP >= MIN_REGION) out.push({ x0: 8, x1: left - GAP, y0, y1 })
+      if (left - GAP >= MIN_REGION) out.push({ x0: 8, x1: left - GAP })
+      if (w - (right + GAP) >= MIN_REGION) out.push({ x0: right + GAP, x1: w - 8 })
       if (!out.length) {
         // No honest gap on either side: take the wider margin anyway, at
         // whatever width it has, rather than hide behind the section.
         const r = w - right, l = left
-        out.push(r >= l ? { x0: w - Math.max(r, 46), x1: w - 6, y0, y1 }
-                        : { x0: 6, x1: Math.max(l, 46), y0, y1 })
+        out.push(r >= l ? { x0: w - Math.max(r, 46), x1: w - 6 }
+                        : { x0: 6, x1: Math.max(l, 46) })
       }
-      return out.sort((a, b) => (b.x1 - b.x0) - (a.x1 - a.x0))
+      return out
     }
 
-    /** How a shape sits inside one region.
+    /** Where a shape's unit coordinates land on this screen.
      *
-     *  A region far taller than it is wide transposes the shape, so a chart
-     *  whose x axis is time runs down the column instead of being squeezed
-     *  sideways into a sliver. The map is never transposed -- a rotated India
-     *  is not India -- which is what `aspect` marks. */
-    function place(s: Shape, r: Region) {
-      const rw = r.x1 - r.x0, rh = r.y1 - r.y0
-      const rot = !s.aspect && rh > rw * UPRIGHT
-      if (!s.aspect) return { x: r.x0, y: r.y0, sx: rw, sy: rh, rot }
-      const sw = Math.min(rw, rh * s.aspect), sh = sw / s.aspect
-      return { x: r.x0 + (rw - sw) / 2, y: r.y0 + (rh - sh) / 2, sx: sw, sy: sh, rot }
+     *  Either a single box -- the whole shape in the one free area -- or a
+     *  tear: the same shape, its left part in the left margin and its right
+     *  part in the right, split where the two margins' widths say. */
+    interface Layout {
+      tear: null | { s: number; l: Region; r: Region }
+      x: number; y: number; sx: number; sy: number; rot: boolean
     }
 
-    type Box = ReturnType<typeof place>
-    const unit = (b: Box, s: Shape, k: number) => {
+    function layout(s: Shape, regs: Region[]): Layout {
+      const y0 = h * 0.06, sy = h * 0.88
+      const widest = regs.reduce((a, b) => (b.x1 - b.x0 > a.x1 - a.x0 ? b : a))
+      const wide = widest.x1 - widest.x0
+
+      if (wide < WHOLE_REGION && regs.length > 1 && s.tearable) {
+        const l = regs[0], r = regs[1]
+        const wl = l.x1 - l.x0, wr = r.x1 - r.x0
+        return { tear: { s: wl / (wl + wr), l, r }, x: 0, y: y0, sx: 0, sy, rot: false }
+      }
+
+      const rot = !s.aspect && !!s.axial && sy > wide * UPRIGHT
+      if (!s.aspect) return { tear: null, x: widest.x0, y: y0, sx: wide, sy, rot }
+      const sw = Math.min(wide, sy * s.aspect), sh = sw / s.aspect
+      return { tear: null, x: widest.x0 + (wide - sw) / 2, y: y0 + (sy - sh) / 2,
+               sx: sw, sy: sh, rot: false }
+    }
+
+    const unit = (b: Layout, s: Shape, k: number) => {
       let u = s.p[k * 2], v = s.p[k * 2 + 1]
       if (b.rot) { const t = u; u = 1 - v; v = t }
+      if (b.tear) {
+        const { s: cut, l, r } = b.tear
+        const x = u < cut
+          ? l.x0 + (u / cut) * (l.x1 - l.x0)
+          : r.x0 + ((u - cut) / (1 - cut)) * (r.x1 - r.x0)
+        return [x, b.y + v * b.sy] as const
+      }
       return [b.x + u * b.sx, b.y + v * b.sy] as const
     }
 
@@ -318,33 +334,15 @@ export function DotField({ className }: { className?: string }) {
       const t = u * u * (3 - 2 * u)
 
       const regs = regions()
-      const A = regs.map((r) => place(a, r))
-      const B = regs.map((r) => place(b, r))
-      /* Two comparable regions -- the margins either side of a grid -- split
-       * the dots evenly and each draws the shape at half density, so the
-       * animation runs down both sides at once. A region much smaller than the
-       * first instead carries a thin drift of points, which keeps the side of
-       * the screen alive without pretending a 100px ribbon can hold a chart. */
-      const wide = regs[0].x1 - regs[0].x0
-      const share = regs.map((r) => (r.x1 - r.x0) >= wide * 0.6 ? 1 : 0.22)
-      const total = share.reduce((s, v) => s + v, 0)
-      const cuts: number[] = []
-      let acc = 0
-      for (const sh of share) { acc += sh / total; cuts.push(acc) }
-      const regOf = (k: number) => {
-        const q = ((k * 2654435761) >>> 0) / 4294967296
-        for (let r = 0; r < cuts.length; r++) if (q <= cuts[r]) return r
-        return 0
-      }
-
+      const A = layout(a, regs), B = layout(b, regs)
+      const room = regs.reduce((m, r) => Math.max(m, r.x1 - r.x0), 0)
       // A ribbon down a margin is a lot of dots in very little width, so the
-      // dots shrink with the region rather than turning into a smear.
-      const rf = 0.6 + 0.4 * Math.min(1, wide / 320)
+      // dots shrink with the room rather than turning into a smear.
+      const rf = 0.6 + 0.4 * Math.min(1, room / 320)
 
       const xy = (k: number) => {
-        const r = regOf(k)
-        const [ax, ay] = unit(A[r], a, k)
-        const [bx, by] = unit(B[r], b, k)
+        const [ax, ay] = unit(A, a, k)
+        const [bx, by] = unit(B, b, k)
         return [ax + (bx - ax) * t, ay + (by - ay) * t] as const
       }
 
@@ -362,11 +360,10 @@ export function DotField({ className }: { className?: string }) {
       /* THE COLOURED DOTS ARE THE PAGE'S OWN VOCABULARY.
        *
        * They are not sprinkles: the tone is chosen by the same `k % 4` that
-       * decides which stream a dot joins when the field reaches the panel, so
-       * a dot wearing the data-quality blue is the dot that ends up in the
-       * data-quality stream and the red ones are the arbiter's. The scatter of
-       * colour across the map is the same evidence, unsorted -- which is what
-       * the product actually claims. */
+       * decides which circle a dot joins in the Venn, so a dot wearing the
+       * data-quality blue is the dot that ends up in the data-quality circle.
+       * The red ones are the failing station -- the same points that sit out
+       * in the tail of the distribution, wherever else the field goes. */
       for (let tone = 1; tone < palette.length; tone++) {
         ctx!.fillStyle = palette[tone]
         ctx!.globalAlpha = tone === 5 ? 0.34 : 0.62
@@ -445,15 +442,15 @@ export function DotField({ className }: { className?: string }) {
     /* The page's height and column widths change as data lands and fonts
      * settle; the measured surfaces have to keep up or the regions drift out
      * of step with the layout they are avoiding. */
-    const layout = new ResizeObserver(() => { dirty.current = true })
-    layout.observe(document.body)
+    const layoutWatch = new ResizeObserver(() => { dirty.current = true })
+    layoutWatch.observe(document.body)
 
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', onResize)
       window.removeEventListener('scroll', onScroll)
       themes.disconnect()
-      layout.disconnect()
+      layoutWatch.disconnect()
     }
   }, [])
 
@@ -468,23 +465,31 @@ export function DotField({ className }: { className?: string }) {
 
 /* ------------------------------------------------------------------ colour */
 
+/** The points that are the failing station.
+ *
+ *  They are the ones out in the tail of the distribution, and they carry the
+ *  fault red in every other shape too -- the same instrument, wherever the
+ *  field happens to be. Fixed indices rather than random ones so the page
+ *  looks identical on every visit and can be pointed at in a slide. */
+const OUTLIERS = [41, 197, 353, 509, 665, 821, 977, 1133]
+
 /** Which dots carry a colour, and which one.
  *
- *  0 is plain ink. 1 to 4 are the page's own severity and accent colours --
- *  data quality, hardware health, weather-or-fault, and the arbiter's verdict
- *  -- chosen by the same `k % 4` that decides which stream a dot joins in the
- *  panel shape, so the colour is never arbitrary. 5 is a soft grey that thins
- *  the field out rather than adding a fifth meaning.
+ *  0 is plain ink. 1 to 3 are the three agents, chosen by the same `k % 4`
+ *  that decides which circle a dot joins in the Venn, so the colour is never
+ *  arbitrary. 4 is the fault red, worn only by the failing station. 5 is a
+ *  soft grey that thins the field out rather than adding a sixth meaning.
  *
  *  `k % 7` rather than a multiple of four, because a stride that shares a
- *  factor with four picks the same stream every time and the field comes out
+ *  factor with four picks the same circle every time and the field comes out
  *  in one colour. */
 const TONE = (() => {
   const t = new Uint8Array(N)
   for (let k = 0; k < N; k++) {
-    if (k % 7 === 0) t[k] = (k % 4) + 1
+    if (k % 7 === 0 && k % 4 < 3) t[k] = (k % 4) + 1
     else if (k % 23 === 5) t[k] = 5
   }
+  for (const k of OUTLIERS) t[k] = 4
   return t
 })()
 
@@ -512,12 +517,13 @@ function light(css: string) {
 const MASK_H = 512
 const MASK_W = Math.round(MASK_H * 0.88)
 
-/** India, rejection-sampled against the real boundary.
+/** INDIA -- the network.
  *
- *  Testing thousands of candidate points against an 8,778-vertex multipolygon
- *  in JavaScript would cost hundreds of frames. Filling the polygon once into
- *  an offscreen canvas and reading its alpha channel costs one, and the shape
- *  is exactly the outline the network map draws. */
+ *  Rejection-sampled against the real boundary. Testing thousands of candidate
+ *  points against an 8,778-vertex multipolygon in JavaScript would cost
+ *  hundreds of frames; filling the polygon once into an offscreen canvas and
+ *  reading its alpha channel costs one, and the shape is exactly the outline
+ *  the network map draws. */
 function shapeIndia(d: { geom?: GeoJSON.Geometry; stations?: SimMap['stations'] }): Shape {
   const out = new Float32Array(N * 2)
   const rand = mulberry(7)
@@ -571,79 +577,119 @@ function shapeIndia(d: { geom?: GeoJSON.Geometry; stations?: SimMap['stations'] 
 
 const ROWS = 7
 
-/** Seven stations over thirty days. Every trace carries the same weather, and
- *  one of them is also drifting -- by a twentieth of the daily swing, which is
- *  the whole point: at this scale you cannot see which. */
-function shapeTraces(): Shape {
+/** THE WAVE -- weather, shared.
+ *
+ *  Seven stations over thirty days, drawn as seven strands of one wave because
+ *  that is the fact: weather happens to all of them at once, and a probe
+ *  sliding a twentieth of a degree a day is buried inside a swing forty times
+ *  larger. One strand is drifting, and at this scale you cannot tell which,
+ *  which is the whole problem the page is about to solve. */
+function shapeWave(): Shape {
   const out = new Float32Array(N * 2)
   const rand = mulberry(19)
   const per = Math.ceil(N / ROWS)
   for (let k = 0; k < N; k++) {
     const row = k % ROWS, u = Math.floor(k / ROWS) / (per - 1)
-    const weather = Math.sin(u * Math.PI * 6.2) * 0.19 + Math.sin(u * Math.PI * 12.4 + 1.1) * 0.06
-    const base = 0.5 + (row - (ROWS - 1) / 2) * 0.045
-    const drift = row === 2 ? u * 0.095 : 0
+    const swell = Math.sin(u * Math.PI * 3.2) * 0.26 + Math.sin(u * Math.PI * 7.1 + 0.8) * 0.05
+    const strand = (row - (ROWS - 1) / 2) * 0.035
+    const drift = row === 2 ? u * 0.09 : 0
     out[k * 2] = u
-    out[k * 2 + 1] = base + weather + drift + (rand() - 0.5) * 0.01
+    out[k * 2 + 1] = 0.5 + swell + strand + drift + (rand() - 0.5) * 0.008
   }
-  return { p: out, aspect: 0 }
+  return { p: out, aspect: 0, axial: true, tearable: true }
 }
 
-/** The same seven after the median of their neighbours is subtracted. The
- *  weather cancels because it happened to all of them; six traces collapse
- *  onto zero and the seventh walks out of the band it had been hiding in. */
-function shapeResidual(): Shape {
+/** THE CURVE -- the spread, once the weather is gone.
+ *
+ *  Subtract the median of a station's neighbours and the shared weather
+ *  cancels, because it happened to all of them. What is left is a plain
+ *  distribution: nearly every reading near zero, fewer further out. It is
+ *  drawn as a cloud of points under the bell rather than the bell's outline,
+ *  because a drawn curve looks like a chart and a cloud looks like readings.
+ *
+ *  The failing station is the handful of red points out in the tail, which is
+ *  exactly how the detector finds it: not by the reading being impossible, but
+ *  by it being far out in the spread its own neighbours define. */
+function shapeCurve(): Shape {
   const out = new Float32Array(N * 2)
   const rand = mulberry(23)
-  const per = Math.ceil(N / ROWS)
+  const SIGMA = 0.125
+  const outliers = new Set(OUTLIERS)
   for (let k = 0; k < N; k++) {
-    const row = k % ROWS, u = Math.floor(k / ROWS) / (per - 1)
-    out[k * 2] = u
-    out[k * 2 + 1] = row === 2 ? 0.5 - u * 0.38 : 0.5 + (rand() - 0.5) * 0.028
+    if (outliers.has(k)) {
+      out[k * 2] = 0.86 + rand() * 0.10
+      out[k * 2 + 1] = 0.90 - rand() * 0.06
+      continue
+    }
+    const x = rand()
+    const bell = Math.exp(-((x - 0.5) * (x - 0.5)) / (2 * SIGMA * SIGMA))
+    out[k * 2] = x
+    out[k * 2 + 1] = 0.93 - rand() * bell * 0.78
   }
-  return { p: out, aspect: 0 }
+  return { p: out, aspect: 0, axial: true, tearable: true }
 }
 
-/** Three streams of evidence converging on one verdict.
+/** THREE CIRCLES -- three specialists, one verdict.
  *
- *  This replaces three parallel bars and a ring, which at any width narrower
- *  than a full screen read as three tally marks and a nought -- a picture of
- *  nothing. A convergence says the thing the section says: separate opinions
- *  enter, one decision leaves, and you can see which stream is carrying it.
- *  The dots bunch toward the end because that is where the answer is. */
-function shapeConverge(): Shape {
+ *  A Venn, in the three agents' own colours, with the points that belong to
+ *  none of them gathered in the overlap at the centre: the verdict lives where
+ *  the three agree. This replaced three parallel bars and a ring, which at any
+ *  width narrower than a full screen read as three tally marks and a nought. */
+function shapeCircles(): Shape {
   const out = new Float32Array(N * 2)
   const rand = mulberry(31)
+  const R = 0.255, D = 0.145
   for (let k = 0; k < N; k++) {
-    const g = k % 4
-    // ^0.7 crowds the points toward the verdict without leaving the inlets bare
-    const u = Math.pow(rand(), 0.7)
-    const from = g < 3 ? 0.13 + g * 0.30 : 0.5
-    const ease = u * u * (3 - 2 * u)
-    const spread = (g < 3 ? 0.085 : 0.035) * (1 - ease * 0.92)
-    out[k * 2] = 0.04 + u * 0.92
-    out[k * 2 + 1] = from + (0.5 - from) * ease + (rand() - 0.5) * 2 * spread
+    const j = k * 2, g = k % 4
+    if (g < 3) {
+      const th = (g * 2 * Math.PI) / 3 - Math.PI / 2
+      const cx = 0.5 + Math.cos(th) * D, cy = 0.5 + Math.sin(th) * D
+      const a = rand() * Math.PI * 2, r = R * Math.sqrt(rand())
+      out[j] = cx + Math.cos(a) * r
+      out[j + 1] = cy + Math.sin(a) * r
+    } else {
+      const a = rand() * Math.PI * 2, r = 0.085 * Math.sqrt(rand())
+      out[j] = 0.5 + Math.cos(a) * r
+      out[j + 1] = 0.5 + Math.sin(a) * r
+    }
   }
-  return { p: out, aspect: 0 }
+  return { p: out, aspect: 1, tearable: true }
 }
 
-/** Every station accounted for, in order.
+/** THE VORTEX -- the atmosphere itself.
  *
- *  The field used to end back on the map it opened with, which made the page a
- *  loop instead of an argument. It opens with a country full of instruments
- *  nobody can vouch for; it ends with all of them graded, and that is a
- *  lattice -- 50 by 30, which is exactly the 1,500 points there are, so the
- *  closing shape has every dot in it and no gaps. */
-function shapeLattice(): Shape {
+ *  An inward spiral tightening as it rises, with long arms sweeping in from
+ *  the sides to feed it: the shape of a cyclone, and the shape of every
+ *  circulation this project exists to measure honestly. The page opens on a
+ *  country full of instruments and closes on the thing they are pointed at.
+ *
+ *  Two thirds of the points are the core, wound on fourteen streamlines so the
+ *  loops read as loops rather than as a smear; the rest are the arms. */
+function shapeVortex(): Shape {
   const out = new Float32Array(N * 2)
   const rand = mulberry(41)
-  const COLS = 50, LROWS = N / COLS
+  const LINES = 14, TURNS = 3.1
+  const core = Math.round(N * 0.64)
   for (let k = 0; k < N; k++) {
-    const c = k % COLS, r = (k / COLS) | 0
-    out[k * 2] = (c + 0.5) / COLS + (rand() - 0.5) * 0.006
-    out[k * 2 + 1] = (r + 0.5) / LROWS + (rand() - 0.5) * 0.010
+    const j = k * 2
+    if (k < core) {
+      const line = k % LINES
+      const q = Math.floor(k / LINES) / Math.floor(core / LINES)
+      const th = (line / LINES) * Math.PI * 2 + q * TURNS * Math.PI * 2
+      const r = 0.30 * (1 - 0.72 * q)
+      out[j] = 0.5 + Math.cos(th) * r
+      // the loops are ellipses seen obliquely, and the stack rises as it winds
+      out[j + 1] = 0.86 - q * 0.70 + Math.sin(th) * r * 0.30
+    } else {
+      const arm = (k - core) % 9
+      const s = ((k - core) / 9 % Math.floor((N - core) / 9)) / Math.floor((N - core) / 9)
+      const R = 0.95 - 0.58 * s
+      const ph = (arm / 9) * Math.PI * 2 + s * 1.5
+      out[j] = 0.5 + Math.cos(ph) * R * 0.52
+      out[j + 1] = 0.5 + Math.sin(ph) * R * 0.34 + (rand() - 0.5) * 0.02
+    }
   }
-  return { p: out, aspect: 0 }
+  return { p: out, aspect: 0.8, tearable: true }
 }
 
 /** Deterministic noise: the field must scatter the same way on every visit, so
