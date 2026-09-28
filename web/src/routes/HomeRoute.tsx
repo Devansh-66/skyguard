@@ -135,40 +135,49 @@ export function HomeRoute() {
 
       {/* ------------------------------------------------ the hard part
         *
-        * The one idea the whole project rests on, told at the reader's pace
-        * rather than in a caption. The figure pins; the reasoning scrolls
-        * past it. See ScrollStory for why none of that needs JavaScript to
-        * stay readable. */}
+        * WHAT THE SYSTEM DOES, IN THE ORDER IT DOES IT.
+        *
+        * This section used to narrate a realisation: seven traces, nothing
+        * says which, so stop reading the station and start reading the
+        * difference -- and look, it had been walking the whole time. Written
+        * that way it is an essay about a problem, and a reader who came to
+        * find out what the product does has to infer it.
+        *
+        * The four steps are now the four things the detector performs, in the
+        * order it performs them, in the present tense, with the product as the
+        * subject of every sentence. Four and not two because the field behind
+        * the page is paced to them: the wave and the curve have this section's
+        * length to morph across. */}
       <section className="border-t border-rule py-16 sm:py-20">
-        <Eyebrow>The problem</Eyebrow>
+        <Eyebrow>Detection</Eyebrow>
         <h2 className="mt-4 max-w-[20ch] font-serif text-[clamp(2rem,4vw,3rem)] font-normal tracking-[-0.03em]">
-          Drift hides in plain sight.
+          Catches the drift a threshold never sees.
         </h2>
         <p className="mt-5 max-w-[56ch] text-lg leading-relaxed text-ink-2">
-          A failing probe reads a little wrong, then a little more, for weeks.
-          No single reading is implausible, so a threshold never fires.
+          SkyGuard grades every reading against the stations around it, so it
+          finds a probe sliding a twentieth of a degree a day while each single
+          reading still looks perfectly plausible.
         </p>
 
         <ScrollStory
           className="mt-4"
           steps={[
-            { label: 'the record',
-              text: <>Seven stations in one region, thirty days. One of them is
-                     failing the entire time. Nothing in the left-hand panel
-                     says which.</> },
-            { label: 'why it hides',
-              text: <>Every trace rises and falls together, because weather is
-                     shared. A probe sliding a twentieth of a degree a day is
-                     buried inside a daily swing forty times larger.</> },
-            { label: 'the subtraction',
-              text: <>So stop reading the station and start reading the
-                     <em> difference</em>. Subtract the median of its
-                     neighbours at the same moment: the weather cancels,
-                     because it happened to all of them.</> },
-            { label: 'what is left',
-              text: <>Six traces collapse onto zero. The seventh walks out of
-                     the band — and it had been walking the whole time, in
-                     plain sight, in the panel on the left.</> },
+            { label: 'reads',
+              text: <>SkyGuard takes every station's temperature, pressure and
+                     humidity as it arrives, and holds thirty days of each at
+                     fifteen-minute steps.</> },
+            { label: 'removes',
+              text: <>It removes each station's own hourly climatology first,
+                     so a site that simply runs warm in the afternoon is never
+                     mistaken for one that is failing.</> },
+            { label: 'differences',
+              text: <>It subtracts the median of that station's neighbours
+                     within 250km at the same moment. Weather is shared, so it
+                     cancels, and the station's own error is what is left.</> },
+            { label: 'flags',
+              text: <>It scales that error by the spread those neighbours
+                     define, held a day behind, and opens an alert after three
+                     consecutive bad steps.</> },
           ]}
         />
       </section>
@@ -201,17 +210,17 @@ export function HomeRoute() {
           <AgentCard
             n="01" tone="brand" title="Data quality"
             what="The observation stream"
-            asks="Is this station drifting away from the ones around it?"
+            asks="Reports how far the station has drifted from the ones around it, in units of their own spread."
           />
           <AgentCard
             n="02" tone="watch" title="Hardware health"
             what="The device itself"
-            asks="Is the supply sagging, the value stuck, the link dropping out?"
+            asks="Reads the housekeeping channel for a sagging supply, a stuck value or a dropping link."
           />
           <AgentCard
             n="03" tone="ok" title="Weather or fault"
             what="The surrounding stations"
-            asks="Did the neighbours move too? Then it is weather, and no one is dispatched."
+            asks="Clears the station when its neighbours moved with it, so weather never becomes a work order."
           />
         </Reveal>
 
@@ -225,9 +234,9 @@ export function HomeRoute() {
               The arbiter, deciding
             </div>
             <p className="mt-4 max-w-[38ch] font-serif text-lg leading-relaxed text-ink-2">
-              Every finding moves the verdict by an amount you can see. Nothing
-              is hidden behind a score, and no alert arrives without the
-              evidence that produced it.
+              Every finding carries a signed contribution to the verdict,
+              computed exactly across all eight coalitions of the three agents.
+              The board prints the evidence beside the score.
             </p>
           </div>
           <div className="rounded-[--radius-lg] border border-rule sg-glass p-6">
@@ -243,8 +252,8 @@ export function HomeRoute() {
           From a suspicion to a work order.
         </h2>
         <p className="mt-5 max-w-[56ch] text-lg leading-relaxed text-ink-2">
-          Detection on its own just makes a longer list. SkyGuard names the
-          fault, ranks it, and says what to bring.
+          SkyGuard names the fault, ranks it against every other open case,
+          and says what a technician should take to the pole.
         </p>
         <Reveal className="mt-10 grid gap-4 md:grid-cols-3">
           <Step icon={<Activity size={18} />} title="Detect"
@@ -270,7 +279,7 @@ export function HomeRoute() {
       <section className="border-t border-rule py-16 sm:py-20">
         <Eyebrow>The architecture</Eyebrow>
         <h2 className="mt-4 font-serif text-[clamp(2rem,4vw,3rem)] font-normal tracking-[-0.03em]">
-          Built for a network, not a demo.
+          Scales from one node to a national network.
         </h2>
         <p className="mt-5 max-w-[56ch] text-lg leading-relaxed text-ink-2">
           One ingest path, one set of rules, and a design that scales from a
@@ -291,10 +300,10 @@ export function HomeRoute() {
                 body="A simulated station and a physical ESP32 post through the
                       same endpoint and are judged by the same panel. Adding
                       hardware changes nothing downstream." />
-          <Step icon={<ShieldCheck size={18} />} title="Honest about doubt"
-                body="Too few neighbours, too little history, nothing on the
-                      housekeeping channel — the system says so and abstains
-                      instead of inventing a verdict." />
+          <Step icon={<ShieldCheck size={18} />} title="Abstains when it cannot judge"
+                body="With too few neighbours, too little history or nothing on
+                      the housekeeping channel, SkyGuard returns no verdict and
+                      names the input it was missing." />
         </Reveal>
       </section>
 
@@ -328,7 +337,7 @@ export function HomeRoute() {
                       s="of the faults injected into the network" />
             <DarkStat v={m ? Math.round(m.precision * 100) + '%' : '—'}
                       k="Alerts genuine"
-                      s="honest, and the number we are working on" />
+                      s="of the alerts raised were real faults" />
             <DarkStat v={n ? String(n.simulated_stations) : '—'}
                       k="Stations graded"
                       s="every reading, against its neighbours" />
