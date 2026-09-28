@@ -346,30 +346,6 @@ export function HomeRoute() {
         </Reveal>
       </section>
 
-      {/* ------------------------------------------------------ closing */}
-      <section className="border-t border-rule py-20 sm:py-24">
-        <div className="rounded-[--radius-lg] border border-rule sg-glass px-8 py-12 text-center">
-          <h2 className="mx-auto max-w-[22ch] font-serif text-[clamp(1.9rem,3.6vw,2.6rem)] font-normal tracking-[-0.03em]">
-            See which station needs a technician today.
-          </h2>
-          <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <Link
-              to="/board"
-              className="inline-flex items-center gap-2 rounded-[--radius-pill] bg-ink px-6 py-3
-                         text-[15px] font-medium text-paper transition-opacity hover:opacity-85"
-            >
-              Open the board <ArrowRight size={16} />
-            </Link>
-            <Link
-              to="/network"
-              className="inline-flex items-center gap-2 rounded-[--radius-pill] border border-rule
-                         px-6 py-3 text-[15px] font-medium transition-colors hover:bg-sunk"
-            >
-              Explore the network
-            </Link>
-          </div>
-        </div>
-      </section>
     </div>
     </>
   )
