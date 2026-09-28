@@ -972,11 +972,26 @@ function splitNetwork(b: Bands): Shape {
     }
   }
 
-  const NODE = 34
+  /* A NODE IS A RING, NOT A BLOB.
+   *
+   * Each one used to be thirty-four points scattered inside a 14px disc, which
+   * at this dot size is a smudge rather than a station -- and it sat in a page
+   * where every other mark is a line drawing. A ring of evenly spaced points
+   * with a few in the middle reads as a node at a glance, holds its shape at
+   * any size, and costs a third of the dots, which go to the strands instead.
+   *
+   * Every third one is drawn larger, because a mesh where every node is
+   * identical reads as a pattern; a real network has hubs. */
+  const RING = 18
   for (let k = 0; k < nx.length; k++) {
-    for (let m = 0; m < NODE; m++) {
-      const a = rand() * Math.PI * 2, r = gw * 0.10 * Math.sqrt(rand())
+    const r = gw * (k % 3 === 0 ? 0.105 : 0.072)
+    for (let m = 0; m < RING; m++) {
+      const a = (m / RING) * Math.PI * 2
       put(nx[k] + Math.cos(a) * r, ny[k] + Math.sin(a) * r * b.ar)
+    }
+    for (let m = 0; m < 4; m++) {
+      const a = rand() * Math.PI * 2, rr = r * 0.20 * Math.sqrt(rand())
+      put(nx[k] + Math.cos(a) * rr, ny[k] + Math.sin(a) * rr * b.ar)
     }
   }
 
