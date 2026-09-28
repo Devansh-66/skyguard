@@ -23,24 +23,29 @@
  * distribution are red everywhere, because they are the failing station in
  * every one of these pictures.
  *
- * ONE FORMATION, BESIDE THE PAGE, AND IT GLIDES THERE
+ * EACH SHAPE HAS ITS OWN PLACE, AND THE PLACE IS FIXED
  *
- * The shape sits in whatever space the page is not using -- usually the
- * margin the copy is not set against -- and it is never duplicated and never
- * torn. One population, one shape.
+ * Where a formation belongs is a property of the formation, not of whatever
+ * happens to be on screen:
  *
- * The hard part is that the free space changes as you scroll, because cards
- * scroll. An earlier version recomputed the placement every frame and snapped
- * to it, so crossing the line where a card entered the viewport the shape
- * jumped: the map broke near the top of the page and the wave broke coming
- * out of it. The cure is not to stop moving, it is to stop teleporting. The
- * field eases toward the free space the same way it eases toward the scroll
- * position, so a change of room is a glide rather than a cut.
+ *   the map      beside the headline, on the right, where it has always read
+ *                best -- a country is a picture and it wants a frame
+ *   the wave     the full width, behind the copy. A chart of thirty days
+ *                wants a long axis, and dots passing faintly behind a line of
+ *                type is the effect working
+ *   the curve    the same, for the same reason
+ *   the circles  the full width, behind the three specialists
+ *   the spiral   centred, because a spiral has no side to be on
  *
- * Two more things keep it honest. The cards are glass -- see `.sg-glass` --
- * so a dot that does pass behind one during the glide still exists. And the
- * keep-out is only what has a surface: a paragraph is not a surface, and the
- * field reading faintly behind a line of type is the effect working.
+ * This replaced two failed attempts. Measuring the free space each frame and
+ * snapping to it made the shape teleport whenever a card scrolled into view.
+ * Centring everything cured the teleport by deleting the layout. A fixed place
+ * per shape cannot jump -- there is nothing to recompute -- and the move from
+ * one shape's place to the next is carried by the morph itself, which is
+ * already eased.
+ *
+ * The cards are glass -- see `.sg-glass` -- so a wide formation behind a grid
+ * of them is dimmed rather than deleted.
  *
  * WHY NONE OF THIS IS LOAD-BEARING
  *
@@ -82,13 +87,8 @@ const LAT = [6.2, 37.6] as const
  * while you read the copy that explains it. */
 const ANCHORS = [0.06, 0.17, 0.32, 0.52, 0.90]
 
-/** Gap between a surface and the field, in CSS pixels. */
-const GAP = 24
 /** How much of the viewport's height a formation is allowed. */
 const FRAME_H = 0.86
-/** How fast the field slides when the room changes. Slow enough to read as a
- *  drift, fast enough that it has arrived by the time you have. */
-const GLIDE = 0.12
 
 /** A shape, stored in a unit box: 2N numbers in [0,1]. Unit coordinates are
  *  what let the regions change every frame without rebuilding anything. */
@@ -96,6 +96,8 @@ interface Shape {
   p: Float32Array
   /** width/height the shape wants, or 0 for "fill the frame". */
   aspect: number
+  /** Where on the screen it lives. See the note at the top of this file. */
+  place: 'right' | 'wide' | 'center'
 }
 
 export function DotField({ className }: { className?: string }) {
@@ -147,12 +149,6 @@ export function DotField({ className }: { className?: string }) {
     let at = 0
     /** Where the scroll says it should be. */
     let want = 0
-    /** Surface rectangles in DOCUMENT coordinates, so scrolling does not
-     *  invalidate them. Rebuilt whenever the layout could have changed. */
-    let blocks: { top: number; bottom: number; left: number; right: number }[] = []
-    /** The band the field is in, and the band it is heading for. Easing the
-     *  first toward the second is what turns a change of room into a glide. */
-    let band: [number, number] | null = null
 
     /* Layout's idea of the viewport, not the window's.
      *
@@ -163,30 +159,6 @@ export function DotField({ className }: { className?: string }) {
      * not. */
     const vw = () => document.documentElement.clientWidth || window.innerWidth
     const vh = () => document.documentElement.clientHeight || window.innerHeight
-
-    /** Every piece of the page the field must not sit on top of -- and only
-     *  those.
-     *
-     *  The distinction that matters is whether a thing has a surface. A card
-     *  is opaque enough that a dot behind it barely exists; a heading or a
-     *  paragraph is not, and the field passing faintly behind type is the
-     *  effect working rather than failing. Read from the computed background
-     *  rather than guessed from a class name, so a restyled section moves the
-     *  field on its own. */
-    function measure() {
-      const host = document.querySelector('[data-field-content]') ?? document.body
-      const y = window.scrollY
-      blocks = [...host.querySelectorAll('[class*="rounded-"],[class*="bg-"]')]
-        .filter((e) => {
-          const m = getComputedStyle(e).backgroundColor.match(/[\d.]+/g)
-          return !!m && m.length >= 3 && (m.length < 4 || +m[3] > 0.05)
-        })
-        .map((e) => {
-          const r = e.getBoundingClientRect()
-          return { top: r.top + y, bottom: r.bottom + y, left: r.left, right: r.right }
-        })
-        .filter((r) => r.bottom > r.top && r.right > r.left)
-    }
 
     function build() {
       w = vw()
@@ -217,8 +189,6 @@ export function DotField({ className }: { className?: string }) {
 
       shapes = [shapeIndia(data.current), shapeWave(), shapeCurve(),
                 shapeCircles(), shapeSpiral()]
-      measure()
-      band = null
       dirty.current = false
     }
 
@@ -249,37 +219,20 @@ export function DotField({ className }: { className?: string }) {
      *  leaves neither margin worth having, it returns the middle anyway: the
      *  cards are glass, so the shape is dimmed rather than deleted, and a
      *  dimmed shape beats a shape that jumps out of the way. */
-    function freeBand(): [number, number] {
-      /* THE BAND SLIDES. IT DOES NOT SHRINK.
-       *
-       * Sizing the band to whatever room was left made the shape tiny exactly
-       * where the page is busiest: three cards across the measure leave about
-       * 230px of margin, and a Venn or a spiral drawn 230px wide is a smudge.
-       * So the width is fixed and only the position moves -- flush right where
-       * the right margin can take it, flush left where only the left can, and
-       * flush right anyway when neither can, because the cards are glass and a
-       * shape seen through one beats a shape shrunk to nothing. */
-      const width = Math.min(w * 0.50, h * 0.92)
-      const top = window.scrollY, bot = top + h
-      let left = Infinity, right = -Infinity
-      for (const b of blocks) {
-        if (b.bottom < top || b.top > bot) continue
-        if (b.left < left) left = b.left
-        if (b.right > right) right = b.right
-      }
-      const flushRight: [number, number] = [w - 10 - width, w - 10]
-      if (right < 0) return flushRight
-      if (w - (right + GAP) >= width) return flushRight
-      if (left - GAP >= width) return [10, 10 + width]
-      return flushRight
-    }
-
-    /** Where a shape's unit box lands, inside the band the field is currently
-     *  in -- not the one it is heading for, which is what makes it a glide. */
+    /** Where a shape's unit box lands. A pure function of the shape and the
+     *  window: nothing here can change while you scroll, so nothing can jump. */
     function fit(sh: Shape) {
-      const [x0, x1] = band!
-      const bw = x1 - x0, fh = h * FRAME_H
-      if (!sh.aspect) return { x: x0, y: (h - fh) / 2, sx: bw, sy: fh }
+      const fh = h * FRAME_H
+      const y = (h - fh) / 2
+      if (sh.place === 'wide') {
+        const x0 = w * 0.05, bw = w * 0.90
+        if (!sh.aspect) return { x: x0, y, sx: bw, sy: fh }
+        const sw = Math.min(bw, fh * sh.aspect), sy = sw / sh.aspect
+        return { x: x0 + (bw - sw) / 2, y: (h - sy) / 2, sx: sw, sy }
+      }
+      const bw = sh.place === 'center' ? Math.min(w * 0.62, fh) : Math.min(w * 0.52, fh)
+      const x0 = sh.place === 'center' ? (w - bw) / 2 : w - 12 - bw
+      if (!sh.aspect) return { x: x0, y, sx: bw, sy: fh }
       const sw = Math.min(bw, fh * sh.aspect), sy = sw / sh.aspect
       return { x: x0 + (bw - sw) / 2, y: (h - sy) / 2, sx: sw, sy }
     }
@@ -305,11 +258,8 @@ export function DotField({ className }: { className?: string }) {
       const u = f - i
       const t = u * u * (3 - 2 * u)
 
-      const tgt = freeBand()
-      if (!band) band = tgt
-      else { band[0] += (tgt[0] - band[0]) * GLIDE; band[1] += (tgt[1] - band[1]) * GLIDE }
       const A = fit(a), B = fit(b)
-      const rf = 0.6 + 0.4 * Math.min(1, (band[1] - band[0]) / 700)
+      const rf = 0.6 + 0.4 * Math.min(1, w / 1300)
 
       const xy = (k: number) => {
         const [ax, ay] = unit(A, a, k)
@@ -385,12 +335,7 @@ export function DotField({ className }: { className?: string }) {
     const frame = () => {
       raf = requestAnimationFrame(frame)
       if (dirty.current || w !== vw() || h !== vh()) { step(); return }
-      if (Math.abs(want - at) > 0.0004) { step(); return }
-      // the band eases too, and it is still moving after the scroll has stopped
-      if (band) {
-        const t = freeBand()
-        if (Math.abs(t[0] - band[0]) > 0.5 || Math.abs(t[1] - band[1]) > 0.5) step()
-      }
+      if (Math.abs(want - at) > 0.0004) step()
     }
 
     const onScroll = () => {
@@ -548,7 +493,7 @@ function shapeIndia(d: { geom?: GeoJSON.Geometry; stations?: SimMap['stations'] 
     if (p) { out[j] = ux(p.lon); out[j + 1] = uy(p.lat) }
     else { out[j] = rand(); out[j + 1] = rand() }
   }
-  return { p: out, aspect: MASK_W / MASK_H }
+  return { p: out, aspect: MASK_W / MASK_H, place: 'right' }
 }
 
 const ROWS = 7
@@ -572,7 +517,7 @@ function shapeWave(): Shape {
     out[k * 2] = u
     out[k * 2 + 1] = 0.5 + swell + strand + drift + (rand() - 0.5) * 0.008
   }
-  return { p: out, aspect: 0 }
+  return { p: out, aspect: 0, place: 'wide' }
 }
 
 /** THE CURVE -- the spread, once the weather is gone.
@@ -602,7 +547,7 @@ function shapeCurve(): Shape {
     out[k * 2] = x
     out[k * 2 + 1] = 0.93 - rand() * bell * 0.78
   }
-  return { p: out, aspect: 0 }
+  return { p: out, aspect: 0, place: 'wide' }
 }
 
 /** THREE CIRCLES -- three specialists, one verdict.
@@ -629,7 +574,7 @@ function shapeCircles(): Shape {
       out[j + 1] = 0.5 + Math.sin(a) * r
     }
   }
-  return { p: out, aspect: 1 }
+  return { p: out, aspect: 1, place: 'wide' }
 }
 
 /** THE SPIRAL -- the atmosphere itself.
@@ -658,7 +603,7 @@ function shapeSpiral(): Shape {
     out[k * 2] = 0.5 + Math.cos(th) * r + (rand() - 0.5) * 0.012
     out[k * 2 + 1] = 0.5 + Math.sin(th) * r + (rand() - 0.5) * 0.012
   }
-  return { p: out, aspect: 1 }
+  return { p: out, aspect: 1, place: 'center' }
 }
 
 /** Deterministic noise: the field must scatter the same way on every visit, so

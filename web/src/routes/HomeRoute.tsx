@@ -123,22 +123,15 @@ export function HomeRoute() {
         * an opaque card in the middle of them covered half the country. What
         * is left is the part that was carrying information: four numbers, on a
         * rule, which the field passes behind. */}
-      {/* Two by two, and held to the width of the copy.
+      {/* THE NUMBERS USED TO BE PRINTED TWICE.
         *
-        * Four across ran the numbers the full measure, which put an opaque
-        * strip across the one screen where the field has the most to say --
-        * and the field keeps off anything with a surface, so the map lost its
-        * room. A block of four numbers beside the country is the better
-        * picture anyway. */}
-      <Reveal className="mt-14 max-w-[540px]">
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[--radius-lg]
-                        border border-rule bg-rule">
-          <Stat v={n ? String(n.simulated_stations) : '—'} k="Stations watched" s="across India" />
-          <Stat v={n ? String(n.states) : '—'} k="States" s="and territories" />
-          <Stat v={m ? Math.round(m.recall * 100) + '%' : '—'} k="Faults found" s="of those present" />
-          <Stat v="3" k="Parameters" s="temperature · pressure · humidity" />
-        </div>
-      </Reveal>
+        * There was a block of four here -- 344 stations, 33 states, 57% of
+        * faults found -- and then the same 344 and the same 57% again in the
+        * results section, where they belong and where the page says how they
+        * were measured. Printing a figure twice does not make it twice as
+        * convincing; it makes the reader wonder which one to believe. The
+        * hero keeps the claim and the map, and the numbers wait for the
+        * section that can back them up. */}
 
       {/* ------------------------------------------------ the hard part
         *
@@ -428,16 +421,6 @@ function Step({ icon, title, body }: {
       </div>
       <h3 className="mt-4 text-lg font-semibold">{title}</h3>
       <p className="mt-2 font-serif text-[15px] leading-relaxed text-ink-2">{body}</p>
-    </div>
-  )
-}
-
-function Stat({ v, k, s }: { v: string; k: string; s: string }) {
-  return (
-    <div className="sg-glass p-6">
-      <div className="tnum text-4xl font-semibold leading-none">{v}</div>
-      <div className="mt-3 font-mono text-[10px] uppercase tracking-widest text-ink-3">{k}</div>
-      <div className="mt-1.5 text-sm text-ink-2">{s}</div>
     </div>
   )
 }
