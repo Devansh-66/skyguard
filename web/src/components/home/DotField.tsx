@@ -80,6 +80,8 @@ const LAT = [6.2, 37.6] as const
 
 /* WHERE EACH SHAPE IS FULLY ITSELF, as a fraction of the page's scroll.
  *
+ * THESE ARE THE FALLBACK. The real ones are measured -- see `anchors()`.
+ *
  * Spreading five shapes evenly over the page put the curve under the
  * three-agent section -- the field was moving, but never in step with the
  * sentence being read. These are measured against the sections. Between two
@@ -138,6 +140,8 @@ export function DotField({ className }: { className?: string }) {
 
     let w = 0, h = 0
     let shapes: Shape[] = []
+    /** Measured once per build; see `anchors()`. */
+    let stops: number[] = ANCHORS
     /** Ink, then the five accents the page already uses for meaning. */
     let palette = ['#141413', '#1A5C7A', '#96650C', '#2F6F4E', '#A93226', '#8C877C']
     /** Light ink means a dark page, where the same alpha reads fainter. */
@@ -201,6 +205,7 @@ export function DotField({ className }: { className?: string }) {
       shapes = [shapeIndia(data.current), shapeWave(), shapeCurve(),
                 splitPanel(bands(w, h)), splitOrder(bands(w, h)),
                 splitNetwork(bands(w, h)), shapeSpiral()]
+      stops = anchors(h)
       dirty.current = false
     }
 
@@ -260,10 +265,10 @@ export function DotField({ className }: { className?: string }) {
     function draw() {
       ctx!.clearRect(0, 0, w, h)
       const segs = shapes.length - 1
-      let f = at <= ANCHORS[0] ? 0 : segs
+      let f = at <= stops[0] ? 0 : segs
       for (let k = 0; k < segs; k++) {
-        if (at >= ANCHORS[k] && at <= ANCHORS[k + 1]) {
-          f = k + (at - ANCHORS[k]) / (ANCHORS[k + 1] - ANCHORS[k])
+        if (at >= stops[k] && at <= stops[k + 1]) {
+          f = k + (at - stops[k]) / (stops[k + 1] - stops[k])
           break
         }
       }
@@ -791,6 +796,54 @@ const gTick: Glyph = (n, rand) => {
  *  enormous marks; on a narrow one, where there is no margin to have, the band
  *  sits over the glass instead and the glyph is dimmed rather than misplaced.
  */
+/* WHERE THE SHAPES ARE FULLY THEMSELVES, MEASURED RATHER THAN WRITTEN DOWN.
+ *
+ * These used to be seven constants tuned by hand against the page as it stood.
+ * Then the copy was rewritten, the page lost nine hundred pixels, and every
+ * section slid out from under its formation: the web arrived a screen early,
+ * the curve sat against the wrong step. A number tuned against a layout is a
+ * number that breaks the next time anyone edits a sentence.
+ *
+ * So they are read off the layout instead. Each formation is pinned to the
+ * thing it illustrates -- the map to the hero, the wave and the curve to the
+ * steps of the detection sequence, the rest to their own sections -- and a
+ * small offset puts the shape fully formed a moment after the heading lands,
+ * while the body beneath it is being read.
+ *
+ * This runs ONCE, inside build, not per frame. The offsets are document
+ * positions, which do not change as you scroll, so this cannot bring back the
+ * jumping that measuring per frame used to cause. If the page is not the shape
+ * this expects -- fewer sections, no steps -- it returns the constants above
+ * rather than guessing.
+ */
+function anchors(h: number): number[] {
+  const d = document.documentElement
+  const span = d.scrollHeight - h
+  const host = document.querySelector('[data-field-content]')
+  if (span <= 0 || !host) return ANCHORS
+  const secs = [...host.querySelectorAll(':scope > section')]
+  const steps = [...host.querySelectorAll('.sg-story-step')]
+  if (secs.length < 6 || steps.length < 4) return ANCHORS
+
+  const at = (el: Element, bias: number) =>
+    (el.getBoundingClientRect().top + window.scrollY - h * 0.30) / span + bias
+  const out = [
+    at(secs[0], 0.03),     // the map, over the hero
+    at(steps[1], 0),       // the wave, while the first two steps are read
+    at(steps[3], 0),       // the curve, while the last two are
+    at(secs[2], 0.04),     // the three specialists
+    at(secs[3], 0.04),     // suspicion to work order
+    at(secs[4], 0.06),     // built for a network
+    1,                     // the spiral, at the foot of the page
+  ].map((v) => Math.min(1, Math.max(0, v)))
+
+  // Strictly increasing, or the segment search below divides by zero.
+  for (let i = 1; i < out.length; i++) {
+    if (out[i] <= out[i - 1]) out[i] = Math.min(1, out[i - 1] + 0.01)
+  }
+  return out
+}
+
 interface Bands { lx0: number; rx0: number; bw: number; ar: number }
 
 function bands(w: number, h: number): Bands {
