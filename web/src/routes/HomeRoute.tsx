@@ -56,7 +56,11 @@ export function HomeRoute() {
           decoration, so nothing on the page depends on it arriving. */}
       <DotField />
 
-    <div className="relative z-10 mx-auto max-w-[1100px] px-5">
+    {/* `data-field-content` is how DotField finds the page. It measures the
+        headings, paragraphs and cards inside this wrapper and keeps the dots
+        off them, so the field moves down the side of a full-width grid of
+        cards instead of behind it. */}
+    <div data-field-content className="relative z-10 mx-auto max-w-[1100px] px-5">
 
       {/* ---------------------------------------------------------- hero
         *
@@ -119,9 +123,16 @@ export function HomeRoute() {
         * an opaque card in the middle of them covered half the country. What
         * is left is the part that was carrying information: four numbers, on a
         * rule, which the field passes behind. */}
-      <Reveal className="mt-14">
+      {/* Two by two, and held to the width of the copy.
+        *
+        * Four across ran the numbers the full measure, which put an opaque
+        * strip across the one screen where the field has the most to say --
+        * and the field keeps off anything with a surface, so the map lost its
+        * room. A block of four numbers beside the country is the better
+        * picture anyway. */}
+      <Reveal className="mt-14 max-w-[540px]">
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[--radius-lg]
-                        border border-rule bg-rule sm:grid-cols-4">
+                        border border-rule bg-rule">
           <Stat v={n ? String(n.simulated_stations) : '—'} k="Stations watched" s="across India" />
           <Stat v={n ? String(n.states) : '—'} k="States" s="and territories" />
           <Stat v={m ? Math.round(m.recall * 100) + '%' : '—'} k="Faults found" s="of those present" />
