@@ -336,3 +336,22 @@
      shows its flag. A still of the same diagram, not a broken one. */
   .sg-edge-run, .sg-edge-lane, .sg-edge-flag { animation: none; }
 }
+
+/* GLASS: A SURFACE THE FIELD CAN BE SEEN THROUGH.
+ *
+ * The dot field behind the page used to dodge every card, because a solid
+ * surface makes a dot that is behind it simply not exist. Dodging meant the
+ * shape's placement depended on which cards happened to be on the screen, so
+ * it jumped the moment one scrolled into view -- the map broke at the top of
+ * the page and the wave broke coming out of it.
+ *
+ * The cure is not better dodging. It is a card you can see through: 72% of the
+ * surface colour over the field, with a small blur so type stays crisp on top
+ * of moving dots. The field can then be placed once and never moved, which is
+ * the only way a morph between two shapes can be continuous.
+ */
+.sg-glass {
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}

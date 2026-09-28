@@ -237,7 +237,7 @@ export function HomeRoute() {
               evidence that produced it.
             </p>
           </div>
-          <div className="rounded-[--radius-lg] border border-rule bg-surface p-6">
+          <div className="rounded-[--radius-lg] border border-rule sg-glass p-6">
             <XaiLoop />
           </div>
         </Reveal>
@@ -307,17 +307,23 @@ export function HomeRoute() {
 
       {/* -------------------------------------------------- the numbers
         *
-        * INVERTED, BECAUSE NINE SCREENS OF CREAM IS THE REAL MONOTONY.
+        * IT WAS A SOLID DARK BAND, AND THE FIELD DIED BEHIND IT.
         *
-        * One dark band does more for the page's rhythm than any amount of
-        * motion, and it belongs here: the measured results are the one place
-        * the page stops describing and starts reporting. The weak numbers are
-        * printed beside the strong ones deliberately -- a results panel that
-        * shows only what flatters is not a results panel.
+        * Inverting this section was the right call when the page had no
+        * picture of its own: nine screens of cream is a real monotony and one
+        * dark band fixed it. But the field's closing shape is a vortex, and a
+        * filled block of ink is the one thing a field drawn in ink cannot be
+        * seen through -- the last formation simply did not exist on the screen
+        * it was made for.
+        *
+        * So the rhythm comes from the rule and the spacing instead, and the
+        * numbers sit on the open page with the vortex turning behind them. The
+        * weak numbers are still printed beside the strong ones deliberately: a
+        * results panel that shows only what flatters is not a results panel.
         */}
       <section className="py-10 sm:py-14">
-        <Reveal className="rounded-[--radius-lg] bg-ink px-8 py-14 text-paper sm:px-12">
-          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-paper/55">
+        <Reveal className="rounded-[--radius-lg] border border-rule px-8 py-14 sm:px-12">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-brand">
             Measured, not claimed
           </p>
           <h2 className="mt-4 max-w-[24ch] font-serif text-[clamp(2rem,4vw,3rem)] font-normal tracking-[-0.03em]">
@@ -342,7 +348,7 @@ export function HomeRoute() {
 
       {/* ------------------------------------------------------ closing */}
       <section className="border-t border-rule py-20 sm:py-24">
-        <div className="rounded-[--radius-lg] border border-rule bg-surface px-8 py-12 text-center">
+        <div className="rounded-[--radius-lg] border border-rule sg-glass px-8 py-12 text-center">
           <h2 className="mx-auto max-w-[22ch] font-serif text-[clamp(1.9rem,3.6vw,2.6rem)] font-normal tracking-[-0.03em]">
             See which station needs a technician today.
           </h2>
@@ -383,7 +389,7 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** A statistic on the inverted band. Separate from Stat because the numbers
+/** A statistic in the results section. Separate from Stat because the numbers
  *  there are the section rather than a strip under a figure, so they are set
  *  larger and without the cell borders that would fence them in. */
 function DarkStat({ v, k, s }: { v: string; k: string; s: string }) {
@@ -392,10 +398,10 @@ function DarkStat({ v, k, s }: { v: string; k: string; s: string }) {
       <div className="text-[clamp(2.2rem,4.6vw,3.2rem)] font-semibold leading-none tracking-[-0.02em]">
         {v}
       </div>
-      <div className="mt-4 font-mono text-[10px] uppercase tracking-widest text-paper/60">
+      <div className="mt-4 font-mono text-[10px] uppercase tracking-widest text-ink-3">
         {k}
       </div>
-      <p className="mt-2 max-w-[28ch] font-serif text-[14px] leading-relaxed text-paper/75">
+      <p className="mt-2 max-w-[28ch] font-serif text-[14px] leading-relaxed text-ink-2">
         {s}
       </p>
     </div>
@@ -424,7 +430,7 @@ function AgentCard({ n, title, what, asks, tone }: {
   tone: keyof typeof AGENT_TONE
 }) {
   return (
-    <div className="rounded-[--radius-lg] border border-rule bg-surface p-6">
+    <div className="rounded-[--radius-lg] border border-rule sg-glass p-6">
       <div className={cn('font-mono text-[11px] tracking-widest', AGENT_TONE[tone])}>{n}</div>
       <h3 className="mt-3 text-lg font-semibold">{title}</h3>
       <div className="mt-1 font-mono text-[10px] uppercase tracking-widest text-ink-3">
@@ -439,7 +445,7 @@ function Step({ icon, title, body }: {
   icon: React.ReactNode; title: string; body: string
 }) {
   return (
-    <div className="rounded-[--radius-lg] border border-rule bg-surface p-6">
+    <div className="rounded-[--radius-lg] border border-rule sg-glass p-6">
       <div className="flex size-9 items-center justify-center rounded-[--radius-pill]
                       bg-sunk text-ink-2">
         {icon}
@@ -452,7 +458,7 @@ function Step({ icon, title, body }: {
 
 function Stat({ v, k, s }: { v: string; k: string; s: string }) {
   return (
-    <div className="bg-surface p-6">
+    <div className="sg-glass p-6">
       <div className="tnum text-4xl font-semibold leading-none">{v}</div>
       <div className="mt-3 font-mono text-[10px] uppercase tracking-widest text-ink-3">{k}</div>
       <div className="mt-1.5 text-sm text-ink-2">{s}</div>

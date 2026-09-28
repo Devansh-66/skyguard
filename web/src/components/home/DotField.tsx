@@ -23,26 +23,24 @@
  * distribution are red everywhere, because they are the failing station in
  * every one of these pictures.
  *
- * ONE FORMATION AT A TIME, AND IT NEVER DUPLICATES
+ * ONE FORMATION, AND ONE PLACE TO PUT IT
  *
- * An earlier version split the dots across the free regions and had each
- * region draw the shape, which put two half-density Indias on the screen at
- * once. One population, one shape.
+ * The shape is centred in the viewport and it stays there. That sounds too
+ * simple to be worth a comment, so here is what it replaced and why.
  *
- * Where the page leaves a wide free area the shape is drawn whole in it. Where
- * a full-width grid of cards runs down the middle there is no wide area, so
- * the single shape is TORN around them: the points left of its middle go into
- * the left margin, the points right of it into the right, in proportion to
- * how much room each margin has. That reads as the content pushing the field
- * apart, which is what it is, rather than as a copy on either side. The map is
- * the one shape never torn -- half an India each side is not an India -- so
- * where there is no room it is drawn small in the wider margin.
+ * A solid card makes a dot behind it not exist, so the field used to find the
+ * free space and draw itself there -- whole in a wide margin, torn across two
+ * narrow ones. The placement therefore depended on which cards happened to be
+ * on screen, and cards scroll. Crossing the boundary where a card entered the
+ * viewport, the field changed its mind about where it lived and the shape
+ * jumped: the map broke near the top of the page, and the wave broke coming
+ * out of it. No amount of better dodging fixes that, because the jump IS the
+ * dodging.
  *
- * The keep-out is only what has a surface of its own, read from the computed
- * background rather than guessed from a class name, because a card hides a dot
- * and a paragraph does not. Where a screen holds no cards at all the field
- * takes the whole width, which is where the wave and the curve get to be full
- * size.
+ * So the cards became glass instead -- see `.sg-glass` -- and the field stopped
+ * dodging. It is placed once, at build, and only a resize moves it. A morph
+ * between two shapes is then continuous by construction, which is the only way
+ * it can be.
  *
  * WHY NONE OF THIS IS LOAD-BEARING
  *
@@ -84,30 +82,18 @@ const LAT = [6.2, 37.6] as const
  * while you read the copy that explains it. */
 const ANCHORS = [0.06, 0.17, 0.32, 0.52, 0.90]
 
-/** Gap between a surface and the field, in CSS pixels. */
-const GAP = 26
-/** A region narrower than this is not worth drawing into at all. */
-const MIN_REGION = 96
-/** Below this width a region cannot hold a whole shape, so the shape is torn
- *  across both margins instead. */
-const WHOLE_REGION = 300
-/** Taller than this many times its width and a region transposes the shape it
- *  is given, so time runs down the column instead of across a sliver. */
-const UPRIGHT = 1.3
+/** How much of the viewport a formation is allowed, as a fraction. Short of
+ *  the edges so nothing is ever clipped mid-morph. */
+const FRAME_W = 0.90
+const FRAME_H = 0.86
 
 /** A shape, stored in a unit box: 2N numbers in [0,1]. Unit coordinates are
  *  what let the regions change every frame without rebuilding anything. */
 interface Shape {
   p: Float32Array
-  /** width/height the shape wants, or 0 for "fill the region". */
+  /** width/height the shape wants, or 0 for "fill the frame". */
   aspect: number
-  /** Does its x axis mean something (time, value)? Only these transpose. */
-  axial?: boolean
-  /** May it be torn across two margins? The map may not. */
-  tearable?: boolean
 }
-
-interface Region { x0: number; x1: number }
 
 export function DotField({ className }: { className?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -152,9 +138,6 @@ export function DotField({ className }: { className?: string }) {
     /** Light ink means a dark page, where the same alpha reads fainter. */
     let baseAlpha = 0.13
     let inkIsLight = false
-    /** Surface rectangles in DOCUMENT coordinates, so scrolling does not
-     *  invalidate them. Rebuilt whenever the layout could have changed. */
-    let blocks: { top: number; bottom: number; left: number; right: number }[] = []
     /** Where the field actually is, which lags where the scroll says it should
      *  be. Without this the dots snap with the scroll wheel; with it they
      *  stream, which is the difference between a slideshow and a field. */
@@ -171,29 +154,6 @@ export function DotField({ className }: { className?: string }) {
      * not. */
     const vw = () => document.documentElement.clientWidth || window.innerWidth
     const vh = () => document.documentElement.clientHeight || window.innerHeight
-
-    /** Every piece of the page the field must not sit on top of -- and only
-     *  those.
-     *
-     *  The distinction that matters is whether a thing has a surface. A card,
-     *  a stat block, the inverted results band: these are opaque, and a dot
-     *  behind one is a dot that does not exist. Headings and paragraphs are
-     *  not; the field passing faintly behind a line of type is the effect
-     *  working, and it is what the hero looked like when it read best. */
-    function measure() {
-      const host = document.querySelector('[data-field-content]') ?? document.body
-      const y = window.scrollY
-      blocks = [...host.querySelectorAll('[class*="rounded-"],[class*="bg-"]')]
-        .filter((e) => {
-          const m = getComputedStyle(e).backgroundColor.match(/[\d.]+/g)
-          return !!m && m.length >= 3 && (m.length < 4 || +m[3] > 0.05)
-        })
-        .map((e) => {
-          const r = e.getBoundingClientRect()
-          return { top: r.top + y, bottom: r.bottom + y, left: r.left, right: r.right }
-        })
-        .filter((r) => r.bottom > r.top && r.right > r.left)
-    }
 
     function build() {
       w = vw()
@@ -224,7 +184,6 @@ export function DotField({ className }: { className?: string }) {
 
       shapes = [shapeIndia(data.current), shapeWave(), shapeCurve(),
                 shapeCircles(), shapeVortex()]
-      measure()
       dirty.current = false
     }
 
@@ -248,73 +207,18 @@ export function DotField({ className }: { className?: string }) {
       return span > 0 ? Math.min(1, Math.max(0, window.scrollY / span)) : 0
     }
 
-    /** The strips of this screen the page is not using, in page order.
-     *
-     *  With no surfaces in view that is the whole width, which is where the
-     *  wave and the curve get to be full size. With a grid of cards down the
-     *  middle it is the two margins. */
-    function regions(): Region[] {
-      const top = window.scrollY, bot = top + h
-      let left = Infinity, right = -Infinity
-      for (const b of blocks) {
-        if (b.bottom < top || b.top > bot) continue
-        if (b.left < left) left = b.left
-        if (b.right > right) right = b.right
-      }
-      if (right < 0) return [{ x0: 8, x1: w - 8 }]
-      const out: Region[] = []
-      if (left - GAP >= MIN_REGION) out.push({ x0: 8, x1: left - GAP })
-      if (w - (right + GAP) >= MIN_REGION) out.push({ x0: right + GAP, x1: w - 8 })
-      if (!out.length) {
-        // No honest gap on either side: take the wider margin anyway, at
-        // whatever width it has, rather than hide behind the section.
-        const r = w - right, l = left
-        out.push(r >= l ? { x0: w - Math.max(r, 46), x1: w - 6 }
-                        : { x0: 6, x1: Math.max(l, 46) })
-      }
-      return out
+    /** Where a shape's unit box lands on screen. Centred, aspect respected,
+     *  and the same every frame until the window changes size. */
+    function fit(sh: Shape) {
+      const fw = w * FRAME_W, fh = h * FRAME_H
+      if (!sh.aspect) return { x: (w - fw) / 2, y: (h - fh) / 2, sx: fw, sy: fh }
+      const sw = Math.min(fw, fh * sh.aspect), sy = sw / sh.aspect
+      return { x: (w - sw) / 2, y: (h - sy) / 2, sx: sw, sy }
     }
 
-    /** Where a shape's unit coordinates land on this screen.
-     *
-     *  Either a single box -- the whole shape in the one free area -- or a
-     *  tear: the same shape, its left part in the left margin and its right
-     *  part in the right, split where the two margins' widths say. */
-    interface Layout {
-      tear: null | { s: number; l: Region; r: Region }
-      x: number; y: number; sx: number; sy: number; rot: boolean
-    }
-
-    function layout(s: Shape, regs: Region[]): Layout {
-      const y0 = h * 0.06, sy = h * 0.88
-      const widest = regs.reduce((a, b) => (b.x1 - b.x0 > a.x1 - a.x0 ? b : a))
-      const wide = widest.x1 - widest.x0
-
-      if (wide < WHOLE_REGION && regs.length > 1 && s.tearable) {
-        const l = regs[0], r = regs[1]
-        const wl = l.x1 - l.x0, wr = r.x1 - r.x0
-        return { tear: { s: wl / (wl + wr), l, r }, x: 0, y: y0, sx: 0, sy, rot: false }
-      }
-
-      const rot = !s.aspect && !!s.axial && sy > wide * UPRIGHT
-      if (!s.aspect) return { tear: null, x: widest.x0, y: y0, sx: wide, sy, rot }
-      const sw = Math.min(wide, sy * s.aspect), sh = sw / s.aspect
-      return { tear: null, x: widest.x0 + (wide - sw) / 2, y: y0 + (sy - sh) / 2,
-               sx: sw, sy: sh, rot: false }
-    }
-
-    const unit = (b: Layout, s: Shape, k: number) => {
-      let u = s.p[k * 2], v = s.p[k * 2 + 1]
-      if (b.rot) { const t = u; u = 1 - v; v = t }
-      if (b.tear) {
-        const { s: cut, l, r } = b.tear
-        const x = u < cut
-          ? l.x0 + (u / cut) * (l.x1 - l.x0)
-          : r.x0 + ((u - cut) / (1 - cut)) * (r.x1 - r.x0)
-        return [x, b.y + v * b.sy] as const
-      }
-      return [b.x + u * b.sx, b.y + v * b.sy] as const
-    }
+    type Box = ReturnType<typeof fit>
+    const unit = (b: Box, sh: Shape, k: number) =>
+      [b.x + sh.p[k * 2] * b.sx, b.y + sh.p[k * 2 + 1] * b.sy] as const
 
     function draw() {
       ctx!.clearRect(0, 0, w, h)
@@ -333,12 +237,8 @@ export function DotField({ className }: { className?: string }) {
       const u = f - i
       const t = u * u * (3 - 2 * u)
 
-      const regs = regions()
-      const A = layout(a, regs), B = layout(b, regs)
-      const room = regs.reduce((m, r) => Math.max(m, r.x1 - r.x0), 0)
-      // A ribbon down a margin is a lot of dots in very little width, so the
-      // dots shrink with the room rather than turning into a smear.
-      const rf = 0.6 + 0.4 * Math.min(1, room / 320)
+      const A = fit(a), B = fit(b)
+      const rf = 0.6 + 0.4 * Math.min(1, (w * FRAME_W) / 900)
 
       const xy = (k: number) => {
         const [ax, ay] = unit(A, a, k)
@@ -596,7 +496,7 @@ function shapeWave(): Shape {
     out[k * 2] = u
     out[k * 2 + 1] = 0.5 + swell + strand + drift + (rand() - 0.5) * 0.008
   }
-  return { p: out, aspect: 0, axial: true, tearable: true }
+  return { p: out, aspect: 0 }
 }
 
 /** THE CURVE -- the spread, once the weather is gone.
@@ -626,7 +526,7 @@ function shapeCurve(): Shape {
     out[k * 2] = x
     out[k * 2 + 1] = 0.93 - rand() * bell * 0.78
   }
-  return { p: out, aspect: 0, axial: true, tearable: true }
+  return { p: out, aspect: 0 }
 }
 
 /** THREE CIRCLES -- three specialists, one verdict.
@@ -653,7 +553,7 @@ function shapeCircles(): Shape {
       out[j + 1] = 0.5 + Math.sin(a) * r
     }
   }
-  return { p: out, aspect: 1, tearable: true }
+  return { p: out, aspect: 1 }
 }
 
 /** THE VORTEX -- the atmosphere itself.
@@ -668,28 +568,36 @@ function shapeCircles(): Shape {
 function shapeVortex(): Shape {
   const out = new Float32Array(N * 2)
   const rand = mulberry(41)
-  const LINES = 14, TURNS = 3.1
-  const core = Math.round(N * 0.64)
+  /* Nine streamlines, not fourteen. With more than that the loops overlap
+   * into a solid blob and the shape stops being a spiral -- it has to be
+   * possible to follow one turn round with your eye. */
+  const LINES = 9, TURNS = 4.2
+  const core = Math.round(N * 0.72)
+  const per = Math.floor(core / LINES)
   for (let k = 0; k < N; k++) {
     const j = k * 2
     if (k < core) {
       const line = k % LINES
-      const q = Math.floor(k / LINES) / Math.floor(core / LINES)
+      const q = Math.floor(k / LINES) / per
       const th = (line / LINES) * Math.PI * 2 + q * TURNS * Math.PI * 2
-      const r = 0.30 * (1 - 0.72 * q)
+      // tightening as it rises, which is the whole reason a vortex spins up
+      const r = 0.33 * (1 - 0.66 * q) * (1 + (rand() - 0.5) * 0.10)
       out[j] = 0.5 + Math.cos(th) * r
       // the loops are ellipses seen obliquely, and the stack rises as it winds
-      out[j + 1] = 0.86 - q * 0.70 + Math.sin(th) * r * 0.30
+      out[j + 1] = 0.90 - q * 0.78 + Math.sin(th) * r * 0.34
     } else {
-      const arm = (k - core) % 9
-      const s = ((k - core) / 9 % Math.floor((N - core) / 9)) / Math.floor((N - core) / 9)
-      const R = 0.95 - 0.58 * s
-      const ph = (arm / 9) * Math.PI * 2 + s * 1.5
-      out[j] = 0.5 + Math.cos(ph) * R * 0.52
-      out[j + 1] = 0.5 + Math.sin(ph) * R * 0.34 + (rand() - 0.5) * 0.02
+      /* The arms: long filaments sweeping in from outside, kept clear of the
+       * core so they read as feeding it rather than as part of it. */
+      const arm = (k - core) % 7
+      const n = Math.floor((N - core) / 7)
+      const t = (Math.floor((k - core) / 7) % n) / n
+      const R = 1.0 - 0.52 * t
+      const ph = (arm / 7) * Math.PI * 2 + t * 1.7
+      out[j] = 0.5 + Math.cos(ph) * R * 0.5
+      out[j + 1] = 0.52 + Math.sin(ph) * R * 0.30 + (rand() - 0.5) * 0.015
     }
   }
-  return { p: out, aspect: 0.8, tearable: true }
+  return { p: out, aspect: 0.62 }
 }
 
 /** Deterministic noise: the field must scatter the same way on every visit, so
