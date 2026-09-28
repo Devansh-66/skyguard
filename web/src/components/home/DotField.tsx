@@ -686,10 +686,7 @@ const gCloudLine: Glyph = (n, rand) => {
 }
 
 const gRing: Glyph = (n, rand) => poly(ngon(48, 0.40), n, rand)
-const gHex: Glyph = (n, rand) => poly(ngon(6, 0.42, -Math.PI / 2), n, rand)
 const gTri: Glyph = (n, rand) => poly(ngon(3, 0.44, -Math.PI / 2), n, rand)
-const gSquare: Glyph = (n, rand) =>
-  poly([[0.14, 0.14], [0.86, 0.14], [0.86, 0.86], [0.14, 0.86]], n, rand)
 
 /** A thermometer: a stem, and a bulb that is filled, because a thermometer
  *  with an empty bulb reads as a nail. */
@@ -760,18 +757,6 @@ const gTick: Glyph = (n, rand) => {
   return o
 }
 
-/** The network: a hexagonal packing, which is what a field of stations spaced
- *  as evenly as geography allows actually looks like. */
-const gLattice: Glyph = (n, rand) => {
-  const o = new Float32Array(n * 2)
-  const cols = 7, rows = Math.max(2, Math.ceil(n / cols))
-  for (let k = 0; k < n; k++) {
-    const c = k % cols, r = (k / cols) | 0
-    o[k * 2] = 0.08 + (c + (r % 2 ? 0.5 : 0)) * (0.84 / cols) + (rand() - 0.5) * 0.02
-    o[k * 2 + 1] = 0.06 + r * (0.88 / (rows - 1)) + (rand() - 0.5) * 0.02
-  }
-  return o
-}
 
 /** THE MARGINS ARE THE PAGE'S MARGINS, NOT A GUESS AT THEM.
  *
@@ -900,24 +885,137 @@ function splitPanel(b: Bands): Shape {
 function splitOrder(b: Bands): Shape {
   return compose(67, b, [
     { g: gDrop, side: 'L' },
-    { g: gSquare, side: 'L' },
+    { g: gThermo, side: 'L' },
     { g: gDial, side: 'R' },
     { g: gRoute, side: 'R' },
     { g: gTick, side: 'R' },
   ], 0.30)
 }
 
-/** BUILT FOR A NETWORK -- weighted left.
+/** BUILT FOR A NETWORK -- a mast, a national graph, and the link between them.
  *
- *  One node on a pole, with the two other things it measures, and the same
- *  thing at national scale on the far side. */
+ *  This is the one section that already owns a real figure: EdgeTiers is a
+ *  960px animated diagram of the architecture, with readings travelling a lane
+ *  and a gate that flags them. A hexagon and a lattice in the margin beside it
+ *  were a second schematic arguing with the first, and the instruments they
+ *  used had already been shown two sections earlier.
+ *
+ *  So this formation says the thing the diagram does not: the two ends. A mast
+ *  on the left -- legs, braces, the logger box, the antenna -- is the hardware
+ *  the page otherwise only describes in words. A node-link graph on the right
+ *  is the national network. And an arc of dots runs from the antenna to the
+ *  nearest node, across the width of the page, which is the one door in that
+ *  the section's own copy is about: a simulated station and a physical ESP32
+ *  post through the same endpoint.
+ *
+ *  The arc passes behind the cards rather than around them. That is why the
+ *  cards are glass -- see `.sg-glass` -- and it is the only formation on the
+ *  page that crosses the middle on purpose.
+ *
+ *  Written straight in viewport coordinates instead of through `compose`,
+ *  because it is not a stack of glyphs in a band: it is one drawing that
+ *  happens to have most of its ink at the edges.
+ */
 function splitNetwork(b: Bands): Shape {
-  return compose(71, b, [
-    { g: gHex, side: 'L' },
-    { g: gThermo, side: 'L' },
-    { g: gDrop, side: 'L' },
-    { g: gLattice, side: 'R' },
-  ], 0.70)
+  const out = new Float32Array(N * 2)
+  const rand = mulberry(71)
+  let i = 0
+  const put = (x: number, y: number) => {
+    if (i >= N) return
+    out[i * 2] = x + (rand() - 0.5) * 0.002
+    out[i * 2 + 1] = y + (rand() - 0.5) * 0.003
+    i++
+  }
+  /** A run of dots along a straight segment. */
+  const line = (x0: number, y0: number, x1: number, y1: number, n: number) => {
+    for (let k = 0; k < n; k++) {
+      const t = (k + 0.5) / n
+      put(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)
+    }
+  }
+
+  const gw = b.bw, gh = b.bw * b.ar
+  const lx = b.lx0 + gw / 2, rx = b.rx0 + gw / 2
+
+  /* ---- the mast, on the left. Tapered legs, braced, with the logger box a
+     third of the way up and the antenna standing off the top. */
+  const yTop = 0.5 - gh * 1.05, yBase = 0.5 + gh * 1.05
+  const wBase = gw * 0.40, wTop = gw * 0.12
+  const legN = 150
+  const legX = (side: number, t: number) => lx + side * (wBase + (wTop - wBase) * t)
+  const legY = (t: number) => yBase + (yTop - yBase) * t
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < legN; k++) {
+      const t = (k + 0.5) / legN
+      put(legX(side, t), legY(t))
+    }
+  }
+  // the braces: a zig-zag between the legs, which is what makes it a mast and
+  // not a pair of lines
+  const BRACES = 7
+  for (let s = 0; s < BRACES; s++) {
+    const t0 = s / BRACES, t1 = (s + 1) / BRACES
+    const a = s % 2 ? 1 : -1
+    line(legX(a, t0), legY(t0), legX(-a, t1), legY(t1), 20)
+  }
+  // the logger, and the screen it shelters
+  const by = legY(0.30), bw = gw * 0.30, bh = gh * 0.16
+  line(lx - bw, by - bh, lx + bw, by - bh, 16)
+  line(lx + bw, by - bh, lx + bw, by + bh, 8)
+  line(lx + bw, by + bh, lx - bw, by + bh, 16)
+  line(lx - bw, by + bh, lx - bw, by - bh, 8)
+  // the antenna
+  const yMast = yTop - gh * 0.34
+  line(lx, yTop, lx, yMast, 26)
+  line(lx - gw * 0.16, yMast + gh * 0.10, lx + gw * 0.16, yMast + gh * 0.10, 18)
+  line(lx - gw * 0.10, yMast + gh * 0.20, lx + gw * 0.10, yMast + gh * 0.20, 12)
+
+  /* ---- the network, on the right: nodes, and the links between the ones
+     close enough to be neighbours. The same relation the detector uses. */
+  const NODES = 7
+  const nx: number[] = [], ny: number[] = []
+  for (let k = 0; k < NODES; k++) {
+    const a = (k / NODES) * Math.PI * 2
+    const r = 0.42 + rand() * 0.55
+    nx.push(rx + Math.cos(a) * r * gw * 0.46)
+    ny.push(0.5 + Math.sin(a) * r * gh * 1.55)
+  }
+  // links first, so the nodes sit on top of them
+  for (let k = 0; k < NODES; k++) {
+    // to the two nearest, which keeps the graph sparse enough to read
+    const d = nx.map((x, j) => (j === k ? 1e9 : Math.hypot(x - nx[k], (ny[j] - ny[k]) / b.ar)))
+    const order = d.map((v, j) => [v, j]).sort((p, q) => p[0] - q[0])
+    for (let m = 0; m < 2; m++) {
+      const j = order[m][1]
+      if (j < k) continue                 // each edge once
+      line(nx[k], ny[k], nx[j], ny[j], 14)
+    }
+  }
+  const perNode = 52
+  for (let k = 0; k < NODES; k++) {
+    for (let m = 0; m < perNode; m++) {
+      const a = rand() * Math.PI * 2, r = gw * 0.115 * Math.sqrt(rand())
+      put(nx[k] + Math.cos(a) * r, ny[k] + Math.sin(a) * r * b.ar)
+    }
+  }
+
+  /* ---- ONE DOOR IN: the arc from the antenna to the nearest node.
+     Bowed upward so it reads as a link rather than as a rule across the page,
+     and drawn with whatever points are left, which is most of them. */
+  let near = 0
+  for (let k = 1; k < NODES; k++) if (nx[k] < nx[near]) near = k
+  const p0x = lx, p0y = yMast + gh * 0.02
+  const p1x = nx[near], p1y = ny[near]
+  const cx = (p0x + p1x) / 2, cy = Math.min(p0y, p1y) - 0.17
+  const rest = N - i
+  for (let k = 0; k < rest; k++) {
+    const t = (k + 0.5) / rest
+    const u = 1 - t
+    put(u * u * p0x + 2 * u * t * cx + t * t * p1x,
+        u * u * p0y + 2 * u * t * cy + t * t * p1y)
+  }
+
+  return { p: out, aspect: 0, place: 'full' }
 }
 
 /** Deterministic noise: the field must scatter the same way on every visit, so
