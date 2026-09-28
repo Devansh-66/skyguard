@@ -87,7 +87,19 @@ function path(values: number[], lo: number, hi: number, upto: number) {
 
 export function DriftFigure() {
   const { series, faulty } = useMemo(build, [])
-  const [t, setT] = useState(0)
+  /* THE RESTING STATE IS THE FINISHED CHART, NOT AN EMPTY ONE.
+   *
+   * This began at 0 and was raised to N by an IntersectionObserver, so
+   * anywhere the observer never fired -- a headless capture, a printed page,
+   * an embedded view, a tab frozen before it scrolled here -- the figure
+   * rendered as two empty axes. That is the same defect the reveal animation
+   * was rewritten to avoid, in a different file: decoration must never be
+   * load-bearing.
+   *
+   * Drawn complete, then REWOUND to zero and replayed only once the observer
+   * confirms someone is looking. If that never happens, the reader sees the
+   * whole argument instead of nothing. */
+  const [t, setT] = useState(N)
   const ref = useRef<HTMLDivElement>(null)
 
   /* Draw once, when it comes into view, then stop. An animation that loops
@@ -96,8 +108,7 @@ export function DriftFigure() {
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduce) { setT(N); return }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     let raf = 0, start = 0, running = false
     const step = (ts: number) => {
       if (!start) start = ts
@@ -106,7 +117,11 @@ export function DriftFigure() {
       if (p < 1) raf = requestAnimationFrame(step)
     }
     const io = new IntersectionObserver((es) => {
-      if (es[0].isIntersecting && !running) { running = true; raf = requestAnimationFrame(step) }
+      if (es[0].isIntersecting && !running) {
+        running = true
+        setT(0)                       // rewind, then play
+        raf = requestAnimationFrame(step)
+      }
     }, { threshold: 0.25 })
     io.observe(el)
     return () => { io.disconnect(); cancelAnimationFrame(raf) }

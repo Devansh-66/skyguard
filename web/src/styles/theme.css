@@ -192,8 +192,82 @@
 }
 .sg-reveal { animation: sg-reveal 0.7s cubic-bezier(0.22, 1, 0.36, 1); }
 
+/* TIED TO THE SCROLL, WHERE THE BROWSER CAN DO IT.
+ *
+ * Every .sg-reveal on the page fired at LOAD, all at the same moment. On a
+ * page eight sections long that means the reveal has finished for all of them
+ * before the reader has scrolled past the first -- the effect exists only for
+ * whatever happens to be above the fold, and the rest of the page is static
+ * by the time anyone arrives at it.
+ *
+ * `animation-timeline: view()` drives the same keyframes from the element's
+ * own position in the viewport instead of from a clock, so a section lifts as
+ * it is reached. `animation-range` ends the movement once the element is a
+ * quarter of the way up, or it would still be settling while being read.
+ *
+ * Wrapped in @supports for the obvious reason, and TRANSFORM-ONLY for a
+ * subtler one: an element that has never entered the viewport sits at the
+ * animation's start, so anything animating opacity would be invisible to a
+ * headless capture or a printed page. Fourteen pixels of offset is a worst
+ * case nobody notices; an invisible section is the bug this project has
+ * already paid for once.
+ */
+@supports (animation-timeline: view()) {
+  .sg-reveal {
+    animation: sg-reveal 1s linear;
+    animation-timeline: view();
+    animation-range: entry 0% cover 25%;
+  }
+}
+
+/* THE STEP BEING READ IS THE ONE LIT.
+ *
+ * In a pinned story the reader's eye is near the middle of the screen, so the
+ * step crossing it is the one the figure is currently about. Dimming the rest
+ * says which sentence goes with what is pinned, without a scroll handler
+ * deciding it in JavaScript.
+ *
+ * `contain` is the range where the element is fully inside the viewport, so
+ * the brightening peaks as it passes the centre. And the FALLBACK IS FULL
+ * CONTRAST, not dimmed: where this does not run, every step is simply
+ * readable. A story whose text is greyed out by a stalled animation would be
+ * the same bug as an invisible section, in a politer colour.
+ */
+.sg-story-step { opacity: 1; }
+
+@supports (animation-timeline: view()) {
+  @keyframes sg-story-lit {
+    /* A WIDE PLATEAU, BECAUSE READING TAKES LONGER THAN PASSING.
+     * At 45-55% a step was only fully lit for a tenth of its travel, so the
+     * sentence being read was already fading -- measured at the end of the
+     * story, every step sat at 0.45 while the last one was still on screen.
+     * 30-70% keeps a step lit for the whole time it is comfortably readable. */
+    0%   { opacity: 0.45; }
+    30%, 70% { opacity: 1; }
+    100% { opacity: 0.45; }
+  }
+  .sg-story-step {
+    animation: sg-story-lit 1s linear;
+    animation-timeline: view();
+    animation-range: cover 0% cover 100%;
+    /* WITHOUT `both`, ONLY THE STEPS ALREADY PASSED RECEDE.
+     *
+     * Outside its range a scroll-driven animation is not in effect, so a step
+     * still below the fold fell back to full contrast: measured, the step at
+     * the centre was lit and the one above it dimmed to 0.43, while every
+     * step underneath sat at 1 -- the opposite of the intent, and it read as
+     * the page brightening ahead of the reader. `both` holds the first
+     * keyframe before the range opens, so what has not been reached recedes
+     * the same way as what has been left behind. It cannot dim anything in a
+     * browser without scroll timelines, since there the animation does not
+     * exist at all. */
+    animation-fill-mode: both;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sg-reveal { animation: none; }
+  .sg-story-step { animation: none; opacity: 1; }
 }
 
 /* Cloud parallax and the station ping.
