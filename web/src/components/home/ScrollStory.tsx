@@ -34,9 +34,21 @@ export interface StoryStep {
 
 export function ScrollStory({ steps, figure, className }: {
   steps: StoryStep[]
-  figure: React.ReactNode
+  /** Optional. The figure used to be a chart pinned beside the steps; the page
+   *  now draws the argument in the field of dots behind it, so the usual case
+   *  is no figure at all and a single column of steps that the field moves
+   *  under. The pinned-figure layout is kept because it is still the right
+   *  answer for a section whose picture cannot be a field of dots. */
+  figure?: React.ReactNode
   className?: string
 }) {
+  if (!figure) {
+    return (
+      <div className={cn(className)}>
+        <Steps steps={steps} />
+      </div>
+    )
+  }
   return (
     <div className={cn('lg:grid lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.25fr)] lg:gap-12',
                        className)}>
@@ -48,22 +60,11 @@ export function ScrollStory({ steps, figure, className }: {
           At 42vh apart with 18vh of padding there was a scroll position where
           the last step had left the top of the screen and the section end had
           not arrived -- a completely empty viewport, which reads as a broken
-          page rather than as a pause. 28vh keeps one step always in view. */}
-      <ol className="flex flex-col gap-[28vh] py-[8vh] lg:py-[12vh]">
-        {steps.map((s, i) => (
-          <li key={i} className="sg-story-step">
-            {s.label && (
-              <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-3">
-                {String(i + 1).padStart(2, '0')} · {s.label}
-              </span>
-            )}
-            <p className="mt-3 max-w-[38ch] font-serif text-lg leading-relaxed text-ink
-                          sm:text-xl">
-              {s.text}
-            </p>
-          </li>
-        ))}
-      </ol>
+          page rather than as a pause. Since the pinned chart went and the
+          steps became a single column, even 28vh was too much air: the gaps
+          are 16vh, which still separates the claims and never leaves the
+          screen with nothing on it. */}
+      <Steps steps={steps} />
 
       {/* The figure. Order-first on small screens so it is seen before the
           reasoning about it, pinned beside the reasoning on large ones. */}
@@ -76,5 +77,28 @@ export function ScrollStory({ steps, figure, className }: {
         {figure}
       </div>
     </div>
+  )
+}
+
+/** The steps themselves, in ordinary flow. `sg-story-step` brightens the one
+ *  nearest the middle of the screen where the browser supports scroll-driven
+ *  animation, and does nothing at all where it does not. */
+function Steps({ steps }: { steps: StoryStep[] }) {
+  return (
+    <ol className="flex flex-col gap-[16vh] py-[6vh] lg:py-[9vh]">
+      {steps.map((s, i) => (
+        <li key={i} className="sg-story-step">
+          {s.label && (
+            <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-3">
+              {String(i + 1).padStart(2, '0')} · {s.label}
+            </span>
+          )}
+          <p className="mt-3 max-w-[38ch] font-serif text-lg leading-relaxed text-ink
+                        sm:text-xl">
+            {s.text}
+          </p>
+        </li>
+      ))}
+    </ol>
   )
 }

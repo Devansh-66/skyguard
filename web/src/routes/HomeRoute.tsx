@@ -21,9 +21,8 @@ import { ArrowRight, Activity, Radio, Wrench, Cpu, ShieldCheck, Network } from '
 import { get } from '../api/client'
 import { usePageTitle } from '../lib/title'
 import { useLive } from '../lib/useLive'
-import { DriftFigure } from '../components/home/DriftFigure'
 import { ScrollStory } from '@/components/home/ScrollStory'
-import { SkyPanel } from '../components/home/SkyPanel'
+import { DotField } from '@/components/home/DotField'
 import { XaiLoop } from '../components/home/XaiLoop'
 import { Reveal } from '../components/home/Reveal'
 import { EdgeTiers } from '../components/home/EdgeTiers'
@@ -50,7 +49,14 @@ export function HomeRoute() {
   const m = sum.data?.measured
 
   return (
-    <div className="mx-auto max-w-[1100px] px-5">
+    <>
+      {/* The page's one picture, behind everything and driven by the scroll.
+          See DotField: it is the network, then thirty days of traces, then the
+          residual, then the panel, then the network again -- and it is
+          decoration, so nothing on the page depends on it arriving. */}
+      <DotField />
+
+    <div className="relative z-10 mx-auto max-w-[1100px] px-5">
 
       {/* ---------------------------------------------------------- hero
         *
@@ -70,11 +76,19 @@ export function HomeRoute() {
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-3">
           Automatic weather stations · SIH 2026 · PS26073
         </p>
-        <h1 className="mt-5 max-w-[17ch] text-[clamp(2.6rem,6.4vw,4.6rem)] font-semibold
-                       leading-[0.98] tracking-[-0.025em]">
+        {/* SERIF, AT 400, TRACKED TIGHT.
+          *
+          * The headline was a semibold grotesque, which is what every
+          * monitoring product uses and reads as software. Set in the serif the
+          * page already loads, at regular weight and -0.035em, it reads as a
+          * publication instead -- and the claim is a sentence about the
+          * atmosphere, not a feature name. Weight is doing none of the work
+          * here; size and tracking are. */}
+        <h1 className="mt-5 max-w-[17ch] font-serif text-[clamp(2.8rem,7vw,5.2rem)]
+                       font-normal leading-[0.96] tracking-[-0.035em]">
           A weather network that knows when it’s wrong.
         </h1>
-        <p className="mt-7 max-w-[52ch] font-serif text-lg leading-relaxed text-ink-2 sm:text-xl">
+        <p className="mt-7 max-w-[52ch] text-lg leading-relaxed text-ink-2 sm:text-xl">
           SkyGuard finds drifting, stuck and silent sensors across hundreds of
           stations — using nothing but temperature, pressure and humidity.
         </p>
@@ -97,16 +111,21 @@ export function HomeRoute() {
         </div>
       </section>
 
-      {/* The horizon, full width, with the headline numbers resting on it. */}
-      <Reveal className="mt-12">
-        <div className="overflow-hidden rounded-[--radius-lg] border border-rule">
-          <SkyPanel />
-          <div className="grid grid-cols-2 gap-px border-t border-rule bg-rule sm:grid-cols-4">
-            <Stat v={n ? String(n.simulated_stations) : '—'} k="Stations watched" s="across India" />
-            <Stat v={n ? String(n.states) : '—'} k="States" s="and territories" />
-            <Stat v={m ? Math.round(m.recall * 100) + '%' : '—'} k="Faults found" s="of those present" />
-            <Stat v="3" k="Parameters" s="temperature · pressure · humidity" />
-          </div>
+      {/* THE HERO'S PICTURE IS THE FIELD BEHIND IT, NOT A PANEL INSIDE IT.
+        *
+        * There was a painted sky here, full width, with the numbers resting on
+        * it. It was the better answer while the page had no picture of its
+        * own; now the dots draw the network across the whole first screen and
+        * an opaque card in the middle of them covered half the country. What
+        * is left is the part that was carrying information: four numbers, on a
+        * rule, which the field passes behind. */}
+      <Reveal className="mt-14">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[--radius-lg]
+                        border border-rule bg-rule sm:grid-cols-4">
+          <Stat v={n ? String(n.simulated_stations) : '—'} k="Stations watched" s="across India" />
+          <Stat v={n ? String(n.states) : '—'} k="States" s="and territories" />
+          <Stat v={m ? Math.round(m.recall * 100) + '%' : '—'} k="Faults found" s="of those present" />
+          <Stat v="3" k="Parameters" s="temperature · pressure · humidity" />
         </div>
       </Reveal>
 
@@ -118,17 +137,16 @@ export function HomeRoute() {
         * stay readable. */}
       <section className="border-t border-rule py-16 sm:py-20">
         <Eyebrow>The problem</Eyebrow>
-        <h2 className="mt-4 max-w-[20ch] text-[clamp(1.8rem,3.6vw,2.6rem)] font-semibold">
+        <h2 className="mt-4 max-w-[20ch] font-serif text-[clamp(2rem,4vw,3rem)] font-normal tracking-[-0.03em]">
           Drift hides in plain sight.
         </h2>
-        <p className="mt-5 max-w-[56ch] font-serif text-lg leading-relaxed text-ink-2">
+        <p className="mt-5 max-w-[56ch] text-lg leading-relaxed text-ink-2">
           A failing probe reads a little wrong, then a little more, for weeks.
           No single reading is implausible, so a threshold never fires.
         </p>
 
         <ScrollStory
           className="mt-4"
-          figure={<DriftFigure />}
           steps={[
             { label: 'the record',
               text: <>Seven stations in one region, thirty days. One of them is
@@ -162,47 +180,54 @@ export function HomeRoute() {
         */}
       <section className="border-t border-rule py-16 sm:py-20">
         <Eyebrow>The decision</Eyebrow>
-        <h2 className="mt-4 text-[clamp(1.8rem,3.6vw,2.6rem)] font-semibold">
+        <h2 className="mt-4 font-serif text-[clamp(2rem,4vw,3rem)] font-normal tracking-[-0.03em]">
           Three specialists, one decision.
         </h2>
-        <p className="mt-5 max-w-[56ch] font-serif text-lg leading-relaxed text-ink-2">
+        <p className="mt-5 max-w-[56ch] text-lg leading-relaxed text-ink-2">
           Every verdict is three independent opinions and an arbiter — and the
           system always says which one carried the call.
         </p>
 
-        <Reveal className="mt-10 grid gap-4 lg:grid-cols-3">
-          <div className="flex flex-col gap-4">
-            <AgentCard
-              n="01" tone="brand" title="Data quality"
-              what="The observation stream"
-              asks="Is this station drifting away from the ones around it?"
-            />
-            <AgentCard
-              n="02" tone="watch" title="Hardware health"
-              what="The device itself"
-              asks="Is the supply sagging, the value stuck, the link dropping out?"
-            />
-            <AgentCard
-              n="03" tone="ok" title="Weather or fault"
-              what="The surrounding stations"
-              asks="Did the neighbours move too? Then it is weather, and no one is dispatched."
-            />
-          </div>
+        {/* The three agents are three of a kind, so they get three equal
+            columns. Stacking them down one third of a bento put the verdict
+            beside them as a wall of numbers with no sentence next to it --
+            and the verdict is the part that needs explaining, not the part
+            that needs room. */}
+        <Reveal className="mt-10 grid gap-4 md:grid-cols-3">
+          <AgentCard
+            n="01" tone="brand" title="Data quality"
+            what="The observation stream"
+            asks="Is this station drifting away from the ones around it?"
+          />
+          <AgentCard
+            n="02" tone="watch" title="Hardware health"
+            what="The device itself"
+            asks="Is the supply sagging, the value stuck, the link dropping out?"
+          />
+          <AgentCard
+            n="03" tone="ok" title="Weather or fault"
+            what="The surrounding stations"
+            asks="Did the neighbours move too? Then it is weather, and no one is dispatched."
+          />
+        </Reveal>
 
-          {/* The verdict itself gets two thirds, because it is the output the
-              other three exist to produce. */}
-          <div className="rounded-[--radius-lg] border border-rule bg-surface p-6 lg:col-span-2">
+        {/* The worked verdict, beside the sentence that says what to look at
+            in it. A panel of moving numbers with its caption underneath is a
+            widget; with the caption beside it, it is an example. */}
+        <Reveal className="mt-4 grid items-center gap-8
+                           lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.3fr)] lg:gap-12">
+          <div>
             <div className="font-mono text-[10px] uppercase tracking-widest text-ink-3">
               The arbiter, deciding
             </div>
-            <div className="mt-5">
-              <XaiLoop />
-            </div>
-            <p className="mt-5 max-w-[60ch] font-serif text-[15px] leading-relaxed text-ink-2">
+            <p className="mt-4 max-w-[38ch] font-serif text-lg leading-relaxed text-ink-2">
               Every finding moves the verdict by an amount you can see. Nothing
               is hidden behind a score, and no alert arrives without the
               evidence that produced it.
             </p>
+          </div>
+          <div className="rounded-[--radius-lg] border border-rule bg-surface p-6">
+            <XaiLoop />
           </div>
         </Reveal>
       </section>
@@ -210,10 +235,10 @@ export function HomeRoute() {
       {/* ------------------------------------------------ what you get */}
       <section className="border-t border-rule py-16 sm:py-20">
         <Eyebrow>The outcome</Eyebrow>
-        <h2 className="mt-4 text-[clamp(1.8rem,3.6vw,2.6rem)] font-semibold">
+        <h2 className="mt-4 font-serif text-[clamp(2rem,4vw,3rem)] font-normal tracking-[-0.03em]">
           From a suspicion to a work order.
         </h2>
-        <p className="mt-5 max-w-[56ch] font-serif text-lg leading-relaxed text-ink-2">
+        <p className="mt-5 max-w-[56ch] text-lg leading-relaxed text-ink-2">
           Detection on its own just makes a longer list. SkyGuard names the
           fault, ranks it, and says what to bring.
         </p>
@@ -240,10 +265,10 @@ export function HomeRoute() {
         */}
       <section className="border-t border-rule py-16 sm:py-20">
         <Eyebrow>The architecture</Eyebrow>
-        <h2 className="mt-4 text-[clamp(1.8rem,3.6vw,2.6rem)] font-semibold">
+        <h2 className="mt-4 font-serif text-[clamp(2rem,4vw,3rem)] font-normal tracking-[-0.03em]">
           Built for a network, not a demo.
         </h2>
-        <p className="mt-5 max-w-[56ch] font-serif text-lg leading-relaxed text-ink-2">
+        <p className="mt-5 max-w-[56ch] text-lg leading-relaxed text-ink-2">
           One ingest path, one set of rules, and a design that scales from a
           single node on a pole to a national network.
         </p>
@@ -284,7 +309,7 @@ export function HomeRoute() {
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-paper/55">
             Measured, not claimed
           </p>
-          <h2 className="mt-4 max-w-[24ch] text-[clamp(1.8rem,3.6vw,2.6rem)] font-semibold">
+          <h2 className="mt-4 max-w-[24ch] font-serif text-[clamp(2rem,4vw,3rem)] font-normal tracking-[-0.03em]">
             Every figure here came from the running service.
           </h2>
           <div className="mt-10 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
@@ -307,7 +332,7 @@ export function HomeRoute() {
       {/* ------------------------------------------------------ closing */}
       <section className="border-t border-rule py-20 sm:py-24">
         <div className="rounded-[--radius-lg] border border-rule bg-surface px-8 py-12 text-center">
-          <h2 className="mx-auto max-w-[22ch] text-[clamp(1.6rem,3.2vw,2.2rem)] font-semibold">
+          <h2 className="mx-auto max-w-[22ch] font-serif text-[clamp(1.9rem,3.6vw,2.6rem)] font-normal tracking-[-0.03em]">
             See which station needs a technician today.
           </h2>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
@@ -329,6 +354,7 @@ export function HomeRoute() {
         </div>
       </section>
     </div>
+    </>
   )
 }
 
