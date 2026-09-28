@@ -640,13 +640,49 @@ function ngon(sides: number, r: number, turn = 0): number[][] {
 
 type Glyph = (n: number, rand: () => number) => Float32Array
 
-const gDisc: Glyph = (n, rand) => {
-  const o = new Float32Array(n * 2)
-  for (let k = 0; k < n; k++) {
-    const a = rand() * Math.PI * 2, r = 0.40 * Math.sqrt(rand())
-    o[k * 2] = 0.5 + Math.cos(a) * r; o[k * 2 + 1] = 0.5 + Math.sin(a) * r
+/** Points along an arc, appended to a path under construction. Canvas y grows
+ *  downward, so a negative angle is up. */
+function arc(pts: number[][], cx: number, cy: number, r: number,
+             a0: number, a1: number, steps: number) {
+  for (let i = 0; i <= steps; i++) {
+    const a = a0 + ((a1 - a0) * i) / steps
+    pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r])
   }
+}
+
+/** DATA QUALITY -- a reading, plotted.
+ *
+ *  A jagged line over a baseline: the observation stream this agent reads, and
+ *  the only one of the three whose subject is a series rather than a thing. */
+const gChart: Glyph = (n, rand) => {
+  const base = poly([[0.06, 0.86], [0.94, 0.86]], Math.round(n * 0.22), rand, false)
+  const line = poly([[0.07, 0.66], [0.21, 0.42], [0.33, 0.56], [0.46, 0.24],
+                     [0.59, 0.48], [0.73, 0.18], [0.90, 0.40]],
+                    n - Math.round(n * 0.22), rand, false)
+  const o = new Float32Array(n * 2)
+  o.set(base, 0); o.set(line, base.length)
   return o
+}
+
+/** HARDWARE HEALTH -- a pulse.
+ *
+ *  The trace a monitor draws, because that is exactly what this agent is: the
+ *  device's own vital signs, read from the housekeeping channel rather than
+ *  from the weather. Flat, flat, a spike, and flat again. */
+const gPulse: Glyph = (n, rand) =>
+  poly([[0.05, 0.50], [0.30, 0.50], [0.37, 0.50], [0.44, 0.16],
+        [0.52, 0.84], [0.60, 0.42], [0.68, 0.50], [0.95, 0.50]], n, rand, false)
+
+/** WEATHER OR FAULT -- a cloud.
+ *
+ *  The one mark nobody has to be taught. This agent's whole job is to ask
+ *  whether the neighbours moved too, and the neighbours move because of this. */
+const gCloudLine: Glyph = (n, rand) => {
+  const pts: number[][] = [[0.16, 0.76], [0.82, 0.76]]
+  arc(pts, 0.70, 0.64, 0.155, 0.40, -Math.PI * 0.95, 14)
+  arc(pts, 0.47, 0.52, 0.225, -0.08, -Math.PI, 18)
+  arc(pts, 0.25, 0.64, 0.155, -0.10, -Math.PI * 1.06, 14)
+  return poly(pts, n, rand, false)
 }
 
 const gRing: Glyph = (n, rand) => poly(ngon(48, 0.40), n, rand)
@@ -802,15 +838,18 @@ function compose(seed: number, ar: number, slots: Slot[], weightL: number): Shap
 
 /** THREE SPECIALISTS -- weighted left.
  *
- *  Three discs in the agents' own colours down one margin, the arbiter's single
- *  verdict on the other, with the thermometer every reading starts from above
- *  them and a triangle to balance the quiet side. */
+ *  Three different marks, because the agents are not three of a kind: one
+ *  reads a series, one reads a device, one reads the sky. A plotted reading, a
+ *  monitor's pulse and a cloud -- each in its own colour and built from the
+ *  dots that wear that colour everywhere else on the page. Three identical
+ *  discs said they were interchangeable, which is the one thing this section
+ *  argues against. The arbiter's single ring faces them from the other margin.
+ */
 function splitPanel(ar: number): Shape {
   return compose(61, ar, [
-    { g: gThermo, side: 'L' },
-    { g: gDisc, side: 'L', tone: 1 },
-    { g: gDisc, side: 'L', tone: 2 },
-    { g: gDisc, side: 'L', tone: 3 },
+    { g: gChart, side: 'L', tone: 1 },
+    { g: gPulse, side: 'L', tone: 2 },
+    { g: gCloudLine, side: 'L', tone: 3 },
     { g: gRing, side: 'R' },
     { g: gTri, side: 'R' },
   ], 0.72)
