@@ -892,29 +892,32 @@ function splitOrder(b: Bands): Shape {
   ], 0.30)
 }
 
-/** BUILT FOR A NETWORK -- a mast, a national graph, and the link between them.
+/** BUILT FOR A NETWORK -- one web, spanning both margins.
  *
- *  This is the one section that already owns a real figure: EdgeTiers is a
- *  960px animated diagram of the architecture, with readings travelling a lane
- *  and a gate that flags them. A hexagon and a lattice in the margin beside it
- *  were a second schematic arguing with the first, and the instruments they
- *  used had already been shown two sections earlier.
+ *  This section is the one that already owns a real figure: EdgeTiers is a
+ *  960px animated diagram of the ingest path. So whatever goes in the margins
+ *  must not be a second diagram, and it must not be TWO things either.
  *
- *  So this formation says the thing the diagram does not: the two ends. A mast
- *  on the left -- legs, braces, the logger box, the antenna -- is the hardware
- *  the page otherwise only describes in words. A node-link graph on the right
- *  is the national network. And an arc of dots runs from the antenna to the
- *  nearest node, across the width of the page, which is the one door in that
- *  the section's own copy is about: a simulated station and a physical ESP32
- *  post through the same endpoint.
+ *  It was two things: a mast down the left and a node-link graph down the
+ *  right, joined by one long arc. Three faults with that. The sides said
+ *  different kinds of thing, so the eye read them as two separate pictures
+ *  rather than one. The arc, bowed upward from the top of the mast, sailed
+ *  straight over the headline -- the one place on the screen the field should
+ *  never be. And a mast is a picture of a pole, which is what the section is
+ *  arguing AGAINST: not a demo on a pole, a network.
  *
- *  The arc passes behind the cards rather than around them. That is why the
- *  cards are glass -- see `.sg-glass` -- and it is the only formation on the
- *  page that crosses the middle on purpose.
+ *  So it is one web. The same kind of node down both margins, each tied to its
+ *  nearest neighbours on its own side, and a few long strands crossing the
+ *  page to make the two sides one mesh rather than two columns. Nearest-
+ *  neighbour is not a decorative choice: it is the relation the detector runs
+ *  on, a station judged against the ones around it.
  *
- *  Written straight in viewport coordinates instead of through `compose`,
- *  because it is not a stack of glyphs in a band: it is one drawing that
- *  happens to have most of its ink at the edges.
+ *  The crossing strands are nearly level and sit away from the top of the
+ *  screen, so they pass behind the cards -- which is what the glass is for --
+ *  rather than over the heading.
+ *
+ *  Written straight in viewport coordinates rather than through the glyph
+ *  composer, because a web is one drawing, not a stack of marks in a band.
  */
 function splitNetwork(b: Bands): Shape {
   const out = new Float32Array(N * 2)
@@ -926,94 +929,81 @@ function splitNetwork(b: Bands): Shape {
     out[i * 2 + 1] = y + (rand() - 0.5) * 0.003
     i++
   }
-  /** A run of dots along a straight segment. */
-  const line = (x0: number, y0: number, x1: number, y1: number, n: number) => {
+  /** A run of dots along a gently bowed line. `bow` of 0 is straight. */
+  const strand = (x0: number, y0: number, x1: number, y1: number,
+                  n: number, bow = 0) => {
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2 + bow
     for (let k = 0; k < n; k++) {
-      const t = (k + 0.5) / n
-      put(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)
+      const t = (k + 0.5) / n, u = 1 - t
+      put(u * u * x0 + 2 * u * t * cx + t * t * x1,
+          u * u * y0 + 2 * u * t * cy + t * t * y1)
     }
   }
 
-  const gw = b.bw, gh = b.bw * b.ar
-  const lx = b.lx0 + gw / 2, rx = b.rx0 + gw / 2
+  const gw = b.bw
+  const mid = [b.lx0 + gw / 2, b.rx0 + gw / 2]
 
-  /* ---- the mast, on the left. Tapered legs, braced, with the logger box a
-     third of the way up and the antenna standing off the top. */
-  const yTop = 0.5 - gh * 1.05, yBase = 0.5 + gh * 1.05
-  const wBase = gw * 0.40, wTop = gw * 0.12
-  const legN = 150
-  const legX = (side: number, t: number) => lx + side * (wBase + (wTop - wBase) * t)
-  const legY = (t: number) => yBase + (yTop - yBase) * t
-  for (const side of [-1, 1]) {
-    for (let k = 0; k < legN; k++) {
-      const t = (k + 0.5) / legN
-      put(legX(side, t), legY(t))
-    }
-  }
-  // the braces: a zig-zag between the legs, which is what makes it a mast and
-  // not a pair of lines
-  const BRACES = 7
-  for (let s = 0; s < BRACES; s++) {
-    const t0 = s / BRACES, t1 = (s + 1) / BRACES
-    const a = s % 2 ? 1 : -1
-    line(legX(a, t0), legY(t0), legX(-a, t1), legY(t1), 20)
-  }
-  // the logger, and the screen it shelters
-  const by = legY(0.30), bw = gw * 0.30, bh = gh * 0.16
-  line(lx - bw, by - bh, lx + bw, by - bh, 16)
-  line(lx + bw, by - bh, lx + bw, by + bh, 8)
-  line(lx + bw, by + bh, lx - bw, by + bh, 16)
-  line(lx - bw, by + bh, lx - bw, by - bh, 8)
-  // the antenna
-  const yMast = yTop - gh * 0.34
-  line(lx, yTop, lx, yMast, 26)
-  line(lx - gw * 0.16, yMast + gh * 0.10, lx + gw * 0.16, yMast + gh * 0.10, 18)
-  line(lx - gw * 0.10, yMast + gh * 0.20, lx + gw * 0.10, yMast + gh * 0.20, 12)
-
-  /* ---- the network, on the right: nodes, and the links between the ones
-     close enough to be neighbours. The same relation the detector uses. */
-  const NODES = 7
+  // The stations: the same kind of node down both margins, spread over the
+  // height so the web is a web and not a column.
+  const PER = 9
   const nx: number[] = [], ny: number[] = []
-  for (let k = 0; k < NODES; k++) {
-    const a = (k / NODES) * Math.PI * 2
-    const r = 0.42 + rand() * 0.55
-    nx.push(rx + Math.cos(a) * r * gw * 0.46)
-    ny.push(0.5 + Math.sin(a) * r * gh * 1.55)
-  }
-  // links first, so the nodes sit on top of them
-  for (let k = 0; k < NODES; k++) {
-    // to the two nearest, which keeps the graph sparse enough to read
-    const d = nx.map((x, j) => (j === k ? 1e9 : Math.hypot(x - nx[k], (ny[j] - ny[k]) / b.ar)))
-    const order = d.map((v, j) => [v, j]).sort((p, q) => p[0] - q[0])
-    for (let m = 0; m < 2; m++) {
-      const j = order[m][1]
-      if (j < k) continue                 // each edge once
-      line(nx[k], ny[k], nx[j], ny[j], 14)
+  for (const side of [0, 1]) {
+    for (let k = 0; k < PER; k++) {
+      const t = (k + 0.5) / PER
+      nx.push(mid[side] + (rand() - 0.5) * gw * 0.80)
+      ny.push(0.10 + t * 0.80 + (rand() - 0.5) * 0.045)
     }
   }
-  const perNode = 52
-  for (let k = 0; k < NODES; k++) {
-    for (let m = 0; m < perNode; m++) {
-      const a = rand() * Math.PI * 2, r = gw * 0.115 * Math.sqrt(rand())
+  const dist = (p: number, q: number) =>
+    Math.hypot((nx[p] - nx[q]) * b.ar, ny[p] - ny[q])
+
+  // Each node to its two nearest, and each edge drawn once.
+  const drawn = new Set<string>()
+  for (let k = 0; k < nx.length; k++) {
+    const order = nx.map((_, j) => j)
+      .filter((j) => j !== k)
+      .sort((p, q) => dist(k, p) - dist(k, q))
+    for (let m = 0; m < 2; m++) {
+      const j = order[m]
+      const key = k < j ? `${k}-${j}` : `${j}-${k}`
+      if (drawn.has(key)) continue
+      drawn.add(key)
+      strand(nx[k], ny[k], nx[j], ny[j], 17)
+    }
+  }
+
+  const NODE = 34
+  for (let k = 0; k < nx.length; k++) {
+    for (let m = 0; m < NODE; m++) {
+      const a = rand() * Math.PI * 2, r = gw * 0.10 * Math.sqrt(rand())
       put(nx[k] + Math.cos(a) * r, ny[k] + Math.sin(a) * r * b.ar)
     }
   }
 
-  /* ---- ONE DOOR IN: the arc from the antenna to the nearest node.
-     Bowed upward so it reads as a link rather than as a rule across the page,
-     and drawn with whatever points are left, which is most of them. */
-  let near = 0
-  for (let k = 1; k < NODES; k++) if (nx[k] < nx[near]) near = k
-  const p0x = lx, p0y = yMast + gh * 0.02
-  const p1x = nx[near], p1y = ny[near]
-  const cx = (p0x + p1x) / 2, cy = Math.min(p0y, p1y) - 0.17
-  const rest = N - i
-  for (let k = 0; k < rest; k++) {
-    const t = (k + 0.5) / rest
-    const u = 1 - t
-    put(u * u * p0x + 2 * u * t * cx + t * t * p1x,
-        u * u * p0y + 2 * u * t * cy + t * t * p1y)
+  /* THE STRANDS THAT MAKE IT ONE MESH.
+   *
+   * Without these the page shows two columns of dots and calls it a network.
+   * Three is the right number: one is a rope, five is a grille. They are
+   * matched by height so they run nearly level, and bowed by a few percent so
+   * they read as slack line rather than as rules across the page. */
+  const pairs: [number, number][] = []
+  // 2, 4 and 7 rather than 1, 4, 7: the first pair sat at a fifth of the
+  // screen, which is where a section's lead paragraph is. A strand behind a
+  // line of type is fine; a strand behind the sentence you are reading is not.
+  for (const k of [2, 4, 7]) {
+    let best = PER, bd = 9
+    for (let j = PER; j < nx.length; j++) {
+      const d = Math.abs(ny[j] - ny[k])
+      if (d < bd && !pairs.some((p) => p[1] === j)) { bd = d; best = j }
+    }
+    pairs.push([k, best])
   }
+  const rest = N - i
+  const per = Math.floor(rest / pairs.length)
+  pairs.forEach(([k, j], n) => {
+    strand(nx[k], ny[k], nx[j], ny[j], n === pairs.length - 1 ? N - i : per,
+           (n % 2 ? 0.055 : -0.045))
+  })
 
   return { p: out, aspect: 0, place: 'full' }
 }
