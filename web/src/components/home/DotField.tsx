@@ -182,10 +182,21 @@ export function DotField({ className }: { className?: string }) {
         read('--color-fault', '#A93226'),
         read('--color-ink-3', '#8C877C'),
       ]
-      // On a dark page the ink is a pale colour, and pale-on-dark at the same
-      // alpha reads noticeably fainter than dark-on-pale. It gets more.
+      /* HOW DARK A DOT IS, AND WHY IT IS NOT 13% ANY MORE.
+       *
+       * The light theme ran the field at 13%. Measured over every lit pixel
+       * that came to a mean alpha of 45 out of 255, which composites to about
+       * RGB 209 on a paper of 250 -- a grey so pale that on a bright screen
+       * the field was there and could not be seen. The dark theme was already
+       * at 20% and read fine, which was the clue: the problem was never the
+       * ink, it was the value.
+       *
+       * Both are 20% now. The field still sits well under the type it passes
+       * behind -- body copy on this page is ink at full strength -- and the
+       * marks in the margins, which have nothing over them at all, finally
+       * read at a glance. */
       inkIsLight = light(palette[0])
-      baseAlpha = inkIsLight ? 0.20 : 0.13
+      baseAlpha = inkIsLight ? 0.20 : 0.20
 
       shapes = [shapeIndia(data.current), shapeWave(), shapeCurve(),
                 splitPanel(bands(w, h)), splitOrder(bands(w, h)),
@@ -264,7 +275,11 @@ export function DotField({ className }: { className?: string }) {
       const t = u * u * (3 - 2 * u)
 
       const A = fit(a), B = fit(b)
-      const rf = 0.6 + 0.4 * Math.min(1, w / 1300)
+      /* A dot's radius. The floor was 0.6, and a 0.6px circle is mostly
+       * antialiasing: the browser spreads it over four pixels at a fraction of
+       * the alpha it was given, so the value set above was never the value
+       * drawn. 0.7 is the smallest that still lands as a dot. */
+      const rf = 0.7 + 0.45 * Math.min(1, w / 1300)
 
       const xy = (k: number) => {
         const [ax, ay] = unit(A, a, k)
@@ -292,7 +307,7 @@ export function DotField({ className }: { className?: string }) {
        * in the tail of the distribution, wherever else the field goes. */
       for (let tone = 1; tone < palette.length; tone++) {
         ctx!.fillStyle = palette[tone]
-        ctx!.globalAlpha = tone === 5 ? 0.34 : 0.62
+        ctx!.globalAlpha = tone === 5 ? 0.42 : 0.68
         ctx!.beginPath()
         for (let k = 0; k < N; k++) {
           if (TONE[k] !== tone) continue
@@ -305,7 +320,7 @@ export function DotField({ className }: { className?: string }) {
 
       // the stations: ink again, and bigger, because they are the subject
       ctx!.fillStyle = palette[0]
-      ctx!.globalAlpha = inkIsLight ? 0.55 : 0.42
+      ctx!.globalAlpha = inkIsLight ? 0.55 : 0.52
       ctx!.beginPath()
       for (let k = N - STATIONS; k < N; k++) {
         if (TONE[k]) continue
