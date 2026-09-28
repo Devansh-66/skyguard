@@ -187,9 +187,9 @@ export function DotField({ className }: { className?: string }) {
       inkIsLight = light(palette[0])
       baseAlpha = inkIsLight ? 0.20 : 0.13
 
-      const ar = w / h
       shapes = [shapeIndia(data.current), shapeWave(), shapeCurve(),
-                splitPanel(ar), splitOrder(ar), splitNetwork(ar), shapeSpiral()]
+                splitPanel(bands(w, h)), splitOrder(bands(w, h)),
+                splitNetwork(bands(w, h)), shapeSpiral()]
       dirty.current = false
     }
 
@@ -773,6 +773,44 @@ const gLattice: Glyph = (n, rand) => {
   return o
 }
 
+/** THE MARGINS ARE THE PAGE'S MARGINS, NOT A GUESS AT THEM.
+ *
+ *  The bands used to be flat fractions of the viewport -- 2.2% to 13.7% on the
+ *  left, 86.3% to 97.8% on the right -- which at 1425px put their inner edges
+ *  at 195 and 1230 while the content column runs 163 to 1263. Every glyph
+ *  overlapped a card by about 32px, which reads as a mark that missed rather
+ *  than a mark that was placed.
+ *
+ *  So they are derived from the same measure the layout uses: a column of at
+ *  most 1100px, centred, with a 20px gutter. The band hugs that column's edge
+ *  with a hairline of air, which is the one position that looks deliberate.
+ *  It is still a pure function of the window -- no DOM is read, nothing can
+ *  change while you scroll -- so it cannot bring back the jumping.
+ *
+ *  A glyph is capped at 190px so that a wide screen gets more air rather than
+ *  enormous marks; on a narrow one, where there is no margin to have, the band
+ *  sits over the glass instead and the glyph is dimmed rather than misplaced.
+ */
+interface Bands { lx0: number; rx0: number; bw: number; ar: number }
+
+function bands(w: number, h: number): Bands {
+  const AIR = 14
+  const col = Math.min(1100, w - 40)
+  const left = (w - col) / 2
+  let px = Math.min(190, left - AIR - 8)
+  const ar = w / h
+  if (px < 96) {
+    px = Math.min(120, w * 0.17)
+    return { lx0: 8 / w, rx0: (w - 8 - px) / w, bw: px / w, ar }
+  }
+  return {
+    lx0: (left - AIR - px) / w,
+    rx0: Math.min(w - 8 - px, left + col + AIR) / w,
+    bw: px / w,
+    ar,
+  }
+}
+
 interface Slot { g: Glyph; side: 'L' | 'R'; tone?: number }
 
 /** Lay a stack of glyphs down each margin.
@@ -780,10 +818,10 @@ interface Slot { g: Glyph; side: 'L' | 'R'; tone?: number }
  *  `ar` is the viewport's width over its height, and it is here so that a
  *  glyph drawn in a unit square comes out square in pixels: unit space is
  *  stretched by the window, and a circle that forgets that is an egg. */
-function compose(seed: number, ar: number, slots: Slot[], weightL: number): Shape {
+function compose(seed: number, b: Bands, slots: Slot[], weightL: number): Shape {
   const rand = mulberry(seed)
-  const BW = 0.115                       // band width, as a fraction of the page
-  const gh = BW * ar                     // the same span, measured down the page
+  const BW = b.bw                        // band width, as a fraction of the page
+  const gh = BW * b.ar                   // the same span, measured down the page
   const stack = (side: 'L' | 'R') => slots.filter((s) => s.side === side).length
 
   const box = (s: Slot, i: number) => {
@@ -793,7 +831,7 @@ function compose(seed: number, ar: number, slots: Slot[], weightL: number): Shap
     const k = total > 0.94 ? 0.94 / total : 1
     const H = gh * k, G = gap * k
     return {
-      x0: s.side === 'L' ? 0.022 : 0.863,
+      x0: s.side === 'L' ? b.lx0 : b.rx0,
       y0: (1 - (count * H + (count - 1) * G)) / 2 + i * (H + G),
       w: BW * k, h: H,
     }
@@ -845,8 +883,8 @@ function compose(seed: number, ar: number, slots: Slot[], weightL: number): Shap
  *  discs said they were interchangeable, which is the one thing this section
  *  argues against. The arbiter's single ring faces them from the other margin.
  */
-function splitPanel(ar: number): Shape {
-  return compose(61, ar, [
+function splitPanel(b: Bands): Shape {
+  return compose(61, b, [
     { g: gChart, side: 'L', tone: 1 },
     { g: gPulse, side: 'L', tone: 2 },
     { g: gCloudLine, side: 'L', tone: 3 },
@@ -859,8 +897,8 @@ function splitPanel(ar: number): Shape {
  *
  *  The route with its three stops and the closed job it ends in, against a
  *  barometer and a square on the quiet side. */
-function splitOrder(ar: number): Shape {
-  return compose(67, ar, [
+function splitOrder(b: Bands): Shape {
+  return compose(67, b, [
     { g: gDrop, side: 'L' },
     { g: gSquare, side: 'L' },
     { g: gDial, side: 'R' },
@@ -873,8 +911,8 @@ function splitOrder(ar: number): Shape {
  *
  *  One node on a pole, with the two other things it measures, and the same
  *  thing at national scale on the far side. */
-function splitNetwork(ar: number): Shape {
-  return compose(71, ar, [
+function splitNetwork(b: Bands): Shape {
+  return compose(71, b, [
     { g: gHex, side: 'L' },
     { g: gThermo, side: 'L' },
     { g: gDrop, side: 'L' },
