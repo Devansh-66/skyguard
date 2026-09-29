@@ -201,6 +201,8 @@ export function DotField({ className }: { className?: string }) {
     /** The morph position of the last frame, so the loop knows whether the map
      *  is still on screen and the uplinks are still worth drawing. */
     let lastF = 0
+    /** The content column, in CSS pixels. Read at build for the corridor. */
+    let colL = 0, colR = 0
     /** Resolved positions for the current frame, so the uplinks can start and
      *  end on wherever their stations actually are. Allocated once. */
     const PX = new Float32Array(N), PY = new Float32Array(N)
@@ -258,6 +260,10 @@ export function DotField({ className }: { className?: string }) {
                 splitPanel(bands(w, h)), splitOrder(bands(w, h)),
                 splitNetwork(bands(w, h)), shapeSpiral()]
       stops = anchors(h)
+
+      const cbox = document.querySelector('[data-field-content]')?.getBoundingClientRect()
+      colL = cbox ? cbox.left : w * 0.2
+      colR = cbox ? cbox.right : w * 0.8
 
       // Where the field comes in from. Regenerated with the canvas, because
       // these are viewport pixels rather than unit coordinates.
@@ -373,6 +379,25 @@ export function DotField({ className }: { className?: string }) {
 
       lastF = f
       const ip = introAt()
+
+      /* NOTHING CROSSES THE READING COLUMN BETWEEN TWO MARGIN FORMATIONS.
+       *
+       * The three specialists weight the left and the work order weights the
+       * right, which is the rhythm the page wanted -- but a dot that is in the
+       * left margin before and the right margin after travels the shortest way
+       * between them, and the shortest way is straight through the middle of
+       * the screen. For a second and a half, mid-morph, a stream of dots runs
+       * across the text.
+       *
+       * Both ends of that move are margin-only, so anything inside the column
+       * is in flight and nothing else. It is culled: a point vanishes at one
+       * edge of the copy and reappears at the other, which reads as passing
+       * behind the page -- and is, in fact, what it is doing.
+       *
+       * Only this one segment. The wave and the curve are meant to run the
+       * full width, and the web's strands are meant to cross; culling either
+       * would be deleting the picture instead of tidying it. */
+      const corridor = f > 3.02 && f < 3.98
       const A = fit(a), B = fit(b)
       /* A dot's radius. The floor was 0.6, and a 0.6px circle is mostly
        * antialiasing: the browser spreads it over four pixels at a fraction of
@@ -407,6 +432,7 @@ export function DotField({ className }: { className?: string }) {
       ctx!.beginPath()
       for (let k = 0; k < N - STATIONS; k++) {
         if (TONE[k]) continue
+        if (corridor && PX[k] > colL && PX[k] < colR) continue
         const [x, y] = xy(k)
         ctx!.moveTo(x + rf, y); ctx!.arc(x, y, rf, 0, Math.PI * 2)
       }
@@ -425,6 +451,7 @@ export function DotField({ className }: { className?: string }) {
         ctx!.beginPath()
         for (let k = 0; k < N; k++) {
           if (TONE[k] !== tone) continue
+          if (corridor && PX[k] > colL && PX[k] < colR) continue
           const [x, y] = xy(k)
           const r = rf * (k >= N - STATIONS ? 1.6 : 1.3)
           ctx!.moveTo(x + r, y); ctx!.arc(x, y, r, 0, Math.PI * 2)
@@ -531,6 +558,7 @@ export function DotField({ className }: { className?: string }) {
       ctx!.beginPath()
       for (let k = N - STATIONS; k < N; k++) {
         if (TONE[k]) continue
+        if (corridor && PX[k] > colL && PX[k] < colR) continue
         const [x, y] = xy(k)
         const r = rf * 1.7
         ctx!.moveTo(x + r, y); ctx!.arc(x, y, r, 0, Math.PI * 2)
