@@ -94,12 +94,27 @@ const FRAME_H = 0.86
 
 /** How long the field takes to arrive on first load, in milliseconds. */
 const INTRO_MS = 1600
-/** How many uplinks travel between stations while the map is on screen. */
-const ARCS = 6
-/** One lap of an uplink, in milliseconds. */
-const ARC_MS = 5200
-/** How much of the arc the trail covers behind the head. */
-const ARC_TAIL = 0.22
+/* THE SIGNALS THAT RUN BETWEEN STATIONS WHILE THE MAP IS UP.
+ *
+ * A signal leaves one station and travels to another, LAYING ITS PATH DOWN
+ * BEHIND IT as it goes. When it arrives the whole path goes out at once, and
+ * the next pair starts somewhere else.
+ *
+ * The first version was a loop: a fixed set of arcs with a head and a short
+ * tail cycling forever along the same six routes. That reads as a screensaver
+ * -- a permanent ornament that happens to move. A signal that is drawn, lands,
+ * vanishes and is replaced somewhere else reads as traffic, which is what a
+ * network actually has.
+ */
+/** How many are in the air at once, spaced evenly through the cycle. */
+const SIGNALS = 3
+/** How long one takes to cross, in milliseconds. */
+const SIG_TRAVEL = 1500
+/** How long the finished path lingers before it goes out. */
+const SIG_HOLD = 260
+/** Empty time before that slot starts a new one somewhere else. */
+const SIG_GAP = 700
+const SIG_CYCLE = SIG_TRAVEL + SIG_HOLD + SIG_GAP
 
 /** A shape, stored in a unit box: 2N numbers in [0,1]. Unit coordinates are
  *  what let the regions change every frame without rebuilding anything. */
@@ -405,39 +420,52 @@ export function DotField({ className }: { className?: string }) {
         ctx!.fill()
       }
 
-      /* THE UPLINKS.
+      /* THE SIGNALS.
        *
-       * While the map is on screen a handful of readings travel between
-       * stations: a head with a short trail behind it, on an arc that bulges
-       * off the straight line so it reads as a link and not a rule. They start
-       * and end on real station points -- the indices are fixed and the
-       * positions are wherever those stations are right now -- so the arcs
-       * move with the field instead of floating over it.
+       * Each slot runs one signal at a time: it is drawn point by point along
+       * a curve between two stations, holds for a moment when it lands, goes
+       * out, and the slot waits before starting a different pair. The curve
+       * bulges off the straight line so it reads as a link rather than a rule,
+       * and the head is bigger and darker than the path behind it so there is
+       * never a question which way it is going.
        *
-       * They fade out as the map becomes the wave, and they are the only thing
-       * on this canvas with a clock of its own, so the frame loop keeps running
-       * exactly as long as they are visible and then stops. */
-      const arcA = (1 - Math.min(1, f)) * ip
-      if (!reduce && arcA > 0.01) {
+       * The ends are real station points, looked up live, so a signal moves
+       * with the field rather than floating over it.
+       *
+       * They belong to the map and nothing else. `sigA` takes them out over
+       * the first third of the map's dissolve, so by the time the wave has
+       * formed there is nothing left of them -- a travelling light over a
+       * chart of thirty days would be saying something untrue. */
+      const sigA = Math.max(0, 1 - f / 0.30) * ip
+      if (!reduce && sigA > 0.01) {
         const now = performance.now()
         ctx!.fillStyle = palette[1]
-        for (let n2 = 0; n2 < ARCS; n2++) {
-          const i0 = ARC_PAIRS[n2 * 2], i1 = ARC_PAIRS[n2 * 2 + 1]
+        for (let slot = 0; slot < SIGNALS; slot++) {
+          const cyc = now / SIG_CYCLE + slot / SIGNALS
+          const lap = Math.floor(cyc)
+          const ms = (cyc - lap) * SIG_CYCLE
+          let reach: number, fade: number
+          if (ms < SIG_TRAVEL) { reach = ms / SIG_TRAVEL; fade = 1 }
+          else if (ms < SIG_TRAVEL + SIG_HOLD) {
+            reach = 1; fade = 1 - (ms - SIG_TRAVEL) / SIG_HOLD
+          } else continue
+
+          const [i0, i1] = route(slot, lap)
           const x0 = PX[i0], y0 = PY[i0], x1 = PX[i1], y1 = PY[i1]
           const dx = x1 - x0, dy = y1 - y0
-          const cx = (x0 + x1) / 2 - dy * 0.26, cy = (y0 + y1) / 2 + dx * 0.26
-          const head = ((now / ARC_MS) + n2 / ARCS) % 1
-          const STEPS = 24
-          for (let sIdx = 0; sIdx < STEPS; sIdx++) {
-            const tt = head - (sIdx / STEPS) * ARC_TAIL
-            if (tt < 0 || tt > 1) continue
+          if (Math.hypot(dx, dy) < 40) continue      // too short to read as a link
+          const cx = (x0 + x1) / 2 - dy * 0.24, cy = (y0 + y1) / 2 + dx * 0.24
+
+          const laid = Math.max(2, Math.round(reach * 44))
+          for (let d2 = 0; d2 < laid; d2++) {
+            const tt = (d2 / (laid - 1)) * reach
             const vv = 1 - tt
-            const ax2 = vv * vv * x0 + 2 * vv * tt * cx + tt * tt * x1
-            const ay2 = vv * vv * y0 + 2 * vv * tt * cy + tt * tt * y1
-            const fade = 1 - sIdx / STEPS
-            ctx!.globalAlpha = 0.8 * fade * fade * arcA
+            const sx = vv * vv * x0 + 2 * vv * tt * cx + tt * tt * x1
+            const sy = vv * vv * y0 + 2 * vv * tt * cy + tt * tt * y1
+            const head = d2 === laid - 1
+            ctx!.globalAlpha = sigA * fade * (head ? 0.95 : 0.5)
             ctx!.beginPath()
-            ctx!.arc(ax2, ay2, rf * (0.8 + 0.9 * fade), 0, Math.PI * 2)
+            ctx!.arc(sx, sy, rf * (head ? 2 : 0.95), 0, Math.PI * 2)
             ctx!.fill()
           }
         }
@@ -482,8 +510,9 @@ export function DotField({ className }: { className?: string }) {
       raf = requestAnimationFrame(frame)
       if (dirty.current || w !== vw() || h !== vh()) { step(); return }
       if (Math.abs(want - at) > 0.0004) { step(); return }
-      // the arrival and the uplinks have clocks of their own
-      if (introAt() < 1 || (!reduce && lastF < 1)) step()
+      // the arrival and the signals have clocks of their own. The signals
+      // belong to the map, so the loop goes quiet as soon as it has gone.
+      if (introAt() < 1 || (!reduce && lastF < 0.30)) step()
     }
 
     const onScroll = () => {
@@ -573,13 +602,19 @@ const STAGGER = (() => {
   return a
 })()
 
-/** The pairs of stations an uplink runs between. Real station indices, so the
- *  arcs start and end on dots that are actually on the map. */
-const ARC_PAIRS = (() => {
-  const r = mulberry(103), a = new Int32Array(ARCS * 2)
-  for (let k = 0; k < ARCS * 2; k++) a[k] = N - STATIONS + Math.floor(r() * STATIONS)
-  return a
-})()
+/** Which two stations a given slot uses on a given lap. Hashed rather than
+ *  drawn from a list, so the route is different every time and still the same
+ *  on every visit: the page looks identical to two people watching it. */
+function route(slot: number, lap: number) {
+  let x = (slot * 7919 + lap * 104729) >>> 0
+  x = Math.imul(x ^ (x >>> 16), 2246822507) >>> 0
+  x = Math.imul(x ^ (x >>> 13), 3266489909) >>> 0
+  x = (x ^ (x >>> 16)) >>> 0
+  const base = N - STATIONS
+  const a = base + (x % STATIONS)
+  const b = base + (((x >>> 9) + 1 + (x % 97)) % STATIONS)
+  return a === b ? [a, base + ((a - base + 37) % STATIONS)] : [a, b]
+}
 
 /** Is this colour light? Used to tell a dark page from a pale one without
  *  asking the document twice about a theme it has already published. */
