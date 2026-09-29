@@ -108,12 +108,13 @@ const INTRO_MS = 1600
  */
 /** How many are in the air at once, spaced evenly through the cycle. */
 const SIGNALS = 3
-/** How long one takes to cross, in milliseconds. */
-const SIG_TRAVEL = 1500
+/** How long one takes to cross, in milliseconds. A signal that arrives before
+ *  you have finished noticing it left is a flicker, not a journey. */
+const SIG_TRAVEL = 2800
 /** How long the finished path lingers before it goes out. */
-const SIG_HOLD = 260
+const SIG_HOLD = 420
 /** Empty time before that slot starts a new one somewhere else. */
-const SIG_GAP = 700
+const SIG_GAP = 950
 const SIG_CYCLE = SIG_TRAVEL + SIG_HOLD + SIG_GAP
 
 /** A shape, stored in a unit box: 2N numbers in [0,1]. Unit coordinates are
@@ -454,20 +455,39 @@ export function DotField({ className }: { className?: string }) {
           const x0 = PX[i0], y0 = PY[i0], x1 = PX[i1], y1 = PY[i1]
           const dx = x1 - x0, dy = y1 - y0
           if (Math.hypot(dx, dy) < 40) continue      // too short to read as a link
-          const cx = (x0 + x1) / 2 - dy * 0.24, cy = (y0 + y1) / 2 + dx * 0.24
+          /* A SHALLOW ARC, BECAUSE THIS IS A MAP SEEN FROM ABOVE.
+           * At a quarter of the chord the bulge read as something lobbed over
+           * the country. A route between two stations, looked down on, is very
+           * nearly the straight line with a little bend in it. */
+          const cx = (x0 + x1) / 2 - dy * 0.12, cy = (y0 + y1) / 2 + dx * 0.12
 
-          const laid = Math.max(2, Math.round(reach * 44))
-          for (let d2 = 0; d2 < laid; d2++) {
-            const tt = (d2 / (laid - 1)) * reach
-            const vv = 1 - tt
-            const sx = vv * vv * x0 + 2 * vv * tt * cx + tt * tt * x1
-            const sy = vv * vv * y0 + 2 * vv * tt * cy + tt * tt * y1
-            const head = d2 === laid - 1
-            ctx!.globalAlpha = sigA * fade * (head ? 0.95 : 0.5)
-            ctx!.beginPath()
-            ctx!.arc(sx, sy, rf * (head ? 2 : 0.95), 0, Math.PI * 2)
-            ctx!.fill()
+          /* THE PATH IS DARK AND THE HEAD IS THE LIGHT.
+           *
+           * Both used to be the brand blue at half strength, which made the
+           * whole thing one faint coloured streak. A path in ink -- which
+           * follows the theme, so it is dark on paper and pale on ink -- with a
+           * single coloured head riding it reads the way the thing actually
+           * works: a light travelling a route, not a coloured line growing. */
+          const laid = Math.max(2, Math.round(reach * 60))
+          const at2 = (d2: number) => {
+            const tt = (d2 / (laid - 1)) * reach, vv = 1 - tt
+            return [vv * vv * x0 + 2 * vv * tt * cx + tt * tt * x1,
+                    vv * vv * y0 + 2 * vv * tt * cy + tt * tt * y1] as const
           }
+          ctx!.fillStyle = palette[0]
+          ctx!.globalAlpha = sigA * fade * 0.55
+          ctx!.beginPath()
+          for (let d2 = 0; d2 < laid - 1; d2++) {
+            const [sx, sy] = at2(d2)
+            ctx!.moveTo(sx + rf, sy); ctx!.arc(sx, sy, rf, 0, Math.PI * 2)
+          }
+          ctx!.fill()
+          const [hx, hy] = at2(laid - 1)
+          ctx!.fillStyle = palette[1]
+          ctx!.globalAlpha = sigA * fade * 0.95
+          ctx!.beginPath()
+          ctx!.arc(hx, hy, rf * 2.1, 0, Math.PI * 2)
+          ctx!.fill()
         }
       }
 
