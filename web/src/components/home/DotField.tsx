@@ -92,6 +92,15 @@ const ANCHORS = [0.02, 0.14, 0.30, 0.46, 0.65, 0.79, 0.97]
 /** How much of the viewport's height a formation is allowed. */
 const FRAME_H = 0.86
 
+/** How long the field takes to arrive on first load, in milliseconds. */
+const INTRO_MS = 1600
+/** How many uplinks travel between stations while the map is on screen. */
+const ARCS = 6
+/** One lap of an uplink, in milliseconds. */
+const ARC_MS = 5200
+/** How much of the arc the trail covers behind the head. */
+const ARC_TAIL = 0.22
+
 /** A shape, stored in a unit box: 2N numbers in [0,1]. Unit coordinates are
  *  what let the regions change every frame without rebuilding anything. */
 interface Shape {
@@ -106,6 +115,10 @@ export function DotField({ className }: { className?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const data = useRef<{ geom?: GeoJSON.Geometry; stations?: SimMap['stations'] }>({})
   const dirty = useRef(true)
+  /** Set by the drawing effect. The queries call it when their data lands, so
+   *  the canvas is rebuilt and replayed there and then, rather than waiting on
+   *  an animation frame that a quiet tab may never serve. */
+  const replay = useRef<() => void>(() => {})
 
   const boundary = useQuery({
     queryKey: ['map', 'boundary'] as const,
@@ -127,6 +140,7 @@ export function DotField({ className }: { className?: string }) {
       stations: sim.data?.stations,
     }
     dirty.current = true
+    replay.current()
   }, [boundary.data, sim.data])
 
   useEffect(() => {
@@ -153,6 +167,17 @@ export function DotField({ className }: { className?: string }) {
     let at = 0
     /** Where the scroll says it should be. */
     let want = 0
+    /** Where every point starts from when the field arrives. */
+    let scatter: Float32Array | null = null
+    /** When the arrival began, or 0 when it is not playing. */
+    let introFrom = 0
+    let introTick: ReturnType<typeof setInterval> | undefined
+    /** The morph position of the last frame, so the loop knows whether the map
+     *  is still on screen and the uplinks are still worth drawing. */
+    let lastF = 0
+    /** Resolved positions for the current frame, so the uplinks can start and
+     *  end on wherever their stations actually are. Allocated once. */
+    const PX = new Float32Array(N), PY = new Float32Array(N)
 
     /* Layout's idea of the viewport, not the window's.
      *
@@ -206,6 +231,15 @@ export function DotField({ className }: { className?: string }) {
                 splitPanel(bands(w, h)), splitOrder(bands(w, h)),
                 splitNetwork(bands(w, h)), shapeSpiral()]
       stops = anchors(h)
+
+      // Where the field comes in from. Regenerated with the canvas, because
+      // these are viewport pixels rather than unit coordinates.
+      const sr = mulberry(89)
+      scatter = new Float32Array(N * 2)
+      for (let k = 0; k < N; k++) {
+        scatter[k * 2] = sr() * w
+        scatter[k * 2 + 1] = sr() * h
+      }
       dirty.current = false
     }
 
@@ -220,6 +254,37 @@ export function DotField({ className }: { className?: string }) {
       if (!cw || !ch) return false
       if (dirty.current || cw !== w || ch !== h) build()
       return true
+    }
+
+    /* THE FIELD ARRIVES; IT DOES NOT APPEAR.
+     *
+     * And it has to arrive twice. The boundary GeoJSON lands after the first
+     * build, so the very first field is the scattered fallback -- measured on
+     * load it was 3,750 lit pixels in a 682x774 box, where the finished map is
+     * 3,572 in 630x730. The rebuild was then waiting on an animation frame,
+     * which is why the map only formed once you scrolled: the scroll was
+     * delivering the repaint.
+     *
+     * So the arrival is replayed when the real boundary lands, which turns the
+     * bug into the thing it should have been doing anyway -- the map draws
+     * itself rather than snapping into place behind the reader's back.
+     *
+     * It runs on an interval as well as on frames. requestAnimationFrame does
+     * not fire in a background tab or an occluded pane, and an arrival that
+     * needs frames would strand the field mid-scatter in exactly the cases
+     * where nobody is watching to forgive it. The interval clears itself the
+     * moment the arrival is done, so nothing is left ticking. */
+    const introAt = () =>
+      introFrom === 0 ? 1 : Math.min(1, (performance.now() - introFrom) / INTRO_MS)
+
+    const arrive = () => {
+      if (reduce) { introFrom = 0; return }
+      introFrom = performance.now()
+      clearInterval(introTick)
+      introTick = setInterval(() => {
+        step()
+        if (introAt() >= 1) { clearInterval(introTick); introTick = undefined }
+      }, 16)
     }
 
     /** 0 at the top of the document, 1 at the bottom. */
@@ -279,6 +344,8 @@ export function DotField({ className }: { className?: string }) {
       const u = f - i
       const t = u * u * (3 - 2 * u)
 
+      lastF = f
+      const ip = introAt()
       const A = fit(a), B = fit(b)
       /* A dot's radius. The floor was 0.6, and a 0.6px circle is mostly
        * antialiasing: the browser spreads it over four pixels at a fraction of
@@ -286,11 +353,26 @@ export function DotField({ className }: { className?: string }) {
        * drawn. 0.7 is the smallest that still lands as a dot. */
       const rf = 0.7 + 0.45 * Math.min(1, w / 1300)
 
-      const xy = (k: number) => {
+      /* Resolve every point once, into buffers the passes below read. It was
+       * resolved per pass before, which was affordable while the only reader
+       * was a fill; the uplinks need to know where a given station IS, and
+       * hunting for it three times a frame is not. */
+      for (let k = 0; k < N; k++) {
         const [ax, ay] = unit(A, a, k)
         const [bx, by] = unit(B, b, k)
-        return [ax + (bx - ax) * t, ay + (by - ay) * t] as const
+        let x = ax + (bx - ax) * t
+        let y = ay + (by - ay) * t
+        if (ip < 1 && scatter) {
+          // each point sets off a little after the one before it, so the field
+          // settles as a wave rather than as one block
+          const q = Math.min(1, Math.max(0, (ip - 0.30 * STAGGER[k]) / 0.70))
+          const e = 1 - Math.pow(1 - q, 3)
+          x = scatter[k * 2] + (x - scatter[k * 2]) * e
+          y = scatter[k * 2 + 1] + (y - scatter[k * 2 + 1]) * e
+        }
+        PX[k] = x; PY[k] = y
       }
+      const xy = (k: number) => [PX[k], PY[k]] as const
 
       // the field: plain ink, quiet
       ctx!.fillStyle = palette[0]
@@ -321,6 +403,44 @@ export function DotField({ className }: { className?: string }) {
           ctx!.moveTo(x + r, y); ctx!.arc(x, y, r, 0, Math.PI * 2)
         }
         ctx!.fill()
+      }
+
+      /* THE UPLINKS.
+       *
+       * While the map is on screen a handful of readings travel between
+       * stations: a head with a short trail behind it, on an arc that bulges
+       * off the straight line so it reads as a link and not a rule. They start
+       * and end on real station points -- the indices are fixed and the
+       * positions are wherever those stations are right now -- so the arcs
+       * move with the field instead of floating over it.
+       *
+       * They fade out as the map becomes the wave, and they are the only thing
+       * on this canvas with a clock of its own, so the frame loop keeps running
+       * exactly as long as they are visible and then stops. */
+      const arcA = (1 - Math.min(1, f)) * ip
+      if (!reduce && arcA > 0.01) {
+        const now = performance.now()
+        ctx!.fillStyle = palette[1]
+        for (let n2 = 0; n2 < ARCS; n2++) {
+          const i0 = ARC_PAIRS[n2 * 2], i1 = ARC_PAIRS[n2 * 2 + 1]
+          const x0 = PX[i0], y0 = PY[i0], x1 = PX[i1], y1 = PY[i1]
+          const dx = x1 - x0, dy = y1 - y0
+          const cx = (x0 + x1) / 2 - dy * 0.26, cy = (y0 + y1) / 2 + dx * 0.26
+          const head = ((now / ARC_MS) + n2 / ARCS) % 1
+          const STEPS = 24
+          for (let sIdx = 0; sIdx < STEPS; sIdx++) {
+            const tt = head - (sIdx / STEPS) * ARC_TAIL
+            if (tt < 0 || tt > 1) continue
+            const vv = 1 - tt
+            const ax2 = vv * vv * x0 + 2 * vv * tt * cx + tt * tt * x1
+            const ay2 = vv * vv * y0 + 2 * vv * tt * cy + tt * tt * y1
+            const fade = 1 - sIdx / STEPS
+            ctx!.globalAlpha = 0.8 * fade * fade * arcA
+            ctx!.beginPath()
+            ctx!.arc(ax2, ay2, rf * (0.8 + 0.9 * fade), 0, Math.PI * 2)
+            ctx!.fill()
+          }
+        }
       }
 
       // the stations: ink again, and bigger, because they are the subject
@@ -354,13 +474,16 @@ export function DotField({ className }: { className?: string }) {
      * first shape rather than an empty canvas. */
     at = reduce ? 0 : progress()
     want = at
+    arrive()
     step()
 
     let raf = 0
     const frame = () => {
       raf = requestAnimationFrame(frame)
       if (dirty.current || w !== vw() || h !== vh()) { step(); return }
-      if (Math.abs(want - at) > 0.0004) step()
+      if (Math.abs(want - at) > 0.0004) { step(); return }
+      // the arrival and the uplinks have clocks of their own
+      if (introAt() < 1 || (!reduce && lastF < 1)) step()
     }
 
     const onScroll = () => {
@@ -370,6 +493,8 @@ export function DotField({ className }: { className?: string }) {
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     raf = requestAnimationFrame(frame)
+
+    replay.current = () => { if (ensure()) { arrive(); step() } }
 
     const onResize = () => { dirty.current = true }
     window.addEventListener('resize', onResize)
@@ -393,6 +518,7 @@ export function DotField({ className }: { className?: string }) {
 
     return () => {
       cancelAnimationFrame(raf)
+      clearInterval(introTick)
       window.removeEventListener('resize', onResize)
       window.removeEventListener('scroll', onScroll)
       themes.disconnect()
@@ -437,6 +563,22 @@ const TONE = (() => {
   }
   for (const k of OUTLIERS) t[k] = 4
   return t
+})()
+
+/** Each point's own place in the queue when the field arrives, so it settles
+ *  as a wave rather than as one block. Fixed, so every visit looks the same. */
+const STAGGER = (() => {
+  const r = mulberry(97), a = new Float32Array(N)
+  for (let k = 0; k < N; k++) a[k] = r()
+  return a
+})()
+
+/** The pairs of stations an uplink runs between. Real station indices, so the
+ *  arcs start and end on dots that are actually on the map. */
+const ARC_PAIRS = (() => {
+  const r = mulberry(103), a = new Int32Array(ARCS * 2)
+  for (let k = 0; k < ARCS * 2; k++) a[k] = N - STATIONS + Math.floor(r() * STATIONS)
+  return a
 })()
 
 /** Is this colour light? Used to tell a dark page from a pale one without
