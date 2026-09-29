@@ -116,6 +116,12 @@ const SIG_HOLD = 420
 /** Empty time before that slot starts a new one somewhere else. */
 const SIG_GAP = 950
 const SIG_CYCLE = SIG_TRAVEL + SIG_HOLD + SIG_GAP
+/* THE COLOURS A SIGNAL CAN WEAR: the brand blue, the ok green and the fault
+ * red -- the page's own three, and the three a station's verdict can be. One
+ * colour for every signal made the map look like it had a single kind of
+ * traffic on it. Stepping by slot as well as by lap means all three are in the
+ * air at once rather than the whole map turning red and then green together. */
+const SIG_TONES = [1, 3, 4]
 
 /** A shape, stored in a unit box: 2N numbers in [0,1]. Unit coordinates are
  *  what let the regions change every frame without rebuilding anything. */
@@ -456,15 +462,17 @@ export function DotField({ className }: { className?: string }) {
             reach = 1; fade = 1 - (ms - SIG_TRAVEL) / SIG_HOLD
           } else continue
 
+          const tone = SIG_TONES[(lap + slot) % SIG_TONES.length]
+          const lit = palette[tone]
           const [i0, i1] = route(slot, lap)
           const x0 = PX[i0], y0 = PY[i0], x1 = PX[i1], y1 = PY[i1]
           const dx = x1 - x0, dy = y1 - y0
           if (Math.hypot(dx, dy) < 40) continue      // too short to read as a link
-          /* A SHALLOW ARC, BECAUSE THIS IS A MAP SEEN FROM ABOVE.
-           * At a quarter of the chord the bulge read as something lobbed over
-           * the country. A route between two stations, looked down on, is very
-           * nearly the straight line with a little bend in it. */
-          const cx = (x0 + x1) / 2 - dy * 0.12, cy = (y0 + y1) / 2 + dx * 0.12
+          /* THE BEND. A straight line between two dots is a rule; the bend is
+           * what makes it a route. It has been as flat as 0.12 and as lobbed
+           * as 0.24 -- this is the read that keeps the arc obvious without
+           * throwing it over the country. */
+          const cx = (x0 + x1) / 2 - dy * 0.26, cy = (y0 + y1) / 2 + dx * 0.26
 
           /* A PLAIN LINE, LIT.
            *
@@ -498,15 +506,15 @@ export function DotField({ className }: { className?: string }) {
           ctx!.lineWidth = 1
           trace(); ctx!.stroke()
 
-          ctx!.shadowColor = palette[1]
+          ctx!.shadowColor = lit
           ctx!.shadowBlur = 10
-          ctx!.strokeStyle = palette[1]
+          ctx!.strokeStyle = lit
           ctx!.globalAlpha = sigA * fade * 0.85
           ctx!.lineWidth = 1.6
           trace(); ctx!.stroke()
 
           ctx!.shadowBlur = 16
-          ctx!.fillStyle = palette[1]
+          ctx!.fillStyle = lit
           ctx!.globalAlpha = sigA * fade
           ctx!.beginPath()
           ctx!.arc(px2[STEPS], py2[STEPS], 2.6, 0, Math.PI * 2)

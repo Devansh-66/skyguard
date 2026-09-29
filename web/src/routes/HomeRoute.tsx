@@ -60,7 +60,14 @@ export function HomeRoute() {
         headings, paragraphs and cards inside this wrapper and keeps the dots
         off them, so the field moves down the side of a full-width grid of
         cards instead of behind it. */}
-    <div data-field-content className="relative z-10 mx-auto max-w-[1100px] px-5">
+    {/* 980, NOT 1100, SO THE MARGINS SURVIVE A ZOOM.
+        *
+        * The field puts its small formations in the page's margins, and a
+        * 1100px measure only leaves margins worth the name above about 1300px
+        * of viewport -- which a zoomed window is not. At 980 they appear a
+        * couple of zoom steps earlier, and the copy is set to 52-56 characters
+        * anyway, so the measure was never carrying the line length. */}
+    <div data-field-content className="relative z-10 mx-auto max-w-[980px] px-5">
 
       {/* ---------------------------------------------------------- hero
         *
