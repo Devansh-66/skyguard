@@ -53,10 +53,10 @@ export function DecisionTrace({ a }: { a: Assessment }) {
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1">
-          <span className="font-medium text-ink">How this was decided</span>
+          <span className="font-medium text-ink">Decision trace</span>
           <span className="ml-2 text-ink-3">
             {t.length} check{t.length === 1 ? '' : 's'}, in order
-            {decided ? ` — number ${decided.step} settled it` : ''}
+            {decided ? `. Step ${decided.step} settled it` : ''}
           </span>
         </span>
       </summary>

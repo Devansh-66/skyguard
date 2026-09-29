@@ -26,12 +26,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-paper text-ink">
       <header className="sticky top-0 z-50 border-b border-rule bg-paper/85 backdrop-blur-md">
-        {/* The same measure the page's content uses, so the wordmark sits
-            over the start of the copy rather than 200px to the left of it.
-            It was 1600 -- near enough full bleed -- which read as deliberate
-            while the content was 1100 and simply looked adrift once that came
-            in to 980. */}
-        <div className="mx-auto flex h-14 max-w-[980px] items-center gap-8 px-5">
+        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-8 px-5">
           <Link to="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
             <Glyph />
             <span className="text-[15px]">SkyGuard</span>

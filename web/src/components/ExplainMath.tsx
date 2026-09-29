@@ -80,7 +80,7 @@ export function ExplainMath({
              expr={neighbour == null ? 'not available' : `${fmt(neighbour)} ${unit}`}
              note="Median, so one bad neighbour cannot move it." />
         <Row n={3} on={step >= 3}
-             label="The difference — the residual"
+             label="Residual"
              expr={residual == null ? 'not available'
                : `${fmt(reading)} − ${fmt(neighbour)} = ${fmt(residual)} ${unit}`}
              note="Shared weather cancels here. What is left belongs to the instrument."
@@ -91,7 +91,7 @@ export function ExplainMath({
                : sigma
                  ? `${fmt(residual)} ÷ ${fmt(sigma)} = ${fmt(zVal, 1)} σ`
                  : `${fmt(zVal, 1)} σ`}
-             note={`Watch at ${watchAt}σ, fault at ${faultAt}σ — calibrated against a fault-free run.`}
+             note={`Watch at ${watchAt}σ. Fault at ${faultAt}σ. Calibrated against a fault-free run.`}
              emphasis />
       </div>
 
@@ -105,7 +105,7 @@ export function ExplainMath({
         )}>
           <span className="text-sm text-ink-2">
             {band === 'OK'
-              ? 'Inside the band — no action.'
+              ? 'Inside the band. No action.'
               : `Beyond ${band === 'FAULT' ? faultAt : watchAt} sigma.`}
           </span>
           <span className={cn(

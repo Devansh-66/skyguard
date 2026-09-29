@@ -551,18 +551,14 @@ export function NetworkRoute() {
           nothing saying what any of it was. Space is cheaper than confusion. */}
       <header className="mb-5">
         <h1 className="text-2xl font-semibold tracking-tight">Network</h1>
-        <p className="mt-1 max-w-[70ch] text-sm text-ink-2">
-          Every station, graded against its neighbours. Play the record to watch
-          faults appear, or pick a station to see its three channels.
-        </p>
       </header>
 
       <div className="mb-3 flex flex-wrap items-end gap-x-5 gap-y-3
                       rounded-[--radius-lg] border border-rule bg-surface px-4 py-3">
         <Field label="Network">
           <select className={SELECT} value={net} onChange={(e) => setNet(e.target.value as Net)}>
-            <option value="sim">Simulated — 344 locations</option>
-            <option value="wdqms">Real — IMD via WDQMS</option>
+            <option value="sim">Simulated (344 locations)</option>
+            <option value="wdqms">Real (IMD via WDQMS)</option>
           </select>
         </Field>
         <Field label="Base map">
@@ -691,7 +687,7 @@ export function NetworkRoute() {
                     fillOpacity: 0.95,
                   }}>
                   <Tooltip direction="top" offset={[0, -8]}>
-                    <b>{node.data.name}</b> — live node<br />
+                    <b>{node.data.name}</b>: live node<br />
                     {node.data.state} · {node.data.elev} m<br />
                     {live.latest && live.latest.station === node.data.name ? (
                       <span className="mono">
@@ -740,7 +736,7 @@ export function NetworkRoute() {
                       fillOpacity: 0.95,
                     }}>
                     <Tooltip direction="top" offset={[0, -8]}>
-                      <b>{st.name}</b> — {st.label}<br />
+                      <b>{st.name}</b>: {st.label}<br />
                       {st.state} · {st.elev} m<br />
                       {g ? (
                         <>
@@ -789,7 +785,7 @@ export function NetworkRoute() {
                     }}
                     eventHandlers={{ click: () => setSelected(s.id) }}>
                     <Tooltip direction="top" offset={[0, -6]}>
-                      <b>{s.name}</b> — {label(sim.data, s, channel, hour, band)}<br />
+                      <b>{s.name}</b>: {label(sim.data, s, channel, hour, band)}<br />
                       {s.state} · {s.elev} m<br />
                       <span className="mono">{sim.data && timeLabel(sim.data, hour)}</span>
                       {s.fault && <><br /><b>injected: {s.fault.kind} on {s.fault.channel}</b></>}
@@ -808,7 +804,7 @@ export function NetworkRoute() {
                     pathOptions={{ color: hue ?? b.ok, fillColor: hue ?? b.ok,
                                    fillOpacity: hue ? 0.95 : b.okOpacity, weight: 0, stroke: false }}>
                     <Tooltip direction="top" offset={[0, -6]}>
-                      <b>{s.name}</b> — {s.health.state}<br />
+                      <b>{s.name}</b>: {s.health.state}<br />
                       {s.region} · worst: {s.health.channel} at {s.health.severity}× tolerance
                       {s.near.verdict === 'isolated' && <><br /><b>alone in its area</b></>}
                     </Tooltip>
@@ -882,7 +878,7 @@ export function NetworkRoute() {
             {fieldRange(sim.data, field).hi} {fieldRange(sim.data, field).unit}
           </span>
           <span className="text-xs text-ink-3">
-            Surface interpolated between stations — only the dots are measured.
+            Interpolated surface. Dots are measured.
           </span>
         </div>
       )}
@@ -1010,23 +1006,14 @@ export function NetworkRoute() {
                   live={edgeLive} />
 
                 <p className="small muted">
-                  This node measures its own readings on an ESP32 and posts
-                  them to <code>/api/ingest</code> over TLS, through the same
-                  door the rest of the network uses. Each sample is one frame
-                  of the record —{' '}
-                  <strong>
-                    {edgeSeries.data?.minutes_per_frame ?? 30} simulated minutes
-                  </strong>
-                  {' '}— and the pen has reached{' '}
+                  ESP32 readings post to <code>/api/ingest</code>. Each sample
+                  represents <strong>{edgeSeries.data?.minutes_per_frame ?? 30} simulated minutes</strong>.
+                  The record has reached{' '}
                   <strong>
                     {edgeSeries.data?.frames.length
                       ? edgeSeries.data.frames[edgeSeries.data.frames.length - 1]
                       : 0} of {sim.data.n_fields}
-                  </strong>{' '}frames. Nothing to the right of the pen has been
-                  measured, so nothing is drawn there. It is screened against
-                  the WMO rails on the board, screened again on arrival, and
-                  differenced against{' '}
-                  {edgeStanding?.neighbours ?? 6} simulated neighbours.
+                  </strong>{' '}frames.
                 </p>
               </>)
             : nodeSelected && node.data && sim.data
@@ -1052,7 +1039,7 @@ export function NetworkRoute() {
                       liveCommand(import.meta.env.VITE_API_BASE ?? '',
                         '/api/live/fault?kind=' + e.target.value).catch(() => {})
                     }}>
-                      <option value="none">nothing — healthy</option>
+                      <option value="none">nothing (healthy)</option>
                       <option value="drift">drift</option>
                       <option value="offset">offset</option>
                       <option value="stuck">stuck</option>
@@ -1075,16 +1062,7 @@ export function NetworkRoute() {
                           upto: live.frame }} />
 
                 <p className="small muted">
-                  This node was switched on when the service started, so it
-                  has no past — the axis is the same thirty days every station
-                  here is drawn on, and the pen has reached{' '}
-                  <strong>{live.frame} of {sim.data.n_fields}</strong> frames.
-                  It fills as the node reports, about twelve minutes for the
-                  month. Nothing to the right of the pen has been measured, so
-                  nothing is drawn there.
-                  {' '}Readings arrive at <code>/api/ingest</code>, are screened
-                  against the WMO rails, differenced against six neighbours
-                  within 120 km, and stored.
+                  This node has reported <strong>{live.frame} of {sim.data.n_fields}</strong> frames.
                 </p>
               </>)
             : !chosen || !sim.data
@@ -1193,7 +1171,7 @@ export function NetworkRoute() {
                       onKeyDown={(e) => { if (e.key === 'Enter') setSelected(node.data!.id) }}>
                     <td className={TD + ' font-medium'}>{node.data.name}</td>
                     <td className={TD + ' text-ink-2'}>{node.data.state}</td>
-                    <td className={TD + ' tnum text-right font-mono text-xs text-ink-2'}>
+                    <td className={TD + ' tnum font-mono text-xs text-ink-2'}>
                       {node.data.elev} m
                     </td>
                     <td className={TD}>
@@ -1215,7 +1193,7 @@ export function NetworkRoute() {
                       onKeyDown={(e) => { if (e.key === 'Enter') setSelected(st.id) }}>
                     <td className={TD + ' font-medium'}>{st.name}</td>
                     <td className={TD + ' text-ink-2'}>{st.state}</td>
-                    <td className={TD + ' tnum text-right font-mono text-xs text-ink-2'}>
+                    <td className={TD + ' tnum font-mono text-xs text-ink-2'}>
                       {st.elev} m
                     </td>
                     <td className={TD}>
@@ -1236,7 +1214,7 @@ export function NetworkRoute() {
                       onKeyDown={(e) => { if (e.key === 'Enter') setSelected(s.id) }}>
                     <td className={TD + ' font-medium'}>{s.name}</td>
                     <td className={TD + ' text-ink-2'}>{s.state}</td>
-                    <td className={TD + ' tnum text-right font-mono text-xs text-ink-2'}>
+                    <td className={TD + ' tnum font-mono text-xs text-ink-2'}>
                       {s.elev} m
                     </td>
                     <td className={TD}>
@@ -1277,8 +1255,8 @@ export function NetworkRoute() {
             Grades are this project's own verdict from neighbour differencing,
             standardised against a trailing 15-day spread, not the injected
             truth. Bands are 6σ and 8σ, calibrated against a fault-free control
-            run. Ten stations — the Andaman, Nicobar and Lakshadweep groups —
-            have no neighbours within 250 km and cannot be graded at all.
+            run. Ten stations in the Andaman, Nicobar and Lakshadweep groups
+            have no neighbours within 250 km and cannot be graded.
           </p>
         </section>
       )}

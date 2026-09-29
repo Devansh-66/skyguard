@@ -151,7 +151,7 @@ export function Barograph() {
           </span>
         </span>
         <span className={'tnum font-mono text-xs ' + (outside ? 'text-fault' : 'text-ink-3')}>
-          {outside ? `off by ${excursion.toFixed(2)} — flagged` : 'within tolerance'}
+          {outside ? `off by ${excursion.toFixed(2)}: flagged` : 'within tolerance'}
         </span>
       </div>
     </div>

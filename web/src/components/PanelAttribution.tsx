@@ -65,10 +65,10 @@ export function PanelAttribution({ at, a }: Props) {
 
       {/* ------------------------------------------------------- the track */}
       <div className="border-b border-rule px-5 pb-4 pt-4">
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="font-mono text-[10px] uppercase tracking-widest text-ink-3">
-            How much each agent moved the decision
-          </span>
+        {/* The section above this one is already headed "Agent contribution";
+            repeating it here printed the same words twice in a row. What is
+            left is the part the heading does not say. */}
+        <div className="flex items-baseline justify-end gap-3">
           <span className="font-mono text-[10px] uppercase tracking-widest text-ink-3">
             exact · all {at.coalitions} coalitions
           </span>
@@ -168,18 +168,21 @@ export function PanelAttribution({ at, a }: Props) {
         })}
       </div>
 
-      {/* THE ARITHMETIC, STATED. A reader who adds the column up should be
-          told in advance that it closes -- otherwise the fact that it does
-          looks like a coincidence rather than the guarantee it is. */}
+      {/* THE ARITHMETIC, STATED -- AND ONLY THAT.
+          A reader who adds the column up should be told in advance that it
+          closes, otherwise the fact that it does looks like a coincidence
+          rather than the guarantee it is. What followed was four lines
+          teaching the reader what a Shapley value is, on every case they
+          opened. The header already says "exact - all 8 coalitions"; the
+          claim that needed keeping is that these are shares rather than
+          estimates, and that is one clause. */}
       <div className="border-t border-rule bg-sunk/60 px-5 py-3">
         <p className="text-xs leading-relaxed text-ink-2">
-          The three add up to exactly {at.total.toFixed(2)} — the verdict as
-          issued.{decided ? ` ${decided.title} carried it.` : ''}
+          The three add up to exactly {at.total.toFixed(2)}. This is the issued
+          verdict.{decided ? ` ${decided.title} carried it.` : ''}
           {' '}
           <span className="text-ink-3">
-            Shapley values over the panel: each agent is scored by what it adds
-            to every possible group of the others. With three agents all eight
-            groups are checked, so this is the exact share, not an estimate.
+            Exact Shapley shares, not estimates.
           </span>
         </p>
       </div>

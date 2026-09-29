@@ -155,18 +155,18 @@ def hardware_health_agent(e: Evidence) -> AgentVerdict:
     if e.gap_fraction is not None and e.gap_fraction > 0.2:
         return AgentVerdict(
             "hardware", "Hardware health", "alarm", 0.9,
-            f"Missing {e.gap_fraction * 100:.0f}% of its reports — the link or "
+            f"Missing {e.gap_fraction * 100:.0f}% of its reports. The link or "
             "the power is failing", m)
 
     if e.flat_fraction is not None and e.flat_fraction > 0.5:
         return AgentVerdict(
             "hardware", "Hardware health", "alarm", 0.85,
-            "Value has stopped changing — the probe or the logger is stuck", m)
+            "Value has stopped changing. The probe or the logger is stuck", m)
 
     if e.housekeeping_moved:
         return AgentVerdict(
             "hardware", "Hardware health", "alarm", 0.9,
-            "Logger voltage or temperature moved with the fault — this is the "
+            "Logger voltage or temperature moved with the fault. This is the "
             "hardware, not the calibration", m)
 
     if e.trust is not None and e.trust < 0.5:
@@ -216,32 +216,32 @@ def context_validation_agent(e: Evidence) -> AgentVerdict:
         if e.region_z is not None and e.neighbour_count:
             share = (f", covering {e.region_share:.0%} of this excursion"
                      if e.region_share is not None else "")
-            detail = (f" — {e.neighbour_count} neighbours moved "
-                      f"{abs(e.region_z):.1f} sigma{share}")
+            detail = (f" ({e.neighbour_count} neighbours moved "
+                      f"{abs(e.region_z):.1f} sigma{share})")
         return AgentVerdict(
             "context", "Weather or fault?", "ok", 0.85,
             f"The surrounding stations show the same movement{detail}"
             if detail else
-            "Neighbouring stations show the same movement — this is weather", m)
+            "Neighbouring stations show the same movement. This is weather", m)
 
     if e.neighbours_agree is False:
         extra = ""
         if e.days_open is not None and e.days_open >= 1:
-            extra = f", and has for {e.days_open:.0f} days"
+            extra = f" It has read wrong for {e.days_open:.0f} days."
         quiet = ""
         if e.region_z is not None and e.neighbour_count:
             quiet = (f" Its {e.neighbour_count} neighbours moved only "
                      f"{abs(e.region_z):.1f} sigma.")
         return AgentVerdict(
             "context", "Weather or fault?", "alarm", 0.85,
-            f"No neighbouring station shows this{extra} — it is the "
-            f"instrument.{quiet}".rstrip(),
+            f"No neighbouring station shows this.{extra} The fault is in "
+            f"the instrument.{quiet}".rstrip(),
             m)
 
     if e.episodes is not None and e.episodes >= 2:
         return AgentVerdict(
             "context", "Weather or fault?", "watch", 0.5,
-            f"Has gone wrong {e.episodes} separate times — weather does not "
+            f"Has gone wrong {e.episodes} separate times. Weather does not "
             "repeat like that", m)
 
     return AgentVerdict("context", "Weather or fault?", "unknown", 0.2,
@@ -260,7 +260,7 @@ ACTIONS = {
     "INSPECT":   "Inspect sensor, wiring and logger",
     "CALIBRATE": "Calibrate or replace the sensor",
     "COMMS":     "Check power and communications",
-    "MONITOR":   "No visit — keep monitoring",
+    "MONITOR":   "No visit, keep monitoring",
 }
 
 
@@ -340,7 +340,7 @@ def adjudicate(e: Evidence, verdicts: list[AgentVerdict]) -> Assessment:
         check("Is it missing reports rather than misreading?", gap,
               "Most reports are arriving, so this is the sensor or its wiring"
               if not gap else
-              f"Missing {(e.gap_fraction or 0) * 100:.0f}% of reports — power "
+              f"Missing {(e.gap_fraction or 0) * 100:.0f}% of reports. Power "
               "or communications", "hardware")
         return done("critical", action, 1, hw.confidence,
                     "Hardware health is the strongest signal here: "
@@ -390,7 +390,7 @@ def adjudicate(e: Evidence, verdicts: list[AgentVerdict]) -> Assessment:
               f"{SERVICE_INTERVAL_D:.0f} days"
               if answerable else
               "No noise estimate for this sensor, so this cannot be answered "
-              "either way — the visit is scheduled rather than assumed away"),
+              "either way: the visit is scheduled rather than assumed away"),
              "data_quality"):
         return done("warning", "MONITOR", 3, dq.confidence,
                     f"A steady offset that grows only {growth:.1f} sigma before "
@@ -689,9 +689,9 @@ def panel_info() -> dict:
     return {
         "agents": [
             {"agent": "data_quality", "title": "Data quality",
-             "watches": "the observation stream — offset, drift, noise"},
+             "watches": "the observation stream: offset, drift, noise"},
             {"agent": "hardware", "title": "Hardware health",
-             "watches": "the device — power, logger, link, stuck values"},
+             "watches": "the device: power, logger, link, stuck values"},
             {"agent": "context", "title": "Weather or fault?",
              "watches": "the neighbouring stations, to rule out real weather"},
         ],

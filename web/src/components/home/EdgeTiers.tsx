@@ -101,8 +101,8 @@ export function EdgeTiers() {
         </g>
 
         {/* What each lane means. This is the correction: neither is a bin. */}
-        <Label x={GATE + 26} y={LANE + LANE_NOW - 12}>flagged — sent at once</Label>
-        <Label x={GATE + 26} y={LANE + LANE_WAIT + 20} dim>clean — waits for the heartbeat</Label>
+        <Label x={GATE + 26} y={LANE + LANE_NOW - 12}>flagged: sent at once</Label>
+        <Label x={GATE + 26} y={LANE + LANE_WAIT + 20} dim>clean: waits for the heartbeat</Label>
 
         {/* THE SERVER, which does not take the node's word for any of it. */}
         <g>
@@ -129,7 +129,7 @@ export function EdgeTiers() {
                       border-t border-rule px-5 py-3">
         <p className="max-w-[62ch] text-sm text-ink-2">
           The node does not decide what to keep. It decides when to spend radio
-          power — a suspect reading goes immediately, a clean one waits — and the
+          power. A suspect reading goes immediately; a clean one waits, and the
           server screens everything again on arrival.
         </p>
         <span className="font-mono text-[10px] uppercase tracking-widest text-ink-3">

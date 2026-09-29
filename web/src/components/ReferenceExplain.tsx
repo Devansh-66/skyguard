@@ -73,7 +73,7 @@ export function ReferenceExplain({ station, channel, step }: {
 
   if (q.isError || (!q.data && !q.isLoading)) return null
   if (!q.data) {
-    return <p className="text-sm text-ink-3">Asking the reference model…</p>
+    return <p className="text-sm text-ink-3">Loading…</p>
   }
 
   const d = q.data
@@ -118,7 +118,7 @@ export function ReferenceExplain({ station, channel, step }: {
         a healthy station and on a broken one alike, and it is the residual
         measured against its own spread that decides whether anything is
         detected
-        {better ? ' — here the model puts this reading further out.' : '.'}
+        {better ? '. Here the model puts this reading further out.' : '.'}
       </p>
 
       {/* The account of the model's number. */}
@@ -159,7 +159,7 @@ export function ReferenceExplain({ station, channel, step }: {
         <span className="tnum font-mono">{d.base_value.toFixed(3)}</span> to the
         model's prediction of{' '}
         <span className="tnum font-mono">{d.learned.prediction.toFixed(3)}</span>
-        {' '}{u} — so the arithmetic can be checked rather than taken on trust.
+        {' '}{u}, so the arithmetic can be checked rather than taken on trust.
       </p>
 
       <p className="max-w-[68ch] text-xs text-ink-3">

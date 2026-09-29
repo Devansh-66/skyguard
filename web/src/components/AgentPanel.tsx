@@ -33,7 +33,7 @@ export function ActionCard({ a }: { a: Assessment }) {
         {a.can_fix_remotely && (
           <p className="mt-3 flex items-center gap-2 font-mono text-xs text-ok">
             <span className="inline-block size-1.5 rounded-full bg-ok" aria-hidden="true" />
-            No site visit needed — correctable centrally.
+            No site visit needed. Correctable centrally.
           </p>
         )}
       </div>

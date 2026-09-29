@@ -78,10 +78,7 @@ export function PanelBehaviour() {
           How the panel behaves across {d.rows} flagged sensors
         </h2>
         <p className="mt-1.5 max-w-[62ch] text-sm leading-relaxed text-ink-2">
-          Every verdict on this board is three agents and an arbiter. These are
-          the same Shapley values, gathered across the whole network — the view
-          that says whether all three are doing work, and which faults each one
-          actually catches.
+          Exact agent attribution across the flagged network.
         </p>
       </div>
 
@@ -122,7 +119,7 @@ export function PanelBehaviour() {
               /* Said out loud rather than left as an empty strip. */
               <p className="mt-2 text-xs leading-relaxed text-ink-2">
                 Never affected a verdict on this network. The simulated export
-                carries no housekeeping channels — supply, logger, link — so
+                carries no housekeeping channels: supply, logger and link. So
                 this agent has nothing to read. It fires correctly on the live
                 node, which sends them.
               </p>
@@ -195,7 +192,7 @@ export function PanelBehaviour() {
           </table>
         </div>
         <p className="mt-2.5 font-mono text-[10px] uppercase tracking-widest text-ink-3">
-          rows under 3 sensors are drawn back — too thin to read as a finding
+          Rows under 3 sensors are muted.
         </p>
       </div>
 
@@ -206,9 +203,8 @@ export function PanelBehaviour() {
           <span className="font-semibold text-ink">
             {d.dispatches_avoided.toFixed(2)}
           </span>{' '}
-          times over — visits that would otherwise have been scheduled for
-          weather. That is what the third agent is worth, in the only unit a
-          maintenance budget recognises.
+          times. Those visits were avoided because the region moved with the
+          station.
         </p>
       </div>
     </Shell>

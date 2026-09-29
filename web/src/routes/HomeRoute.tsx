@@ -83,7 +83,7 @@ export function HomeRoute() {
         * purpose. A landing page that makes you scroll six times before it
         * shows you a number is asking for trust it has not offered.
         */}
-      <section className="pt-14 sm:pt-20">
+      <section className="pt-14 pb-12 sm:pt-20 sm:pb-16">
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-3">
           Automatic weather stations · SIH 2026 · PS26073
         </p>
@@ -97,11 +97,11 @@ export function HomeRoute() {
           * here; size and tracking are. */}
         <h1 className="mt-5 max-w-[17ch] font-serif text-[clamp(2.8rem,7vw,5.2rem)]
                        font-normal leading-[0.96] tracking-[-0.035em]">
-          A weather network that knows when it’s wrong.
+          A weather network that detects faulty observations.
         </h1>
         <p className="mt-7 max-w-[52ch] text-lg leading-relaxed text-ink-2 sm:text-xl">
           SkyGuard finds drifting, stuck and silent sensors across hundreds of
-          stations — using nothing but temperature, pressure and humidity.
+          stations using temperature, pressure and humidity.
         </p>
         <div className="mt-9 flex flex-wrap items-center gap-3">
           <Link
@@ -158,11 +158,11 @@ export function HomeRoute() {
       <section className="border-t border-rule py-16 sm:py-20">
         <Eyebrow>Detection</Eyebrow>
         <h2 className="mt-4 max-w-[20ch] font-serif text-[clamp(2rem,4vw,3rem)] font-normal tracking-[-0.03em]">
-          Catches the drift a threshold never sees.
+          Detects gradual sensor drift that simple thresholds miss.
         </h2>
         <p className="mt-5 max-w-[56ch] text-lg leading-relaxed text-ink-2">
           SkyGuard grades every reading against the stations around it, so it
-          finds a probe sliding a twentieth of a degree a day while each single
+          finds a probe sliding 0.05°C a day while each single
           reading still looks perfectly plausible.
         </p>
 
@@ -171,8 +171,8 @@ export function HomeRoute() {
           steps={[
             { label: 'reads',
               text: <>SkyGuard takes every station's temperature, pressure and
-                     humidity as it arrives, and holds thirty days of each at
-                     fifteen-minute steps.</> },
+                     humidity as it arrives, and keeps 30 days of readings at
+                     15-minute intervals.</> },
             { label: 'removes',
               text: <>It removes each station's own hourly climatology first,
                      so a site that simply runs warm in the afternoon is never
@@ -201,11 +201,11 @@ export function HomeRoute() {
       <section className="border-t border-rule py-16 sm:py-20">
         <Eyebrow>The decision</Eyebrow>
         <h2 className="mt-4 font-serif text-[clamp(2rem,4vw,3rem)] font-normal tracking-[-0.03em]">
-          Three specialists, one decision.
+          Three independent checks, one decision.
         </h2>
         <p className="mt-5 max-w-[56ch] text-lg leading-relaxed text-ink-2">
-          Every verdict is three independent opinions and an arbiter — and the
-          system always says which one carried the call.
+          Three independent checks and an arbiter. The system shows which
+          evidence determined the result.
         </p>
 
         {/* The three agents are three of a kind, so they get three equal
@@ -227,7 +227,7 @@ export function HomeRoute() {
           <AgentCard
             n="03" tone="ok" title="Weather or fault"
             what="The surrounding stations"
-            asks="Clears the station when its neighbours moved with it, so weather never becomes a work order."
+            asks="Clears the station when its neighbours moved with it, preventing weather events from triggering a visit."
           />
         </Reveal>
 
@@ -238,7 +238,7 @@ export function HomeRoute() {
                            lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.3fr)] lg:gap-12">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-widest text-ink-3">
-              The arbiter, deciding
+              How the decision is made
             </div>
             <p className="mt-4 max-w-[38ch] font-serif text-lg leading-relaxed text-ink-2">
               Every finding carries a signed contribution to the verdict,
@@ -256,7 +256,7 @@ export function HomeRoute() {
       <section className="border-t border-rule py-16 sm:py-20">
         <Eyebrow>The outcome</Eyebrow>
         <h2 className="mt-4 font-serif text-[clamp(2rem,4vw,3rem)] font-normal tracking-[-0.03em]">
-          From a suspicion to a work order.
+          From detection to maintenance action.
         </h2>
         <p className="mt-5 max-w-[56ch] text-lg leading-relaxed text-ink-2">
           SkyGuard names the fault, ranks it against every other open case,
@@ -268,7 +268,7 @@ export function HomeRoute() {
           <Step icon={<Radio size={18} />} title="Diagnose"
                 body="Stuck probe, dead link, failing supply or slow calibration drift." />
           <Step icon={<Wrench size={18} />} title="Dispatch"
-                body="Inspect, calibrate, or check power — with a priority attached." />
+                body="Inspect, calibrate, or check power, with a priority attached." />
         </Reveal>
       </section>
 
@@ -301,13 +301,13 @@ export function HomeRoute() {
         <Reveal className="mt-4 grid gap-4 md:grid-cols-3">
           <Step icon={<Cpu size={18} />} title="Screening at the edge"
                 body="The node checks its own readings against WMO limits and
-                      reports its own health — supply, logger, link — before
+                      reports its own health: supply, logger and link, before
                       anything leaves the pole." />
-          <Step icon={<Network size={18} />} title="One door in"
+          <Step icon={<Network size={18} />} title="Shared ingest endpoint"
                 body="A simulated station and a physical ESP32 post through the
                       same endpoint and are judged by the same panel. Adding
                       hardware changes nothing downstream." />
-          <Step icon={<ShieldCheck size={18} />} title="Abstains when it cannot judge"
+          <Step icon={<ShieldCheck size={18} />} title="Reports insufficient evidence"
                 body="With too few neighbours, too little history or nothing on
                       the housekeeping channel, SkyGuard returns no verdict and
                       names the input it was missing." />
@@ -340,13 +340,13 @@ export function HomeRoute() {
           </h2>
           <div className="mt-10 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
             <DarkStat v={m ? Math.round(m.recall * 100) + '%' : '—'}
-                      k="Faults found"
+                      k="Injected faults detected"
                       s="of the faults injected into the network" />
             <DarkStat v={m ? Math.round(m.precision * 100) + '%' : '—'}
-                      k="Alerts genuine"
+                      k="True alerts"
                       s="of the alerts raised were real faults" />
             <DarkStat v={n ? String(n.simulated_stations) : '—'}
-                      k="Stations graded"
+                      k="Stations assessed"
                       s="every reading, against its neighbours" />
             <DarkStat v="6σ / 8σ"
                       k="Alert bands"

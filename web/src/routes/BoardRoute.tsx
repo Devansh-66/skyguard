@@ -138,18 +138,6 @@ export function BoardRoute() {
                         lg:max-h-[calc(100vh-3rem)]">
         <header className="mb-4 shrink-0">
           <h1 className="text-2xl font-semibold tracking-tight">Maintenance board</h1>
-          {/* One sentence saying what the screen is for. The previous version
-              opened straight into a list and left the reader to infer it. */}
-          <p className="mt-1 text-sm text-ink-2">
-            Sensors that need a technician, worst first.
-          </p>
-          {/* One line teaching the row format. Without it the evidence line on
-              each card is just more text; with it, the reader knows it is the
-              agent that decided, and the list becomes readable at a glance. */}
-          <p className="mt-1 text-xs text-ink-3">
-            Three agents judge every sensor. Each row shows the job, and the
-            agent whose finding carried it.
-          </p>
           <div className="mt-4 grid grid-cols-3 gap-2">
             <PrioCount n={byP(1)} label="Today" tone="fault" />
             <PrioCount n={byP(2)} label="This week" tone="watch" />
@@ -259,8 +247,7 @@ export function BoardRoute() {
            * panel actually work" belongs. */
           <div className="flex flex-col gap-4">
             <p className="text-sm text-ink-3">
-              Select a sensor on the left to see what needs doing — or read how
-              the panel has been behaving across the network.
+              Select a sensor to view its maintenance case.
             </p>
             <PanelBehaviour />
           </div>
@@ -512,12 +499,12 @@ function EdgeDetail({ id, a }: { id: string; a: Assessment | undefined }) {
         </p>
       </header>
       {a ? <ActionCard a={a} /> : <p className="text-sm text-ink-3">Asking the panel…</p>}
-      <SectionLabel>Why the panel says so</SectionLabel>
+      <SectionLabel>Panel findings</SectionLabel>
       {a && <AgentVerdicts a={a} />}
 
       {a?.attribution && (
         <>
-          <SectionLabel>How much each agent mattered</SectionLabel>
+          <SectionLabel>Agent contribution</SectionLabel>
           <PanelAttribution at={a.attribution} a={a} />
         </>
       )}
@@ -529,7 +516,7 @@ function EdgeDetail({ id, a }: { id: string; a: Assessment | undefined }) {
           it is worse than none. */}
       {g && (
         <>
-          <SectionLabel>How that number was reached</SectionLabel>
+          <SectionLabel>Decision trace</SectionLabel>
           <ExplainMath
             reading={g.reported.temp}
             neighbour={g.expected.temp}
@@ -561,12 +548,12 @@ function LiveDetail({ a }: { a: Assessment | undefined }) {
         </p>
       </header>
       {a ? <ActionCard a={a} /> : <p className="text-sm text-ink-3">Asking the panel…</p>}
-      <SectionLabel>Why the panel says so</SectionLabel>
+      <SectionLabel>Panel findings</SectionLabel>
       {a && <AgentVerdicts a={a} />}
 
       {a?.attribution && (
         <>
-          <SectionLabel>How much each agent mattered</SectionLabel>
+          <SectionLabel>Agent contribution</SectionLabel>
           <PanelAttribution at={a.attribution} a={a} />
         </>
       )}
@@ -583,7 +570,7 @@ function LiveDetail({ a }: { a: Assessment | undefined }) {
         * worse than none. */}
       {node.data && node.data.expected != null && node.data.last != null && (
         <>
-          <SectionLabel>How that number was reached</SectionLabel>
+          <SectionLabel>Decision trace</SectionLabel>
           <ExplainMath
             reading={node.data.last}
             neighbour={node.data.expected}
@@ -638,12 +625,12 @@ function SimDetail({ id, sim, a }: {
 
       {a ? <ActionCard a={a} /> : <p className="text-sm text-ink-3">Asking the panel…</p>}
 
-      <SectionLabel>Why the panel says so</SectionLabel>
+      <SectionLabel>Panel findings</SectionLabel>
       {a && <AgentVerdicts a={a} />}
 
       {a?.attribution && (
         <>
-          <SectionLabel>How much each agent mattered</SectionLabel>
+          <SectionLabel>Agent contribution</SectionLabel>
           <PanelAttribution at={a.attribution} a={a} />
         </>
       )}
@@ -675,7 +662,7 @@ function SimDetail({ id, sim, a }: {
         * inputs made that number -- the one question the panel's own Shapley
         * values cannot answer, because a median has no features to attribute
         * to. It renders nothing at all where the model has not been trained. */}
-      <SectionLabel>What a learned reference expected, and why</SectionLabel>
+      <SectionLabel>Learned reference</SectionLabel>
       <ReferenceExplain station={st.name}
                         channel={ch as 'temp' | 'rh' | 'pres'}
                         step={step} />
@@ -683,7 +670,7 @@ function SimDetail({ id, sim, a }: {
       {/* Marking our own homework, kept last and clearly separated: the panel
           never saw any of this. */}
       <Callout tone={injected && onThisChannel ? 'ok' : 'sus'}
-               title="Checking the verdict against what was injected">
+               title="Injected-fault comparison">
         {!injected
           ? 'Nothing was injected into this station, so every flagged hour here '
             + 'is a false alarm.'

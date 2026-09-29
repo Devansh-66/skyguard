@@ -61,7 +61,7 @@ export function BeliefChart({
       />
       <figcaption className="small muted">
         The shaded span is the interval an analyst reported as faulty. It is
-        drawn for comparison only — nothing in the estimate uses it. The pen
+        drawn for comparison only; nothing in the estimate uses it. The pen
         lifts at gaps in the record rather than joining across them.
       </figcaption>
     </figure>

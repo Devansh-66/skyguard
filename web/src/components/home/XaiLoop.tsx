@@ -70,7 +70,7 @@ export function XaiLoop() {
       <div className="border-b border-rule px-5 py-5">
         <div className="flex items-baseline justify-between gap-3">
           <span className="font-mono text-[10px] uppercase tracking-widest text-ink-3">
-            Confidence this is the instrument
+            Confidence the instrument is faulty
           </span>
           <span className={cn('tnum font-mono text-sm font-semibold',
             total > 0.66 ? 'text-fault' : total > 0.33 ? 'text-watch' : 'text-ink-3')}>
