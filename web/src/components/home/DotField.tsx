@@ -187,6 +187,10 @@ export function DotField({ className }: { className?: string }) {
     let scatter: Float32Array | null = null
     /** When the arrival began, or 0 when it is not playing. */
     let introFrom = 0
+    /** Whether the real boundary has ever been in hand. The field must arrive
+     *  once on load and once more when the outline turns up -- and NOT a third
+     *  time when the station list lands a moment later. */
+    let hadGeom = false
     let introTick: ReturnType<typeof setInterval> | undefined
     /** The morph position of the last frame, so the loop knows whether the map
      *  is still on screen and the uplinks are still worth drawing. */
@@ -243,6 +247,7 @@ export function DotField({ className }: { className?: string }) {
       inkIsLight = light(palette[0])
       baseAlpha = inkIsLight ? 0.20 : 0.20
 
+      hadGeom = hadGeom || !!data.current.geom
       shapes = [shapeIndia(data.current), shapeWave(), shapeCurve(),
                 splitPanel(bands(w, h)), splitOrder(bands(w, h)),
                 splitNetwork(bands(w, h)), shapeSpiral()]
@@ -461,33 +466,54 @@ export function DotField({ className }: { className?: string }) {
            * nearly the straight line with a little bend in it. */
           const cx = (x0 + x1) / 2 - dy * 0.12, cy = (y0 + y1) / 2 + dx * 0.12
 
-          /* THE PATH IS DARK AND THE HEAD IS THE LIGHT.
+          /* A PLAIN LINE, LIT.
            *
-           * Both used to be the brand blue at half strength, which made the
-           * whole thing one faint coloured streak. A path in ink -- which
-           * follows the theme, so it is dark on paper and pale on ink -- with a
-           * single coloured head riding it reads the way the thing actually
-           * works: a light travelling a route, not a coloured line growing. */
-          const laid = Math.max(2, Math.round(reach * 60))
-          const at2 = (d2: number) => {
-            const tt = (d2 / (laid - 1)) * reach, vv = 1 - tt
-            return [vv * vv * x0 + 2 * vv * tt * cx + tt * tt * x1,
-                    vv * vv * y0 + 2 * vv * tt * cy + tt * tt * y1] as const
+           * It was a row of dots, and a dotted curve at this scale is a dashed
+           * one: the eye reads the gaps, not the route. It is a stroked line
+           * now, drawn twice -- once in ink, thin and quiet, which is the route
+           * itself and follows the theme; then again in the brand colour over
+           * the top with a shadow of its own colour behind it, which is the
+           * whole of the neon. The head is the same colour with a wider glow.
+           *
+           * The shadow has to be cleared afterwards. Canvas shadows are state,
+           * not an argument, and leaving one set would put a halo behind every
+           * station dot drawn after this. */
+          const STEPS = 48
+          const px2 = new Float64Array(STEPS + 1), py2 = new Float64Array(STEPS + 1)
+          for (let d2 = 0; d2 <= STEPS; d2++) {
+            const tt = (d2 / STEPS) * reach, vv = 1 - tt
+            px2[d2] = vv * vv * x0 + 2 * vv * tt * cx + tt * tt * x1
+            py2[d2] = vv * vv * y0 + 2 * vv * tt * cy + tt * tt * y1
           }
-          ctx!.fillStyle = palette[0]
-          ctx!.globalAlpha = sigA * fade * 0.55
-          ctx!.beginPath()
-          for (let d2 = 0; d2 < laid - 1; d2++) {
-            const [sx, sy] = at2(d2)
-            ctx!.moveTo(sx + rf, sy); ctx!.arc(sx, sy, rf, 0, Math.PI * 2)
+          const trace = () => {
+            ctx!.beginPath()
+            ctx!.moveTo(px2[0], py2[0])
+            for (let d2 = 1; d2 <= STEPS; d2++) ctx!.lineTo(px2[d2], py2[d2])
           }
-          ctx!.fill()
-          const [hx, hy] = at2(laid - 1)
+          ctx!.lineCap = 'round'
+          ctx!.lineJoin = 'round'
+
+          ctx!.strokeStyle = palette[0]
+          ctx!.globalAlpha = sigA * fade * 0.30
+          ctx!.lineWidth = 1
+          trace(); ctx!.stroke()
+
+          ctx!.shadowColor = palette[1]
+          ctx!.shadowBlur = 10
+          ctx!.strokeStyle = palette[1]
+          ctx!.globalAlpha = sigA * fade * 0.85
+          ctx!.lineWidth = 1.6
+          trace(); ctx!.stroke()
+
+          ctx!.shadowBlur = 16
           ctx!.fillStyle = palette[1]
-          ctx!.globalAlpha = sigA * fade * 0.95
+          ctx!.globalAlpha = sigA * fade
           ctx!.beginPath()
-          ctx!.arc(hx, hy, rf * 2.1, 0, Math.PI * 2)
+          ctx!.arc(px2[STEPS], py2[STEPS], 2.6, 0, Math.PI * 2)
           ctx!.fill()
+
+          ctx!.shadowBlur = 0
+          ctx!.shadowColor = 'transparent'
         }
       }
 
@@ -543,7 +569,21 @@ export function DotField({ className }: { className?: string }) {
     window.addEventListener('scroll', onScroll, { passive: true })
     raf = requestAnimationFrame(frame)
 
-    replay.current = () => { if (ensure()) { arrive(); step() } }
+    /* ONE ARRIVAL PER THING WORTH ARRIVING FOR.
+     *
+     * This replayed on every change to either query, and there are two of them:
+     * the boundary and the station list. With the arrival on mount that is
+     * three run-throughs -- the field scattered and re-formed three times
+     * before it settled, which is what "it takes three goes to form the map"
+     * was. Only the outline changes what the map IS, so only the outline
+     * earns a second arrival; the stations land inside a shape that is already
+     * there, and are simply redrawn. */
+    replay.current = () => {
+      if (!ensure()) return
+      const has = !!data.current.geom
+      if (has && !hadGeom) { hadGeom = true; arrive() }
+      step()
+    }
 
     const onResize = () => { dirty.current = true }
     window.addEventListener('resize', onResize)
@@ -1045,13 +1085,36 @@ interface Bands { lx0: number; rx0: number; bw: number; ar: number }
 
 function bands(w: number, h: number): Bands {
   const AIR = 14
-  const col = Math.min(1100, w - 40)
-  const left = (w - col) / 2
+  /* MEASURE THE COLUMN; DO NOT RE-DERIVE IT.
+   *
+   * This used to compute the content column from the same numbers the
+   * stylesheet uses -- a measure of at most 1100px inside a 20px gutter -- and
+   * two copies of a layout rule stay equal only until something moves one of
+   * them. Browser zoom and a changed text size both reflow the page, and a
+   * scrollbar takes width from the viewport without telling this function; the
+   * glyphs then sit a few pixels into the cards, or a few pixels adrift of
+   * them, at exactly the zoom levels nobody tests at.
+   *
+   * So it asks the element. This runs inside build, once, and reads a document
+   * position rather than a scroll-dependent one, so it cannot reintroduce the
+   * per-frame measuring that used to make the field jump. */
+  const el = document.querySelector('[data-field-content]')
+  const box = el?.getBoundingClientRect()
+  const col = box && box.width > 200 ? box.width : Math.min(1100, w - 40)
+  const left = box && box.width > 200 ? box.left : (w - col) / 2
   let px = Math.min(190, left - AIR - 8)
   const ar = w / h
   if (px < 96) {
-    px = Math.min(120, w * 0.17)
-    return { lx0: 8 / w, rx0: (w - 8 - px) / w, bw: px / w, ar }
+    /* NO MARGIN TO HAVE.
+     *
+     * The page's measure is 1100px, so real margins only exist above about
+     * 1300px of viewport -- and browser zoom takes a window below that as
+     * surely as a small screen does. The old fallback took a flat 17% of the
+     * width, which at 1165px put the glyphs 95px INSIDE the cards. Taking only
+     * what is actually there roughly halves that, and the cards are glass, so
+     * what does overlap is dimmed rather than lost. */
+    px = Math.max(76, Math.min(120, left - 6))
+    return { lx0: 6 / w, rx0: (w - 6 - px) / w, bw: px / w, ar }
   }
   return {
     lx0: (left - AIR - px) / w,
